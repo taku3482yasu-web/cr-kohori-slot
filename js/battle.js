@@ -53,6 +53,12 @@ const Battle = {
 
         if (rash.phase === RASH_PHASES.TREASURE) return Lottery.drawRole(config.treasure.lottery, rng);
 
+        // デバッグ「次:内定の時」: 対戦相手を決めるゲームで実際に 7揃いを出して突入させる
+        if (rash.phase === RASH_PHASES.SELECT && rash.debugForceNaitei) {
+            rash.debugForceNaitei = false;
+            return config.naitei.triggerRoles[0];
+        }
+
         if (rash.phase === RASH_PHASES.QUESTION) {
             if (!rash.setWillWin) return 'miss';
             // 揃う役の中から確率表の比率で選ぶ (撃破役は紛らわしいので除く)
@@ -280,10 +286,9 @@ const Battle = {
 
     // ----- 内定の時ゾーン -----
     // SELECT のゲームで 7揃い・7・7・BAR が揃ったら突入 (対戦相手の抽選より優先。確定済みの次の相手はゾーン後に持ち越す)
+    // 揃っていないときは突入しない (デバッグボタンも drawRole で 7揃いを出す)
     isNaiteiTrigger(state, outcome, config) {
-        const forced = state.rash.debugForceNaitei;
-        state.rash.debugForceNaitei = false;
-        return forced || config.naitei.triggerRoles.includes(outcome.role);
+        return config.naitei.triggerRoles.includes(outcome.role);
     },
 
     // 1ゲームあたりの突破の当選確率 (RASH 中の確率表 × 役ごとの winRates)

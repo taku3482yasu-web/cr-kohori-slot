@@ -478,7 +478,7 @@ const DebugState = {
         state.rash.debugForceTreasure = true;
         return [{ type: 'debugQuiet' }];
     },
-    // 次の SELECT のゲームで内定の時ゾーンに入る (RASH 中でなければ RASH へ)
+    // 次の SELECT のゲームで 7揃いを出して内定の時ゾーンに入る (RASH 中でなければ RASH へ)
     forceNaitei(state) {
         const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
         state.rash.debugForceNaitei = true;
