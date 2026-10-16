@@ -445,7 +445,57 @@ const Backgrounds = (() => {
         };
     }
 
+    // ----- ダンシングステージ: ダンス会場 (床のライト・ミラーボール・スポットライトは lcd.js で動かす) -----
+    function buildDanceHall() {
+        const rng = seeded(97);
+        return {
+            groundY: 124,
+            floorY: 104,
+            layers: [
+                layer(0, p => {
+                    // 奥の壁 (上ほど暗い紫)
+                    p.bands(0, 104, ['#0c0618', '#120822', '#180a2c', '#1e0c36', '#240e40', '#2a104a']);
+                    // 壁の小さな電飾
+                    for (let i = 0; i < 40; i++) {
+                        const colors = ['#ff4fd8', '#4fe0ff', '#ffe04f', '#7fff6a'];
+                        p.rect(Math.floor(rng() * W), 8 + Math.floor(rng() * 50), 1, 1, colors[i % 4]);
+                    }
+                    // 天井のトラス
+                    p.rect(0, 6, W, 3, '#5a5a6a');
+                    for (let x = 0; x < W; x += 8) p.rect(x, 4, 1, 7, '#3a3a4a');
+                    // ステージの奥の幕と台
+                    p.rect(56, 40, 144, 64, '#3a0c4a');
+                    for (let x = 56; x < 200; x += 6) p.rect(x, 40, 2, 64, '#4a1460');
+                    p.rect(52, 36, 152, 4, '#c8a040');
+                    p.rect(48, 98, 160, 6, '#5a2a6a');
+                    p.rect(48, 98, 160, 1, '#c8a040');
+                    // 「DANCE」のネオン看板の枠
+                    p.rect(98, 46, 60, 16, '#100418');
+                    p.rect(98, 46, 60, 1, '#ff4fd8');
+                    p.rect(98, 61, 60, 1, '#ff4fd8');
+                    p.rect(98, 46, 1, 16, '#ff4fd8');
+                    p.rect(157, 46, 1, 16, '#ff4fd8');
+                    // 左右のスピーカー
+                    [[6, 52], [214, 52]].forEach(([x, y]) => {
+                        p.rect(x, y, 36, 52, '#141418');
+                        p.rect(x + 1, y + 1, 34, 50, '#24242c');
+                        [[18, 14, 11], [18, 38, 8]].forEach(([cx, cy, r]) => {
+                            for (let dy = -r; dy <= r; dy++) {
+                                const half = Math.round(Math.sqrt(r * r - dy * dy));
+                                p.rect(x + cx - half, y + cy + dy, half * 2, 1, '#0a0a0c');
+                            }
+                            p.rect(x + cx - 2, y + cy - 2, 4, 4, '#4a4a58');
+                        });
+                    });
+                    // 床の下地 (光るタイルは lcd.js で上から描く)
+                    p.rect(0, 104, W, 40, '#14081c');
+                })
+            ]
+        };
+    }
+
     const BUILDERS = {
+        danceHall: buildDanceHall,
         tsugakuro: buildTsugakuro,
         ongagawa: buildOngagawa,
         ebisucho: buildEbisucho,

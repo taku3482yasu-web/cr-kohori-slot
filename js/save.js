@@ -48,6 +48,7 @@ const SaveData = (() => {
                 : saved[key];
         }
         state.debugForcePointChance = false;
+        state.debugForceDance = false;
         return isValid(state, config) ? state : null;
     }
 

@@ -57,6 +57,7 @@ const Lcd = (() => {
     let naiteiZone = false;    // 内定の時ゾーンの場面か
     let gateText = null;       // ゾーン突入の暗転と文字 { start, lines: [{ text, color, size, y, born, shake }], fadeStart }
     let naiteiGet = null;      // ゾーン突破の演出 { phase: 'black' | 'text' | 'rainbow', start }
+    let dance = null;          // ダンシングステージ { hype, hypeAt } (hype: 盛り上がり 0〜3、hypeAt: そのゲームの時刻)
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
     const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true };
@@ -132,6 +133,7 @@ const Lcd = (() => {
         koori.moving = false;
         gateText = null;
         naiteiZone = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.NAITEI;
+        dance = state.mode === MODES.NORMAL && state.normal.dance ? { hype: 0, hypeAt: 0, cp: state.normal.chancePoint } : null;
         if (StateMachine.isRashMode(state)) {
             scene = 'rash';
             logoSuper = state.mode === MODES.SUPER_RASH;
@@ -173,7 +175,7 @@ const Lcd = (() => {
     }
 
     function isWalking() {
-        return scene === 'field' && displayMap !== config.map.castle && !wipe && !bubbles;
+        return scene === 'field' && displayMap !== config.map.castle && !wipe && !bubbles && !dance;
     }
 
     function draw(time) {
@@ -193,6 +195,8 @@ const Lcd = (() => {
         }
         if (scene === 'rash') {
             drawRash(time);
+        } else if (scene === 'field' && dance) {
+            drawDance(time);
         } else {
             Backgrounds.draw(ctx, displayMap, scroll);
             if (displayMap === config.map.castle) {
@@ -395,9 +399,13 @@ const Lcd = (() => {
             return;
         }
 
-        // チャンスポイントのゲージ
+        drawCpGauge(time);
+    }
+
+    // チャンスポイントのゲージ (右下)。value で表示する値を指定できる (ダンシングステージは結果発表まで増やさない)
+    function drawCpGauge(time, value = state.normal.chancePoint) {
         const threshold = config.chancePoint.threshold;
-        const cp = Math.min(state.normal.chancePoint, threshold);
+        const cp = Math.min(value, threshold);
         const gx = W - 104, gy = H - 14, gw = 80, gh = 6;
         box(gx - 22, gy - 5, gw + 28, 16);
         text('CP', gx - 18, gy - 4, { color: '#9fe6ff', size: 10, outline: null });
@@ -450,6 +458,118 @@ const Lcd = (() => {
             ctx.fillRect(startX + i * (lampW + gap), 22, lampW, 8);
         }
         text(`あと${remaining}G`, W / 2, H - 22, { color: '#ffd0d0', size: 12, align: 'center' });
+    }
+
+    // ----- ダンシングステージ -----
+    const DANCE_BEAT = 60000 / 128;   // BGM (128bpm) の1拍 (ms)
+    const DANCE_PINK = '#ff7ae0';
+
+    // flip のとき cx を軸に左右反転して描く
+    function withFlip(cx, flip, drawFn) {
+        if (!flip) {
+            drawFn();
+            return;
+        }
+        ctx.save();
+        ctx.translate(cx * 2, 0);
+        ctx.scale(-1, 1);
+        drawFn();
+        ctx.restore();
+    }
+
+    function drawDance(time) {
+        const hall = Backgrounds.get('danceHall');
+        Backgrounds.draw(ctx, 'danceHall', 0);
+        const beat = Math.floor(time / DANCE_BEAT);
+        const phase = (time % DANCE_BEAT) / DANCE_BEAT;
+        // 直前のゲームの出目で盛り上がる (1.6秒)
+        const hot = dance.hypeAt && time - dance.hypeAt < 1600 ? dance.hype : 0;
+        const gold = hot === 3;
+
+        // 光る床 (拍ごとに色が流れる)
+        const floorColors = ['#ff4fd8', '#4fe0ff', '#ffe04f', '#7fff6a'];
+        for (let y = hall.floorY, row = 0; y < H; y += 8, row++) {
+            for (let x = 0, col = 0; x < W; x += 16, col++) {
+                const lit = (col + row + beat) % 3 === 0;
+                ctx.fillStyle = lit ? (gold ? '#ffd700' : floorColors[(col + beat) % 4]) : (row + col) % 2 ? '#1e0c2a' : '#2a1238';
+                ctx.globalAlpha = lit ? 0.75 : 1;
+                ctx.fillRect(x + 1, y + 1, 14, 6);
+            }
+        }
+        ctx.globalAlpha = 1;
+
+        // ネオン看板
+        const neon = beat % 2 ? DANCE_PINK : '#4fe0ff';
+        text('DANCE', 128, 48, { color: gold ? '#ffd700' : neon, size: 12, align: 'center', outline: null });
+
+        // スポットライト (天井から左右に揺れる)
+        for (let i = 0; i < 3; i++) {
+            const sx = 48 + i * 80;
+            const angle = Math.sin(time / 700 + i * 2.1) * 0.45;
+            ctx.save();
+            ctx.translate(sx, 8);
+            ctx.rotate(angle);
+            ctx.fillStyle = gold ? 'rgba(255,215,0,0.16)' : `hsla(${(i * 120 + time / 20) % 360}, 100%, 65%, ${0.1 + hot * 0.04})`;
+            ctx.beginPath();
+            ctx.moveTo(-3, 0);
+            ctx.lineTo(3, 0);
+            ctx.lineTo(22, 120);
+            ctx.lineTo(-22, 120);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // ミラーボール (チャンスゾーン当選のゲームは金色)
+        const bx = 128, by = 22, br = 9;
+        ctx.fillStyle = '#8a8a9a';
+        ctx.fillRect(bx, 9, 1, by - br - 9);
+        for (let dy = -br; dy <= br; dy++) {
+            const half = Math.round(Math.sqrt(br * br - dy * dy));
+            for (let dx = -half; dx < half; dx += 3) {
+                const shine = (Math.floor((dx + time / 60) / 3) + dy) % 3 === 0;
+                ctx.fillStyle = gold ? (shine ? '#fff8c0' : '#d0a020') : shine ? '#ffffff' : (dy + dx) % 2 ? '#9aa0b8' : '#c8ccdc';
+                ctx.fillRect(bx + dx, by + dy, Math.min(3, half - dx), 1);
+            }
+        }
+        // ミラーボールの光の粒
+        for (let i = 0; i < 18; i++) {
+            const a = i * 0.35 + time / 900;
+            const r = 30 + (i % 5) * 18;
+            const x = bx + Math.cos(a) * r * 1.6, y = by + 10 + Math.abs(Math.sin(a)) * r;
+            ctx.fillStyle = gold ? '#ffd700' : floorColors[i % 4];
+            ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
+        }
+
+        // 踊る人たち: 拍に合わせて跳ね、2拍ごとに向きを変える。盛り上がると大きく跳ぶ
+        const ground = hall.groundY;
+        const amp = 2 + hot * 2;
+        const bounce = i => -Math.round(Math.abs(Math.sin((phase + (i % 2) * 0.5) * Math.PI)) * amp);
+        const flipOf = i => (beat + i) % 4 < 2;
+        party.forEach((id, k) => {
+            const x = 14 + k * 20;
+            withFlip(x, flipOf(k + 1), () => Characters.drawCompanion(ctx, id, x, ground + bounce(k + 1), { scale: 1.5, frame: (beat + k) % 2 }));
+        });
+        const kooriX = 70;
+        drawSprite(ctx, SPRITES.koori, beat % 2 ? 'walk2' : 'walk1', kooriX, ground - 16 * KOORI_SCALE + bounce(0), KOORI_SCALE, flipOf(0));
+        [['okagappa', 150, 2], ['hibikimakuri', 208, 3]].forEach(([id, x, i]) => {
+            withFlip(x, flipOf(i), () => Characters.drawEnemy(ctx, id, x, ground + bounce(i), { scale: 1.5, frame: (beat + i) % 2 }));
+        });
+
+        // 音符
+        for (let i = 0; i < 6; i++) {
+            const t = (time / 22 + i * 41) % 90;
+            const x = 16 + i * 44 + Math.round(Math.sin(time / 300 + i) * 4);
+            ctx.globalAlpha = Math.max(0, 1 - t / 90);
+            text(i % 2 ? '♪' : '♫', x, 100 - t, { color: gold ? '#ffd700' : floorColors[i % 4], size: 10, outline: null });
+        }
+        ctx.globalAlpha = 1;
+
+        // 表示: ステージ名とチャンスポイント
+        const label = 'ダンシングステージ';
+        box(4, 4, textWidth(label, 10) + 12, 15, 'rgba(40,0,50,0.8)', DANCE_PINK);
+        text(label, 10, 6, { color: '#ffe0fa', size: 10, outline: null });
+        drawCpGauge(time, dance.cp);
     }
 
     // ----- RASH / BATTLE -----
@@ -1081,6 +1201,72 @@ const Lcd = (() => {
     }
 
     // ----- 演出: リベンジチャンス -----
+    // ----- 演出: ダンシングステージ -----
+    async function danceStart() {
+        clearMessage();
+        await playWipe(true, 300);
+        dance = { hype: 0, hypeAt: 0, cp: state.normal.chancePoint };
+        koori.visible = true;
+        await playWipe(false, 300);
+        startFlash(DANCE_PINK, 500);
+        startShake(config.effects.intensity.shakeSmall, 300);
+        Sound.fanfare();
+        showTitle('ダンシングステージ!!', 'ポイント増加 or チャンスゾーン突入!?', DANCE_PINK, 2200);
+        await sleep(2200);
+    }
+
+    // ステージの1ゲーム: 出目で盛り上がる (チャンスゾーン当選のゲームは会場が一瞬金色に)
+    async function danceGame(event) {
+        if (!dance) return;
+        dance.hype = event.hype;
+        dance.hypeAt = performance.now();
+        if (event.hype === 3) {
+            startFlash('#ffd700', 400);
+            Sound.chance();
+            await sleep(600);
+        } else if (event.hype === 2) {
+            startFlash(DANCE_PINK, 300);
+            Sound.chance();
+            await sleep(400);
+        }
+    }
+
+    // 最終ゲーム: 結果発表
+    async function danceEnd(event) {
+        if (dance) {
+            dance.hype = 2;
+            dance.hypeAt = performance.now();
+        }
+        showTitle('ラストダンス!!', '結果は…', DANCE_PINK, 1500);
+        const tick = setInterval(() => Sound.stop(1), 110);
+        await sleep(1500);
+        clearInterval(tick);
+        if (event.zone) {
+            if (dance) {
+                dance.hype = 3;
+                dance.hypeAt = performance.now();
+                dance.cp = event.total;
+            }
+            startFlash('#ffd700', 700);
+            startShake(config.effects.intensity.shakeLarge, 600);
+            Sound.fanfare();
+            setTimeout(Sound.fanfare, 450);
+            showTitle('チャンスゾーン突入!!', 'SE城へ直行!!', '#ffd700', 2400);
+            await sleep(2400);
+            return;   // このあとのマップ移動 (SE城前) の暗転で会場を抜ける
+        }
+        if (dance) dance.cp = event.total;
+        startFlash('#7fe0ff', 500);
+        Sound.win();
+        showTitle(`+${event.points} ポイント!!`, `チャンスポイント ${event.total} / ${config.chancePoint.threshold}`, '#7fe0ff', 2000);
+        await sleep(2000);
+        if (event.total >= config.chancePoint.threshold) return;   // 規定値に到達: このあと SE城前へ
+        await playWipe(true, 300);
+        dance = null;
+        setNow(koori.x, KOORI_HOME_X);
+        await playWipe(false, 300);
+    }
+
     async function revengeStart(event) {
         revenge = { remaining: event.games, games: event.games };
         startFlash('#ff3a3a', 400);
@@ -1150,6 +1336,7 @@ const Lcd = (() => {
             battle.visible = false;
             naiteiZone = false;
         }
+        dance = null;   // ダンシングステージから SE城前へ直行するときは、この暗転中に会場を抜ける
         displayMap = event.to;
         setNow(koori.x, KOORI_HOME_X);
         if (toCastle) letterboxTarget = 1;
@@ -1882,6 +2069,15 @@ const Lcd = (() => {
                     break;
                 case 'revengeStart':
                     await revengeStart(event);
+                    break;
+                case 'danceStart':
+                    await danceStart();
+                    break;
+                case 'danceGame':
+                    await danceGame(event);
+                    break;
+                case 'danceEnd':
+                    await danceEnd(event);
                     break;
                 case 'revengeGame':
                     if (revenge) revenge.remaining = event.remaining;

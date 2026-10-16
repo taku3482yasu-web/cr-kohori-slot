@@ -125,6 +125,7 @@
         <a href="#flow">ゲームの流れ</a>
         <a href="#normal">通常時</a>
         <a href="#companions">お仲間</a>
+        <a href="#dance">ダンス</a>
         <a href="#castle">城突入</a>
         <a href="#rash">おにおにRASH</a>
         <a href="#treasure">宝物庫ゾーン</a>
@@ -202,6 +203,13 @@
         <p id="companion-text"></p>
         <div class="table-wrap"><table id="companion-table"></table></div>
         <ul id="companion-list"></ul>
+    </section>
+
+    <section id="dance">
+        <h2>ダンシングステージ</h2>
+        <p id="dance-text"></p>
+        <div class="table-wrap"><table id="dance-table"></table></div>
+        <p class="note">ステージ中はマップ移動・毎ゲームのチャンスポイント加算・ポイントチャンス・お仲間チャレンジは止まります。チャンスゾーン突入に当選したゲームは、会場が一瞬金色に光ります。</p>
     </section>
 
     <section id="castle">
@@ -381,6 +389,18 @@
         '<b>肩代わり</b>: 「？？」で揃わず RASH が終わるとき、一番強い仲間がかばって RASH が続くことがあります（かばった仲間は離脱）',
         '仲間は RASH が終わると帰っていきます。また城を目指すときに集め直しましょう'
     ].map(t => `<li>${t}</li>`).join('');
+
+    // ダンシングステージ
+    const dc = c.dance;
+    const danceGamesAvg = dc.games.reduce((s, g) => s + g.games * g.weight, 0) / dc.games.reduce((s, g) => s + g.weight, 0);
+    $('dance-text').innerHTML = `通常時（マップ移動中）に <b>${odds(dc.rate)}</b> で突入。ダンス会場で こおりくん・仲間・ひびきまくり・おかがっぱが踊ります。` +
+        `平均 <b>${Math.round(danceGamesAvg * 10) / 10}ゲーム</b>続き（残りゲーム数は秘密）、1ゲームごとにポイントを貯めながら<b>チャンスゾーン突入</b>を抽選。` +
+        `最終ゲームの結果発表で <span class="gold">チャンスゾーン突入!!</span> なら <b>SE城前へ直行</b>、それ以外は貯めたポイントがチャンスポイントに加算されます。`;
+    table('dance-table', ['出目', '貯まるポイント', 'チャンスゾーン突入'],
+        ['seven', 'chance', 'bar', 'melon', 'cherry', 'diamond', 'bell', 'replay', 'miss'].map(role => [
+            `${roleView(role)} ${SYMBOL_NAMES[role]}`, `+${dc.basePoints + (dc.pointsByRole[role] || 0)}`,
+            (dc.zoneRates[role] || 0) >= 1 ? '<b class="red">確定</b>' : pct(dc.zoneRates[role] || 0)
+        ]));
 
     // 城突入
     $('castle-text').innerHTML = `${c.castle.challengeGames}ゲームの間、毎ゲーム出目に応じた確率で突入を判定します。チャレンジ中はチャンス目が <b>${odds(c.lottery.castleChallenge.chance)}</b> と出やすくなっています。`;

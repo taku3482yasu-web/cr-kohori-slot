@@ -34,6 +34,7 @@
         if (s.mode === MODES.SUPER_RASH) return 'super';
         if (s.mode === MODES.RASH) return 'battle';
         if (s.mode === MODES.CASTLE_CHALLENGE || s.normal.map === config.map.castle) return 'castle';
+        if (s.normal.dance) return 'dance';
         return 'field';
     }
 
@@ -186,6 +187,7 @@
         companion: debugAction(() => DebugState.forceCompanion(state)),
         treasure: debugAction(() => DebugState.forceTreasure(state)),
         naitei: debugAction(() => DebugState.forceNaitei(state)),
+        dance: debugAction(() => DebugState.forceDance(state)),
         revenge: debugAction(() => DebugState.startRevenge(state, config)),
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },

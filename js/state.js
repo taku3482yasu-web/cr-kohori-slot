@@ -127,7 +127,8 @@ function createInitialState(config, rng = Math.random) {
             gamesInMap: 0,
             chancePoint: 0,
             castleWaitRemaining: 0, // SE城前でチャレンジ発生までの残りゲーム数
-            revengeGames: 0        // リベンジチャンスの残りゲーム数 (RASH 終了後)
+            revengeGames: 0,       // リベンジチャンスの残りゲーム数 (RASH 終了後)
+            dance: null            // ダンシングステージ { games, gamesRemaining, points, zone }
         },
 
         // 城突入チャレンジ
@@ -219,6 +220,8 @@ const GameFlow = {
             return events;
         }
 
+        if (normal.dance) return this.danceGame(state, outcome, config, rng);
+
         const events = [];
         const cp = config.chancePoint;
 
@@ -269,14 +272,24 @@ const GameFlow = {
         }
 
         // お仲間チャレンジ (ポイントチャンスと同じゲームでは起きない)
+        let companionHappened = false;
         if (!inRevenge && !pointChanceHappened && normal.chancePoint < cp.threshold) {
-            events.push(...Companions.challenge(state, config, rng));
+            const challenge = Companions.challenge(state, config, rng);
+            companionHappened = challenge.length > 0;
+            events.push(...challenge);
         }
 
         // 規定値に到達 → SE城前へ
         if (normal.chancePoint >= cp.threshold) {
-            events.push(this.changeMap(state, config.map.castle));
-            normal.castleWaitRemaining = config.castle.waitGames;
+            events.push(this.goToCastle(state, config));
+            return events;
+        }
+
+        // ダンシングステージ (ポイントチャンス・お仲間チャレンジと同じゲームでは起きない)
+        const forcedDance = state.debugForceDance;
+        state.debugForceDance = false;
+        if (!inRevenge && !pointChanceHappened && !companionHappened && (forcedDance || rng() < config.dance.rate)) {
+            events.push(this.startDance(state, config, rng));
             return events;
         }
 
@@ -286,6 +299,48 @@ const GameFlow = {
             normal.loopIndex = (normal.loopIndex + 1) % config.map.loop.length;
             events.push(this.changeMap(state, config.map.loop[normal.loopIndex]));
         }
+        return events;
+    },
+
+    // SE城前へ (チャンスポイントが規定値に到達・ダンシングステージのチャンスゾーン突入)
+    goToCastle(state, config) {
+        state.normal.castleWaitRemaining = config.castle.waitGames;
+        return this.changeMap(state, config.map.castle);
+    },
+
+    // ----- ダンシングステージ -----
+    startDance(state, config, rng) {
+        const games = Lottery.weightedPick(config.dance.games, g => g.weight, rng).games;
+        state.normal.dance = { games, gamesRemaining: games, points: 0, zone: false };
+        return { type: 'danceStart' };
+    },
+
+    // ステージの1ゲーム: ポイントを貯め、チャンスゾーン突入を抽選 (結果は最終ゲームで発表)
+    danceGame(state, outcome, config, rng) {
+        const normal = state.normal;
+        const dance = normal.dance;
+        const cfg = config.dance;
+        const added = cfg.basePoints + (cfg.pointsByRole[outcome.role] || 0);
+        const zoneHit = !dance.zone && rng() < (cfg.zoneRates[outcome.role] || 0);
+        dance.points += added;
+        if (zoneHit) dance.zone = true;
+        dance.gamesRemaining--;
+        // hype: 踊りの盛り上がり (0: ふつう / 1: 小役 / 2: レア役 / 3: チャンスゾーン当選のゲーム)
+        const hype = zoneHit ? 3 : added >= cfg.basePoints + 8 ? 2 : added > cfg.basePoints ? 1 : 0;
+        const events = [{ type: 'danceGame', role: outcome.role, hype, last: dance.gamesRemaining <= 0 }];
+        if (dance.gamesRemaining > 0) return events;
+
+        normal.dance = null;
+        const cp = config.chancePoint;
+        if (dance.zone) {
+            normal.chancePoint = cp.threshold;
+            events.push({ type: 'danceEnd', zone: true, points: dance.points, total: normal.chancePoint });
+            events.push(this.goToCastle(state, config));
+            return events;
+        }
+        normal.chancePoint = Math.min(cp.threshold, normal.chancePoint + dance.points);
+        events.push({ type: 'danceEnd', zone: false, points: dance.points, total: normal.chancePoint });
+        if (normal.chancePoint >= cp.threshold) events.push(this.goToCastle(state, config));
         return events;
     },
 
@@ -381,6 +436,7 @@ const GameFlow = {
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
         state.normal.revengeGames = 0;
+        state.normal.dance = null;
         state.challenge.gamesRemaining = 0;
         events.push({ type: 'rashStart' });
         return events;
@@ -425,6 +481,7 @@ const DebugState = {
         state.normal.gamesInMap = 0;
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
+        state.normal.dance = null;
         state.rash = createRashState();
         return [{ type: 'debug', label: '通常時へ' }];
     },
@@ -443,15 +500,18 @@ const DebugState = {
         state.normal.map = config.map.castle;
         state.normal.chancePoint = config.chancePoint.threshold;
         state.normal.castleWaitRemaining = 0;
+        state.normal.dance = null;
         return [{ type: 'debug', label: '城突入チャレンジへ' }, ...GameFlow.startCastleChallenge(state, config)];
     },
     toRash(state) {
         state.mode = MODES.RASH;
+        state.normal.dance = null;
         state.rash = createRashState();
         return [{ type: 'debug', label: 'おにおにRASHへ' }, { type: 'rashStart' }];
     },
     toSuperRash(state) {
         state.mode = MODES.SUPER_RASH;
+        state.normal.dance = null;
         state.rash.phase = RASH_PHASES.SELECT;
         state.rash.enemyId = null;
         return [{ type: 'debug', label: 'SUPERおにおにRASHへ' }, { type: 'rashStart' }];
@@ -485,6 +545,12 @@ const DebugState = {
         return events;
     },
     // 次のゲームでお仲間チャレンジを発生させる (通常時)
+    // 次のゲームのあとダンシングステージへ (通常時)
+    forceDance(state) {
+        if (state.mode !== MODES.NORMAL || state.normal.dance) return [{ type: 'debugQuiet' }];
+        state.debugForceDance = true;
+        return [{ type: 'debugQuiet' }];
+    },
     forceCompanion(state) {
         state.debugForceCompanion = true;
         return [{ type: 'debugQuiet' }];

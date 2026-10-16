@@ -90,7 +90,7 @@ window.GAME_CONFIG = {
             melon: 1 / 200,
             bar: 1 / 400,
             seven: 1 / 600,
-            chance: 1 / 45
+            chance: 1 / 50
         },
         // 城突入チャレンジ中 (チャンス目が出やすい)
         castleChallenge: {
@@ -151,6 +151,31 @@ window.GAME_CONFIG = {
             bell: 0.2,
             replay: 0.15,
             miss: 0.1
+        }
+    },
+
+    // ----- ダンシングステージ (通常時) -----
+    // マップ移動中に rate の確率で突入 (SE城前・リベンジチャンス中・ポイントチャンスやお仲間チャレンジと同じゲームでは起きない)。
+    // ダンス会場でこおりくん・仲間・ひびきまくり・おかがっぱが踊る。games の重みでゲーム数を決める (平均7G、残りは表示しない)
+    // ステージ中はマップ移動・チャンスポイントの加算・ポイントチャンス・お仲間チャレンジは止まる
+    // 1ゲームごとに:
+    //   basePoints + pointsByRole[役] のポイントを貯める
+    //   zoneRates[役] の確率でチャンスゾーン突入に当選 (当たってもその場では知らせず、最終ゲームで発表)
+    // 最終ゲーム: チャンスゾーン突入なら SE城前へ直行 / それ以外は貯めたポイントをチャンスポイントに加算
+    dance: {
+        rate: 1 / 150,
+        games: [
+            { games: 4, weight: 1 },
+            { games: 6, weight: 1 },
+            { games: 8, weight: 1 },
+            { games: 10, weight: 1 }
+        ],
+        basePoints: 3,
+        pointsByRole: {
+            replay: 2, bell: 3, diamond: 5, cherry: 8, melon: 12, bar: 15, chance: 15, seven: 30
+        },
+        zoneRates: {
+            seven: 1.0, chance: 0.6, bar: 0.5, melon: 0.3, cherry: 0.2, diamond: 0.05, bell: 0.03, replay: 0.02, miss: 0.02
         }
     },
 
