@@ -108,6 +108,7 @@ function createInitialState(config, rng = Math.random) {
     return {
         mode: MODES.NORMAL,
         setting: MachineSetting.pick(config, rng),
+        machineNo: 1,          // 台番号 (台移動で +1)
 
         // コイン・統計
         coins: config.coins.startCoins,
@@ -168,6 +169,19 @@ function createRashState() {
         coinsWon: 0              // このRASHでの獲得枚数
     };
 }
+
+// 台移動: コイン・投資額・獲得枚数はそのままに、新しい台へ移る。
+// 台の設定は抽選し直し、進行状況 (マップ・CP・RASH・仲間など) とデータカウンター・大当たり履歴は新しい台のものになる
+const MachineMove = {
+    next(state, config, rng = Math.random) {
+        const next = createInitialState(config, rng);
+        next.coins = state.coins;
+        next.totalSpent = state.totalSpent;
+        next.totalCoinsWon = state.totalCoinsWon;
+        next.machineNo = (state.machineNo || 1) + 1;
+        return next;
+    }
+};
 
 const StateMachine = {
     isRashMode(state) {

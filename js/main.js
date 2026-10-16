@@ -200,7 +200,14 @@
     });
 
     refresh();
-    if (savedState) Lcd.showMessage('CONTINUE!', '#9fe6ff', 2000);
+    if (state.justMoved) {
+        // 台移動の直後
+        delete state.justMoved;
+        SaveData.save(state);
+        Lcd.showMessage(`${state.machineNo}番台に移動!`, '#7fffd4', 2500);
+    } else if (savedState) {
+        Lcd.showMessage('CONTINUE!', '#9fe6ff', 2000);
+    }
 
     // テスト・デバッグ用に公開
     window.__game = { state, config };

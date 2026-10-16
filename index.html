@@ -18,6 +18,7 @@
         <div class="top-bar">
             <span id="mode-display" class="mode-display"></span>
             <a id="howto-button" href="howto.html">？ 遊び方</a>
+            <button id="move-button">⇄ 台移動</button>
             <button id="reset-button">↺ リセット</button>
             <button id="settings-button">⚙ SETTINGS</button>
         </div>
@@ -68,6 +69,7 @@
 
         <!-- データカウンター・大当たり履歴 -->
         <section class="data-counter" aria-label="データカウンター">
+            <div class="dc-head">DATA COUNTER <span id="dc-machine" class="dc-machine"></span></div>
             <div class="dc-stats">
                 <div class="dc-item"><span class="dc-label">総ゲーム数</span><span id="dc-total" class="dc-value">0</span></div>
                 <div class="dc-item"><span class="dc-label">現在</span><span id="dc-current" class="dc-value">0</span></div>
@@ -187,6 +189,24 @@
             <div class="modal-actions">
                 <button id="reset-cancel-button" class="modal-button">キャンセル</button>
                 <button id="reset-confirm-button" class="modal-button danger">リセットする</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 台移動の確認 -->
+    <div id="move-modal" class="modal" hidden>
+        <div class="modal-content" role="alertdialog" aria-modal="true" aria-labelledby="move-title" aria-describedby="move-desc">
+            <h2 id="move-title">台移動</h2>
+            <p id="move-desc" class="reset-text">別の台に移りますか？</p>
+            <ul class="reset-list">
+                <li>コイン・投資額・収支はそのまま持っていけます</li>
+                <li>台の設定は新しい台で抽選し直します</li>
+                <li>進行状況（マップ・CP・仲間など）とデータカウンター・大当たり履歴は新しい台のものになります</li>
+            </ul>
+            <p id="move-warning" class="move-warning" hidden></p>
+            <div class="modal-actions">
+                <button id="move-cancel-button" class="modal-button">キャンセル</button>
+                <button id="move-confirm-button" class="modal-button">移動する</button>
             </div>
         </div>
     </div>

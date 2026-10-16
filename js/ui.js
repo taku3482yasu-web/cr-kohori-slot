@@ -53,6 +53,12 @@ const UI = (() => {
             resetModal: $('reset-modal'),
             resetConfirm: $('reset-confirm-button'),
             resetCancel: $('reset-cancel-button'),
+            moveButton: $('move-button'),
+            moveModal: $('move-modal'),
+            moveConfirm: $('move-confirm-button'),
+            moveCancel: $('move-cancel-button'),
+            moveWarning: $('move-warning'),
+            dcMachine: $('dc-machine'),
             spinButton: $('spin-button'),
             dcTotal: $('dc-total'),
             dcCurrent: $('dc-current'),
@@ -65,6 +71,7 @@ const UI = (() => {
         };
         initAudioSettings();
         initDataReset();
+        initMachineMove();
         els.revealSetting.addEventListener('click', () => {
             settingRevealed = !settingRevealed;
             renderSetting();
@@ -136,6 +143,7 @@ const UI = (() => {
         if (key === dataCounterKey) return;
         dataCounterKey = key;
 
+        els.dcMachine.textContent = `${state.machineNo}番台`;
         els.dcTotal.textContent = state.totalGames.toLocaleString();
         els.dcCurrent.textContent = inRash ? (state.mode === MODES.SUPER_RASH ? 'SUPER中' : 'RASH中') : state.gamesSinceHit;
         els.dcRash.textContent = state.rashCount;
@@ -239,6 +247,10 @@ const UI = (() => {
             if (e.code === 'Escape') closeResetDialog();
             return;
         }
+        if (!els.moveModal.hidden) {
+            if (e.code === 'Escape') closeMoveDialog();
+            return;
+        }
         if (!els.modal.hidden) {
             if (e.code === 'Escape') closeSettings();
             return;
@@ -310,7 +322,7 @@ const UI = (() => {
 
     // ----- リセット (確認ダイアログで「リセットする」を押したときだけ) -----
     function isDialogOpen() {
-        return !els.modal.hidden || !els.resetModal.hidden;
+        return !els.modal.hidden || !els.resetModal.hidden || !els.moveModal.hidden;
     }
 
     function openResetDialog() {
@@ -336,6 +348,53 @@ const UI = (() => {
         // 保存データだけを消して読み込み直す (キー割り当て・サウンドの設定は別に保存しているので残る)
         els.resetConfirm.addEventListener('click', () => {
             SaveData.clear();
+            location.reload();
+        });
+    }
+
+    // ----- 台移動 (コインなどはそのままに、設定を抽選し直した新しい台へ) -----
+    function openMoveDialog() {
+        // リールの回転中・演出中は移動しない
+        if (els.spinButton.disabled || !gameState) return;
+        if (!els.modal.hidden) closeSettings();
+        const lost = moveLosses(gameState);
+        els.moveWarning.hidden = !lost;
+        els.moveWarning.textContent = lost ? `${lost}中です！ 移動すると、この台の${lost}は終わります` : '';
+        els.moveModal.hidden = false;
+        els.moveCancel.focus();
+    }
+
+    // 移動すると失うもの (RASH・城突入チャレンジなどの途中経過)
+    function moveLosses(state) {
+        if (state.mode === MODES.SUPER_RASH) return 'SUPERおにおにRASH';
+        if (state.mode === MODES.RASH) return 'おにおにRASH';
+        if (state.mode === MODES.CASTLE_CHALLENGE) return '城突入チャレンジ';
+        if (state.normal.dance) return 'ダンシングステージ';
+        if (state.normal.revengeGames > 0) return 'リベンジチャンス';
+        if (state.normal.map === config.map.castle) return 'SE城前';
+        return null;
+    }
+
+    function closeMoveDialog() {
+        els.moveModal.hidden = true;
+        els.moveButton.blur();
+    }
+
+    function initMachineMove() {
+        els.moveButton.addEventListener('click', openMoveDialog);
+        els.moveCancel.addEventListener('click', closeMoveDialog);
+        els.moveModal.addEventListener('click', (e) => {
+            if (e.target === els.moveModal) closeMoveDialog();
+        });
+        // 新しい台を保存して読み込み直す (保存できない環境ではコインを失わないよう移動しない)
+        els.moveConfirm.addEventListener('click', () => {
+            const next = MachineMove.next(gameState, config);
+            next.justMoved = true;
+            if (!SaveData.save(next)) {
+                closeMoveDialog();
+                alert('この環境ではデータを保存できないため、台移動できません');
+                return;
+            }
             location.reload();
         });
     }

@@ -151,6 +151,7 @@
             <li>パソコンではキーボードでも遊べます: レバー <kbd>Space</kbd>、STOP <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd>（⚙ SETTINGS で変更できます）</li>
             <li>コインがなくなったら <b>BUY COINS</b>（<span id="package"></span>）</li>
             <li>データは1ゲームごとに自動で保存され、次に開いたときは続きから遊べます</li>
+            <li>別の台で遊びたいときは画面上部の <b>⇄ 台移動</b>。コイン・投資額・収支は持ったまま、<b>台の設定を抽選し直した新しい台</b>に移ります（進行状況・データカウンター・大当たり履歴は新しい台のものになります）</li>
             <li>最初からやり直すときは画面上部の <b>↺ リセット</b>（キー割り当て・サウンドの設定は残ります）</li>
         </ul>
     </section>
@@ -234,6 +235,9 @@
         <ul id="guard-list"></ul>
         <h3>BATTLE のゲーム数</h3>
         <div class="table-wrap"><table id="games-table"></table></div>
+        <h3>必殺技</h3>
+        <p>とどめを刺したキャラの必殺技がカットインで出ます。「？？」で継続できなかったときは、敵が必殺技を打ってきます。</p>
+        <div class="table-wrap"><table id="special-table"></table></div>
     </section>
 
     <section id="treasure">
@@ -423,7 +427,7 @@
     $('rash-list').innerHTML = [
         'RASH の1ゲーム目で <b>対戦相手</b> と <b>残りゲーム数</b> が決まり、BATTLE 開始',
         '柄を揃えるとこおりくんが攻撃！ 相手の HP を 0 にすれば撃破してボーナス獲得 → 次の相手へ',
-        '残りゲーム数が 0 になると表示が <b>「？？」</b> に。ここで柄が揃えば継続、揃わなければ RASH 終了',
+        `残りゲーム数が 0 になると表示が <b>「？？」</b> に（<span class="red">「${c.specials.questionWarning}」</span>）。ここで柄が揃えば継続、揃わなければ敵の<b>必殺技</b>をくらって RASH 終了`,
         `継続率は <span class="red">${pct(c.rash.normal.continueRate)}</span>`,
         `BATTLE 中はリプレイ（${odds(c.lottery.battle.replay)}）が出やすく、コインがあまり減りません`
     ].map(t => `<li>${t}</li>`).join('');
@@ -464,9 +468,16 @@
     const companionRateText = c.companions.members.map(m => `${m.name} ${pct(nz.companionRates[m.id] || 0)}`).join('・');
     $('naitei-text').innerHTML = `おにおにRASH・SUPER で<b>対戦相手とゲーム数を決める1ゲーム</b>に ${nz.triggerRoles.map(r => roleView(r)).join(' / ')} が揃うと突入。` +
         `画面が暗転し「ここから先」、<span class="red">「内定を持たぬものは通す事は出来ない」</span>の文字のあと、<b>${nz.enemy.name}</b> と <b>${nz.games}ゲーム</b>の1対1！`;
+    table('special-table', ['キャラ', '必殺技', '出るとき'], [
+        ['こおりくん', c.specials.koori, 'とどめを刺したとき'],
+        ['こおりくん', c.specials.kooriKill, '一撃必殺（BAR揃い・7揃い・7・7・BAR）でとどめ'],
+        ...c.companions.members.map(m => [m.name, m.special, '仲間の追撃でとどめを刺したとき']),
+        ...[...c.enemies, c.goldDog].map(e => [e.name, e.special, '「？？」で継続できなかったとき']),
+        [c.naitei.enemy.name, c.naitei.enemy.special, '内定の時ゾーンを突破できなかったとき']
+    ]);
     $('naitei-list').innerHTML = [
         `突入時に<b>仲間抽選</b>（${companionRateText}。まだ仲間でない人が対象）`,
-        `1ゲームごとに<b>出目で突破を抽選</b>（下の表）。当たると HP が残っていても こおりくんの<b>「とどめだ!!」</b>カットインで決着！`,
+        `1ゲームごとに<b>出目で突破を抽選</b>（下の表）。当たると HP が残っていても こおりくんの必殺技<b>「${c.specials.koori}」</b>（7揃い・7・7・BAR などの一撃必殺は<b>「${c.specials.kooriKill}」</b>）で決着！ 突破できなければ「${c.naitei.enemy.special}」をくらいます`,
         `${nz.games}ゲームでの突破率は <span class="red">約${pct(Battle.naiteiWinRate(c))}</span>。ふつうのダメージでは倒しきれず、仲間の肩代わりもありません`,
         `<b>突破</b>: 暗転 →「内定は」→ 虹色の <span class="gold">「こおりがいただいた！」</span>。${bonusText(nz.enemy.bonus)}、おにおにRASH なら <span class="gold">SUPERおにおにRASH</span> へ。さらに <span class="gold">次の BATTLE は勝利確定!!</span>`,
         `<b>失敗</b>: おにおにRASH は終了して <b>SE城の城突入チャレンジ</b>へ戻る（仲間は残る）。SUPER 中なら SUPER は継続`,

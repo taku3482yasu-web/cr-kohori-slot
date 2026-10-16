@@ -470,5 +470,5 @@ const Characters = (() => {
         return enemy ? { w: enemy.w, h: enemy.h } : { w: 0, h: 0 };
     }
 
-    return { drawEnemy, drawCompanion, size, has: id => Boolean(ENEMIES[id]) };
+    return { drawEnemy, drawCompanion, size, has: id => Boolean(ENEMIES[id]), isCompanion: id => Boolean(COMPANIONS[id]) };
 })();

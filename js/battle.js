@@ -137,6 +137,7 @@ const Battle = {
         // 仲間の追加ダメージ (ダメージが入ったときだけ)
         let companionHits = !kill && damage > 0 ? Companions.extraDamage(state, config) : [];
         const extra = companionHits.reduce((sum, h) => sum + h.amount, 0);
+        const hpBefore = rash.enemyHp;
         let amount = kill ? rash.enemyHp : damage + extra;
         // 負けセットでは敵がガードして倒しきれない (撃破役・ブレイク中を除く)
         const canGuard = !rash.setWillWin && !rash.breakActive && !kill;
@@ -158,6 +159,8 @@ const Battle = {
             big: kill || outcome.isChance,
             guarded,
             companionHits,
+            finishBy: rash.enemyHp <= 0 ? this.finisherOf(kill, damage, companionHits, hpBefore) : null,
+            finishKill: kill && rash.enemyHp <= 0,
             breakActive: rash.breakActive,
             hp: rash.enemyHp,
             maxHp: rash.enemyMaxHp,
@@ -175,6 +178,13 @@ const Battle = {
             events.push({ type: 'question' });
         }
         return events;
+    },
+
+    // とどめを刺したのは誰か: 'koori' か仲間の id (こおりくん → 仲間の順に攻撃する)
+    finisherOf(kill, damage, companionHits, hpBefore) {
+        if (kill || damage >= hpBefore) return 'koori';
+        const last = companionHits.filter(h => h.amount > 0).pop();
+        return last ? last.id : 'koori';
     },
 
     // とどめ: 残りHPを超える分は切り捨てる (こおりくん → 仲間の順に、残りHPまでしか入らない)
@@ -357,6 +367,8 @@ const Battle = {
             big: kill || outcome.isChance,
             guarded,
             finisher,
+            finishBy: finisher ? 'koori' : null,
+            finishKill: finisher && damage === 'kill',
             companionHits,
             breakActive: false,
             hp: rash.enemyHp,
@@ -500,8 +512,8 @@ const Battle = {
             rash.gamesRemaining = games;
             rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
             rash.phase = RASH_PHASES.BATTLE;
-            return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games }];
+            return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId }];
         }
-        return [{ type: 'questionResult', continued: false }, ...GameFlow.endRash(state, config, rng)];
+        return [{ type: 'questionResult', continued: false, enemyId: rash.enemyId }, ...GameFlow.endRash(state, config, rng)];
     }
 };

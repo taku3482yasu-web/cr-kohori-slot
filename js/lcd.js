@@ -61,7 +61,7 @@ const Lcd = (() => {
     let dance = null;          // ダンシングステージ { hype, hypeAt } (hype: 盛り上がり 0〜3、hypeAt: そのゲームの時刻)
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
-    const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true };
+    const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true, hurtUntil: 0 };
     const gate = animated(0);  // 城門の開き具合 (0〜1)
     // BATTLE の表示 (state とは別に、演出の進行に合わせて更新する)
     const battle = {
@@ -608,7 +608,18 @@ const Lcd = (() => {
             const x = valueAt(koori.x, time);
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.fillRect(x + 4, hall.groundY - 2, 24, 3);
-            drawSprite(ctx, SPRITES.koori, frame, x, hall.groundY - 16 * KOORI_SCALE, KOORI_SCALE);
+            const hurtBlink = time < koori.hurtUntil && Math.floor(time / 70) % 2 === 0;
+            if (!hurtBlink) drawSprite(ctx, SPRITES.koori, frame, x, hall.groundY - 16 * KOORI_SCALE, KOORI_SCALE);
+        }
+
+        // 「？？」の間は敵が必殺技を溜める (赤いオーラが脈打つ)
+        if (battle.visible && battle.enemyId && battle.games === '？？') {
+            const pulse = 0.25 + 0.2 * Math.sin(time / 150);
+            const { w: ew, h: eh } = Characters.size(battle.enemyId);
+            ctx.fillStyle = `rgba(255,40,40,${pulse})`;
+            ctx.beginPath();
+            ctx.ellipse(valueAt(battle.x, time), hall.groundY - eh, ew + 6, eh + 6, 0, 0, Math.PI * 2);
+            ctx.fill();
         }
 
         // 敵
@@ -651,6 +662,15 @@ const Lcd = (() => {
             box(W - bw - 4, 4, bw, 17, 'rgba(0,0,0,0.75)', question ? '#ffe45a' : '#fff');
             const color = question ? (Math.floor(time / 200) % 2 ? '#ffe45a' : '#ff8a30') : '#fff';
             text(label, W - bw + 3, 6, { color, outline: null });
+        }
+
+        // 「？？」の間: 敵がこうげきしそうだ…！
+        if (battle.games === '？？' && battle.visible) {
+            const msg = config.specials.questionWarning;
+            const blink = Math.floor(time / 300) % 2;
+            const bw = textWidth(msg, 12) + 16;
+            box(Math.round((W - bw) / 2), H - 24, bw, 18, 'rgba(60,0,0,0.85)', blink ? '#ff4040' : '#802020');
+            text(msg, W / 2, H - 21, { color: blink ? '#ffffff' : '#ffb0b0', size: 12, align: 'center', outline: null });
         }
 
         // 敵の名前と HP (左上の撃破数・確率UPなどと重ならないよう、右側の残りゲーム数の下に置く)
@@ -845,12 +865,29 @@ const Lcd = (() => {
         }
         if (cutIn.who === 'koori') {
             drawSprite(ctx, SPRITES.koori, 'walk1', 14, y + 6, 4);
+        } else if (Characters.isCompanion(cutIn.who)) {
+            Characters.drawCompanion(ctx, cutIn.who, 52, y + h - 2, { scale: 3 });
         } else {
             const { w, h: eh } = Characters.size(cutIn.who);
             const scale = Math.min(3, 72 / eh, 110 / w);
             Characters.drawEnemy(ctx, cutIn.who, 60, y + h - 2, { scale });
         }
-        text(cutIn.text, W - 12, y + h / 2 - 12, { color: '#fff', size: 24, align: 'right', outline: '#000' });
+        // 技名が長いときは右側の幅に収まるまで小さくする
+        let size = 24;
+        while (size > 10 && textWidth(cutIn.text, size) > W - 124) size -= 2;
+        if (cutIn.sub) {
+            // 「○○の必殺技!!」も幅に収める (名前が長すぎるときは「必殺技!!」だけにする)
+            let sub = cutIn.sub, subSize = 12;
+            while (subSize > 9 && textWidth(sub, subSize) > W - 124) subSize--;
+            if (textWidth(sub, subSize) > W - 124) {
+                sub = '必殺技!!';
+                subSize = 12;
+            }
+            text(sub, W - 12, y + 12, { color: '#ffe45a', size: subSize, align: 'right', outline: '#000' });
+            text(cutIn.text, W - 12, y + h / 2 - size / 2 + 6, { color: '#fff', size, align: 'right', outline: '#000' });
+        } else {
+            text(cutIn.text, W - 12, y + h / 2 - size / 2, { color: '#fff', size, align: 'right', outline: '#000' });
+        }
         ctx.restore();
         ctx.fillStyle = '#000';
         ctx.fillRect(0, y - 1, W, 1);
@@ -893,9 +930,50 @@ const Lcd = (() => {
         await sleep(700);
     }
 
-    function playCutIn(who, textStr, color, duration = 1100) {
-        cutIn = { who, text: textStr, color, start: performance.now(), duration };
+    function playCutIn(who, textStr, color, duration = 1100, sub = null) {
+        cutIn = { who, text: textStr, color, sub, start: performance.now(), duration };
         return sleep(duration);
+    }
+
+    // ----- 必殺技 -----
+    // こおりくんがとどめ: 大腸炎アタック / 一撃必殺の役は 7つの内定フラッシュ
+    async function kooriSpecial(kill) {
+        startFlash(kill ? '#ffd700' : '#ffffff', 300);
+        Sound.chance();
+        await playCutIn('koori', kill ? config.specials.kooriKill : config.specials.koori,
+            kill ? '#8a6a00' : '#b01828', 1500, '必殺技!!');
+    }
+
+    // 仲間がとどめ: 仲間ごとの必殺技
+    async function companionSpecial(id) {
+        const member = config.companions.members.find(m => m.id === id);
+        if (!member || !member.special) return;
+        startFlash('#7fffd4', 300);
+        Sound.chance();
+        await playCutIn(id, member.special, '#1a6a50', 1400, `${member.name}の必殺技!!`);
+    }
+
+    // 敵の必殺技 (「？？」で継続できなかったとき・内定の時ゾーンの失敗): カットイン → こおりくんへ突進
+    //   hitKoori: false のときは当たる手前で止まる (仲間がかばう)
+    async function enemySpecial(enemyId, { hitKoori = true } = {}) {
+        const enemy = enemyId && Battle.findEnemy(config, enemyId);
+        if (!enemy || !enemy.special) return;
+        const intensity = config.effects.intensity;
+        startFlash('#ff2020', 300);
+        Sound.bigHit();
+        await playCutIn(enemyId, enemy.special, '#5a0a0a', 1600, `${enemy.name}の必殺技!!`);
+        battle.games = null;
+        await animateTo(battle.x, KOORI_BATTLE_X + (hitKoori ? 40 : 70), 180);
+        startFlash('#ff0000', 400);
+        startShake(intensity.shakeLarge, 500);
+        Sound.bigHit();
+        if (hitKoori) {
+            koori.hurtUntil = performance.now() + 700;
+            animateTo(koori.x, KOORI_BATTLE_X - 20, 200);
+        }
+        await sleep(450);
+        await animateTo(battle.x, ENEMY_X, 300);
+        if (hitKoori) await animateTo(koori.x, KOORI_BATTLE_X, 300);
     }
 
     // ----- ロングフリーズ -----
@@ -1558,6 +1636,7 @@ const Lcd = (() => {
     // 肩代わり: 仲間がかばって RASH 継続、その仲間は離脱
     async function companionSave(event) {
         const id = event.memberId;
+        await enemySpecial(event.enemyId, { hitKoori: false });
         startFlash('#7fffd4', 400);
         Sound.bigHit();
         showTitle(`${event.name}がかばってくれた!!`, `RASH継続!! BATTLE +${event.games}G`, '#7fffd4', 2200);
@@ -1715,11 +1794,9 @@ const Lcd = (() => {
 
         if (event.freeze) {
             await playCutIn('koori', '完全撃破!!', '#8a2ab0');
-        } else if (event.finisher) {
-            // 内定の時: HP が残っていても、このカットインで決着
-            startFlash('#ffffff', 300);
-            Sound.chance();
-            await playCutIn('koori', 'とどめだ!!', '#b01828', 1400);
+        } else if (event.finishBy === 'koori') {
+            // こおりくんがとどめ: 必殺技 (内定の時は HP が残っていても、このカットインで決着)
+            await kooriSpecial(event.finishKill);
         } else if (event.big && Math.random() < config.effects.cutInRate) {
             await playCutIn('koori', event.kill ? '必殺!!' : 'くらえ!!', event.kill ? '#b01828' : '#1a5ab0');
         }
@@ -1745,6 +1822,7 @@ const Lcd = (() => {
         await animateTo(koori.x, KOORI_BATTLE_X, 250);
         koori.moving = false;
         for (const hit of hits) {
+            if (hit.id === event.finishBy) await companionSpecial(hit.id);   // 仲間がとどめ: 必殺技
             if (!party.includes(hit.id)) continue;
             animateTo(jumpOf(hit.id), -12, 120).then(() => animateTo(jumpOf(hit.id), 0, 140));
             await sleep(120);
@@ -1879,6 +1957,7 @@ const Lcd = (() => {
             return;
         }
 
+        await enemySpecial(battle.enemyId);
         Sound.miss();
         battle.games = null;
         showTitle('突破失敗…', '内定は もらえなかった', '#9fb8d8', 2000);
@@ -1998,6 +2077,7 @@ const Lcd = (() => {
             Sound.fanfare();
             showTitle('継続!!', `BATTLE +${event.games}G`, '#ffd700', 1500);
         } else {
+            await enemySpecial(event.enemyId);
             Sound.miss();
             showTitle('RASH終了…', null, '#9fb8d8', 1500);
         }

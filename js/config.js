@@ -185,13 +185,14 @@ window.GAME_CONFIG = {
     //   castleEntry: 城突入チャレンジの突入率の倍率 (仲間全員分を掛け合わせる)
     //   extraDamage: BATTLE でダメージが入るたびに追加で与えるダメージ
     //   saveRate:    「？？」で揃わず RASH が終わるとき、一番強い仲間がこの確率で肩代わり → RASH 継続 (その仲間は離脱)
+    //   special:     必殺技の名前 (仲間の追撃でとどめを刺したときにカットイン)
     companions: {
         challengeRate: 1 / 60,
         successRate: 0.20,
         members: [
-            { id: 'yasu', name: 'やすさん', weight: 60, castleEntry: 1.15, extraDamage: 2, saveRate: 0.15 },
-            { id: 'tamu', name: 'たむさん', weight: 30, castleEntry: 1.3, extraDamage: 4, saveRate: 0.25 },
-            { id: 'dake', name: 'だけさん', weight: 10, castleEntry: 1.5, extraDamage: 6, saveRate: 0.4 }
+            { id: 'yasu', name: 'やすさん', weight: 60, castleEntry: 1.15, extraDamage: 2, saveRate: 0.15, special: 'やすパンチ' },
+            { id: 'tamu', name: 'たむさん', weight: 30, castleEntry: 1.3, extraDamage: 4, saveRate: 0.25, special: 'たむキック' },
+            { id: 'dake', name: 'だけさん', weight: 10, castleEntry: 1.5, extraDamage: 6, saveRate: 0.4, special: 'だけチョップ' }
         ]
     },
 
@@ -326,6 +327,7 @@ window.GAME_CONFIG = {
         companionRates: { yasu: 0.5, tamu: 0.35, dake: 0.2 },
         enemy: {
             id: 'naitei', name: 'シーシャ・ナイテイ・ナイナイ',
+            special: '不採用の裁き',   // 突破できなかったときの必殺技
             hp: 200,
             bonus: { type: 'coins', value: 300 }
         },
@@ -366,29 +368,30 @@ window.GAME_CONFIG = {
     // ----- 対戦相手 -----
     // weight: 通常RASHでの出現の重み / superWeight: SUPER中の重み
     // bonus.type: 'coins' (コイン獲得) / 'games' (ゲーム数上乗せ) / 'probUp' (柄揃い確率アップ)
+    // special: 必殺技の名前 (「？？」で継続できなかったとき、カットインとともに打ってくる)
     enemies: [
         {
-            id: 'okagappa', name: 'おかがっぱ',
+            id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
             weight: 50, superWeight: 40, hp: 60,
             bonus: { type: 'coins', value: 35 }
         },
         {
-            id: 'hibikimakuri', name: 'ひびきまくり',
+            id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
             weight: 30, superWeight: 25, hp: 90,
             bonus: { type: 'games', value: 5 }
         },
         {
-            id: 'shibata', name: 'シバター',
+            id: 'shibata', name: 'シバター', special: 'シバタードライバー',
             weight: 15, superWeight: 15, hp: 120,
             bonus: { type: 'probUp', value: 1.5, games: 10 }
         },
         {
-            id: 'sasaki', name: 'Mr.SASAKI',
+            id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
             weight: 8, superWeight: 12, hp: 150,
             bonus: { type: 'coins', value: 120 }
         },
         {
-            id: 'onioni', name: 'おにおに',
+            id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
             weight: 16, superWeight: 15, hp: 200,
             bonus: { type: 'coins', value: 200 },
             requiresUnlock: true          // 撃破数が oniUnlockDefeats に達するまで出ない
@@ -397,7 +400,7 @@ window.GAME_CONFIG = {
 
     // ----- ゴールド金面犬 (SUPER中のみ) -----
     goldDog: {
-        id: 'goldDog', name: 'ゴールド金面犬',
+        id: 'goldDog', name: 'ゴールド金面犬', special: 'ゴールドかみまっくす',
         prob: 1 / 100,        // SUPER中の対戦相手抽選ごとの出現確率
         hp: 250,
         bonus: { type: 'coins', value: 2000 },
@@ -470,6 +473,15 @@ window.GAME_CONFIG = {
             miss: 0.02,
             goldRate: 0.3
         }
+    },
+
+    // ----- 必殺技 -----
+    // こおりくんがとどめを刺したときのカットイン (killRole: 一撃必殺の役 = BAR揃い・7揃い・7・7・BAR、内定の時の 7揃い・7・7・BAR)
+    // 敵・仲間の必殺技は enemies / goldDog / naitei.enemy / companions.members の special
+    specials: {
+        koori: '大腸炎アタック',
+        kooriKill: '7つの内定フラッシュ',
+        questionWarning: '敵がこうげきしそうだ…！'   // 「？？」の間の表示
     },
 
     // ----- 設定示唆トロフィー -----

@@ -47,6 +47,7 @@ const SaveData = (() => {
                 ? { ...value, ...saved[key] }
                 : saved[key];
         }
+        if (saved.justMoved) state.justMoved = true;   // 台移動の直後 (起動時のメッセージ用)
         state.debugForcePointChance = false;
         state.debugForceDance = false;
         return isValid(state, config) ? state : null;
