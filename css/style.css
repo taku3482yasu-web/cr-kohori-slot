@@ -491,3 +491,163 @@ body[data-mode="CASTLE_CHALLENGE"] #spin-button:not(:disabled) {
     color: var(--gold);
     animation: attention-blink 0.6s infinite alternate;
 }
+
+/* =====================================================================
+   タッチ操作
+   ===================================================================== */
+button {
+    touch-action: manipulation;          /* 連打でページが拡大されないように */
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+/* キーボードがない端末 (スマホ・タブレット) ではキー表示を隠す */
+@media (hover: none) and (pointer: coarse) {
+    .key-hint {
+        display: none;
+    }
+}
+
+/* =====================================================================
+   スマホ用レイアウト (幅 600px 以下)
+   液晶をできるだけ大きく、1画面にリール・STOP・レバーまで収める
+   ===================================================================== */
+@media (max-width: 600px) {
+    :root {
+        --symbol-height: 76px;
+    }
+
+    body {
+        min-height: 100dvh;
+        padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+                 max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    }
+
+    .game-container {
+        gap: 8px;
+    }
+
+    .game-title {
+        font-size: 0.9rem;
+    }
+
+    .top-bar {
+        gap: 8px;
+    }
+
+    .mode-display {
+        padding: 4px 10px;
+        font-size: 0.75rem;
+    }
+
+    #settings-button {
+        padding: 5px 12px;
+        font-size: 0.75rem;
+    }
+
+    .status-panel {
+        width: 100%;
+        padding: 6px 10px;
+        gap: 2px 12px;
+        border-width: 2px;
+    }
+
+    .status-label {
+        font-size: 0.68rem;
+    }
+
+    .status-value {
+        font-size: 1.05rem;
+    }
+
+    .currency-unit {
+        font-size: 0.9rem;
+    }
+
+    #buy-coins-button {
+        padding: 5px 10px;
+        font-size: 0.7rem;
+    }
+
+    .slot-machine {
+        padding: 8px;
+        border-width: 4px;
+        border-radius: 14px;
+    }
+
+    .lcd-frame {
+        padding: 2px;
+        border-width: 3px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+    }
+
+    .reels-container {
+        gap: 6px;
+        padding: 6px;
+    }
+
+    .reel-column {
+        flex: 1;
+        min-width: 0;
+        gap: 6px;
+    }
+
+    .reel {
+        width: 100%;
+        max-width: 110px;
+    }
+
+    .symbol-img {
+        width: 56px;
+        height: 56px;
+    }
+
+    /* STOP とレバーは指で押しやすい大きさに */
+    .stop-button {
+        width: 100%;
+        max-width: 110px;
+        min-height: 44px;
+        font-size: 1rem;
+        border-radius: 8px;
+    }
+
+    .controls {
+        margin-top: 10px;
+    }
+
+    #spin-button {
+        width: 100%;
+        min-height: 56px;
+        padding: 10px;
+        font-size: 1.3rem;
+    }
+
+    .debug-panel {
+        font-size: 0.75rem;
+    }
+
+    .modal {
+        padding: 8px;
+    }
+
+    .modal-content {
+        padding: 16px;
+    }
+}
+
+/* 横幅がさらに狭い端末 (iPhone SE など) */
+@media (max-width: 360px) {
+    :root {
+        --symbol-height: 68px;
+    }
+
+    .symbol-img {
+        width: 50px;
+        height: 50px;
+    }
+
+    .game-title {
+        font-size: 0.8rem;
+    }
+}
