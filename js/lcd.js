@@ -566,6 +566,7 @@ const Lcd = (() => {
         ctx.fillRect(0, 96, W, 2);
         text('REACH!', W / 2 - 24, 64, { color, size: 24, align: 'right' });
         ctx.drawImage(Symbols.canvas(reachView.symbol), W / 2 + 4, 58, 36, 36);
+        if (reachView.lineName) text(`${reachView.lineName}ライン`, W / 2 + 46, 68, { color: '#fff', size: 10 });
     }
 
     // カットイン: キャラクターが横からスライドして入る帯
@@ -614,8 +615,8 @@ const Lcd = (() => {
         preview = 0;
     }
 
-    function reach(symbol) {
-        reachView = { symbol, start: performance.now() };
+    function reach(symbol, lineName = '') {
+        reachView = { symbol, lineName, start: performance.now() };
         startFlash(symbol === 'seven' ? '#ffffff' : '#ff3030', 300);
         if (symbol === 'seven') {
             cutIn = { who: 'koori', text: '7が来る…!?', color: '#b01828', start: performance.now(), duration: 1200 };

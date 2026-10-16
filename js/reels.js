@@ -1,32 +1,47 @@
 // =====================================================================
-// リール制御: リール帯の生成・回転・指定図柄での停止 (slot の原型から流用)
+// リール制御: リール帯の生成・回転・指定位置での停止・当たり図柄の点灯
+// ---------------------------------------------------------------------
+// 各リールは上段・中段・下段の3コマが見える。止まり位置 (stop) は中段に来るコマ番号。
+// リール配列はリールごとに config.reels.strips で決まる。
 // =====================================================================
 
 const Reels = (() => {
-    const STRIP_REPEAT = 20;   // リール帯に図柄の並びを何周分並べるか
-    const STOP_OFFSET = 10;    // 停止時に何周目の図柄で止めるか
+    const STRIP_REPEAT = 12;   // リール帯にリール配列を何周分並べるか
+    const STOP_OFFSET = 6;     // 停止時に何周目のコマで止めるか
 
-    let symbols = [];
+    let strips = [];
     let reelEls = [];
     let stopButtons = [];
     let stopped = [true, true, true];
-    let targetResults = null;
+    let targetStops = [0, 0, 0];
     let onStopCallback = null;
     let resolveSpin = null;
+    let litCells = [];
 
+    // 1コマの高さ (リールの窓は3コマ分)
     function symbolHeight() {
-        return reelEls[0].clientHeight;
+        return reelEls[0].clientHeight / 3;
+    }
+
+    // 止まり位置 stop のとき、段 row (0:上段 1:中段 2:下段) に見えるコマの要素
+    function cellElement(reel, stop, row) {
+        const strip = reelEls[reel].querySelector('.reel-strip');
+        return strip.children[strips[reel].length * STOP_OFFSET + stop + row - 1];
+    }
+
+    function offsetFor(reel, stop) {
+        return (strips[reel].length * STOP_OFFSET + stop - 1) * symbolHeight();
     }
 
     function init(config, reelElements, buttons) {
-        symbols = config.reels.symbols;
+        strips = config.reels.strips;
         reelEls = reelElements;
         stopButtons = buttons;
-        reelEls.forEach(reel => {
+        reelEls.forEach((reel, r) => {
             const strip = reel.querySelector('.reel-strip');
             strip.innerHTML = '';
             for (let i = 0; i < STRIP_REPEAT; i++) {
-                symbols.forEach(id => {
+                strips[r].forEach(id => {
                     const div = document.createElement('div');
                     div.className = `symbol symbol-${id}`;
                     const img = document.createElement('img');
@@ -37,24 +52,27 @@ const Reels = (() => {
                     strip.appendChild(div);
                 });
             }
+            // 最初は1コマ目が中段に来る位置で止めておく
+            strip.style.transform = `translateY(-${offsetFor(r, 1)}px)`;
         });
+        targetStops = [1, 1, 1];
         stopButtons.forEach(btn => btn.disabled = true);
     }
 
-    // 回転開始。results の出目で止まり、全リール停止で resolve する
+    // 回転開始。stops の位置で止まり、全リール停止で resolve する
     // onStop(reelIndex, stoppedCount) は各リール停止時に呼ばれる
-    function spin(results, staggerMs, onStop) {
-        targetResults = results;
+    function spin(stops, staggerMs, onStop) {
+        clearHighlight();
+        targetStops = stops;
         onStopCallback = onStop;
         stopped = [false, false, false];
-        const cycle = symbols.length * symbolHeight();
         reelEls.forEach((reel, i) => {
             const strip = reel.querySelector('.reel-strip');
-            strip.style.setProperty('--cycle', `-${cycle}px`);
+            strip.style.setProperty('--cycle', `-${strips[i].length * symbolHeight()}px`);
             strip.style.transition = 'none';
             strip.style.transform = 'translateY(0)';
             setTimeout(() => {
-                strip.style.animation = 'reel-spin 0.2s linear infinite';
+                strip.style.animation = 'reel-spin 0.25s linear infinite';
             }, i * staggerMs);
         });
         stopButtons.forEach(btn => btn.disabled = false);
@@ -68,10 +86,8 @@ const Reels = (() => {
 
         const strip = reelEls[i].querySelector('.reel-strip');
         strip.style.animation = 'none';
-        const index = symbols.indexOf(targetResults[i]);
-        const position = (symbols.length * STOP_OFFSET + index) * symbolHeight();
         strip.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)';
-        strip.style.transform = `translateY(-${position}px)`;
+        strip.style.transform = `translateY(-${offsetFor(i, targetStops[i])}px)`;
 
         const stoppedCount = stopped.filter(s => s).length;
         if (onStopCallback) onStopCallback(i, stoppedCount);
@@ -86,5 +102,20 @@ const Reels = (() => {
         return stopped.some(s => !s);
     }
 
-    return { init, spin, stop, isSpinning };
+    // 止まっている図柄を光らせる。cells: [[リール, 段], ...]
+    function highlight(cells, className) {
+        cells.forEach(([reel, row]) => {
+            const el = cellElement(reel, targetStops[reel], row);
+            if (!el) return;
+            el.classList.add(className);
+            litCells.push([el, className]);
+        });
+    }
+
+    function clearHighlight() {
+        litCells.forEach(([el, className]) => el.classList.remove(className));
+        litCells = [];
+    }
+
+    return { init, spin, stop, isSpinning, highlight, clearHighlight };
 })();

@@ -39,9 +39,20 @@ window.GAME_CONFIG = {
     },
 
     // ----- リール -----
+    // 各リールは上段・中段・下段の3つの図柄が見える。当たりは5ライン (上段・中段・下段・右下がり・右上がり)
     reels: {
-        // リール帯に並ぶ図柄の順番 (ID)
+        // 図柄の種類 (ID)
         symbols: ['cherry', 'replay', 'melon', 'bell', 'diamond', 'seven', 'bar'],
+        // リール配列 (左・中・右)。上から下へこの順に並び、最後の次は最初に戻る
+        // 3本とも同じ並びだと複数の段が同時に揃うので、リールごとに並びを変えている
+        strips: [
+            ['seven', 'replay', 'bell', 'cherry', 'melon', 'replay', 'bar', 'bell', 'diamond', 'cherry', 'replay',
+             'melon', 'bell', 'seven', 'diamond', 'cherry', 'replay', 'bar', 'bell', 'melon', 'diamond'],
+            ['bell', 'seven', 'diamond', 'replay', 'cherry', 'melon', 'bell', 'bar', 'replay', 'diamond', 'seven',
+             'cherry', 'bell', 'melon', 'replay', 'bar', 'diamond', 'cherry', 'bell', 'replay', 'melon'],
+            ['replay', 'cherry', 'seven', 'bell', 'melon', 'diamond', 'replay', 'bar', 'cherry', 'bell', 'melon',
+             'seven', 'replay', 'diamond', 'bell', 'bar', 'cherry', 'melon', 'replay', 'diamond', 'bell']
+        ],
         // 揃ったときの払い出し枚数
         payouts: {
             replay: 3,   // リプレイ (投入分が戻る)
@@ -51,17 +62,20 @@ window.GAME_CONFIG = {
             melon: 30,
             bar: 40,
             seven: 50,
-            sevenBar: 0   // 7️⃣7️⃣BAR (BATTLE 中の確定撃破役)
+            sevenBar: 0   // 7・7・BAR (BATTLE 中の確定撃破役)
         },
-        // 揃い扱いになる特殊な出目 (役ID → 出目)
+        // 揃い扱いになる特殊な出目 (役ID → ライン上の並び)
         specialPatterns: {
             sevenBar: ['seven', 'seven', 'bar']
         },
-        // チャンス目 (揃いではない特定の出目)。抽選で 'chance' に当選するといずれかが出る
+        // チャンス目 (揃いではない特別な出目)。抽選で 'chance' に当選すると weight の重みでどれかが出る
+        //   line:  5ラインのどれかにこの並びが出る
+        //   cells: 指定の位置 ([リール, 段, 図柄]。段は 0:上段 1:中段 2:下段) にこの図柄が出る
         chancePatterns: [
-            ['melon', 'cherry', 'melon'],
-            ['bar', 'cherry', 'bar'],
-            ['seven', 'bar', 'seven']
+            { name: 'スイカ崩れ', weight: 35, line: ['melon', 'cherry', 'melon'] },
+            { name: 'BAR崩れ', weight: 25, line: ['bar', 'cherry', 'bar'] },
+            { name: '7崩れ', weight: 15, line: ['seven', 'bar', 'seven'] },
+            { name: '中段チェリー', weight: 25, cells: [[0, 1, 'cherry']] }
         ]
     },
 
@@ -283,7 +297,9 @@ window.GAME_CONFIG = {
             flashCount: 3     // フラッシュの回数
         },
         cutInRate: 0.5,       // 大ダメージ時にカットインを出す確率
-        fakeReachRate: 0.12,  // ハズレのときにガセリーチ (NO...) を出す確率
+        fakeReachRate: 0.12,  // ハズレのときに 7・BAR のリーチ目 (ガセリーチ) が出る出目を選ぶ確率
+        // リーチ演出を出す図柄 (当たるラインのリーチは図柄に関係なく出す)
+        reachSymbols: ['seven', 'bar', 'melon'],
         pushRate: 0.5,        // チャンス目のとき、最後の STOP が金色に光って「押せ!!」が出る確率
         // 先読み予告: レバーON で雪が降る確率 (役ごと)。goldRate は当たり役のときに金色の雪になる割合
         preview: {

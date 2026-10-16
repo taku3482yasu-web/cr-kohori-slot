@@ -94,6 +94,19 @@
         .sym-row { display: inline-flex; gap: 2px; vertical-align: middle; }
         .sym-row .sym { width: 26px; height: 26px; background: #fff; border-radius: 3px; }
         canvas.enemy { image-rendering: pixelated; display: block; margin: 0 auto; }
+
+        /* 3x3 の出目の図 */
+        .line-list, .chance-list { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0; }
+        .grid-card { background: #0f1626; border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: center; }
+        .grid-card .label { font-size: 0.85rem; margin-top: 4px; }
+        .grid-card .sub { font-size: 0.75rem; color: var(--muted); }
+        .grid3 { display: grid; grid-template-columns: repeat(3, 30px); gap: 2px; justify-content: center; }
+        .grid3 div { width: 30px; height: 30px; background: #fff; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+        .grid3 div.on { background: #fff3a0; box-shadow: inset 0 0 0 2px #ffd700; }
+        .grid3 div.pink { background: #ffd6f6; box-shadow: inset 0 0 0 2px #ff6ad8; }
+        .grid3 div.blank { background: #2a3550; }
+        .grid3 div.blank.on { background: #ffd700; box-shadow: none; }
+        .grid3 img { width: 24px; height: 24px; image-rendering: pixelated; }
         .tag {
             display: inline-block; font-size: 0.75rem; padding: 0 6px; border-radius: 8px;
             background: #3a2a10; color: var(--gold); border: 1px solid #6a5010; white-space: nowrap;
@@ -108,6 +121,7 @@
 
     <nav class="toc">
         <a href="#controls">操作</a>
+        <a href="#lines">リールとライン</a>
         <a href="#flow">ゲームの流れ</a>
         <a href="#normal">通常時</a>
         <a href="#castle">城突入</a>
@@ -127,6 +141,13 @@
             <li>コインがなくなったら <b>BUY COINS</b>（<span id="package"></span>）</li>
             <li>データは1ゲームごとに自動で保存され、次に開いたときは続きから遊べます</li>
         </ul>
+    </section>
+
+    <section id="lines">
+        <h2>リールとライン</h2>
+        <p>各リールには <b>上段・中段・下段</b> の3つの図柄が見えます。次の <b>5ライン</b> のどこかに同じ図柄が3つ並ぶと当たりです（斜めもOK）。</p>
+        <div class="line-list" id="line-list"></div>
+        <p>2本止めた時点で当たりそうなラインがあると <b>REACH!</b>（揃うラインと、7・BAR・スイカのリーチで発生）。揃ったラインの図柄は金色に光ります。</p>
     </section>
 
     <section id="flow">
@@ -204,8 +225,9 @@
         <h2>役と確率</h2>
         <p class="note">確率は1ゲームあたりの当選確率（設定1の値）。チャンス目は揃いではない特別な出目です。</p>
         <div class="table-wrap"><table id="role-table"></table></div>
-        <h3>チャンス目の出目</h3>
-        <p id="chance-patterns"></p>
+        <h3>チャンス目</h3>
+        <p>揃いではない特別な出目。CP が増えたり、城に突入しやすかったり、BATTLE で大ダメージになったりします。チャンス目の図柄はピンクに光ります。</p>
+        <div class="chance-list" id="chance-patterns"></div>
     </section>
 
     <section id="setting">
@@ -221,6 +243,9 @@
 <script src="js/config.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/characters.js"></script>
+<script src="js/state.js"></script>
+<script src="js/lottery.js"></script>
+<script src="js/battle.js"></script>
 <script>
     // 表示する数値はすべて js/config.js から作る (数値を調整してもこのページは自動で追従する)
     const c = window.GAME_CONFIG;
@@ -242,6 +267,20 @@
         if (c.reels.symbols.includes(role)) return pattern([role, role, role]);
         return '';
     };
+    // 3x3 の出目 (grid[リール][段]) を図にする。cells のマスを強調
+    const grid3 = (grid, cells = [], cls = 'on') => {
+        const lit = new Set(cells.map(([reel, row]) => `${reel}-${row}`));
+        let html = '<div class="grid3">';
+        for (let row = 0; row < 3; row++) {
+            for (let reel = 0; reel < 3; reel++) {
+                const id = grid ? grid[reel][row] : null;
+                const on = lit.has(`${reel}-${row}`) ? (grid ? cls : 'on') : '';
+                html += id ? `<div class="${on}"><img src="${Symbols.url(id)}" alt="${SYMBOL_NAMES[id]}"></div>`
+                    : `<div class="blank ${on}"></div>`;
+            }
+        }
+        return html + '</div>';
+    };
     const table = (id, head, rows) => {
         $(id).innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead>` +
             `<tbody>${rows.map(r => `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody>`;
@@ -251,6 +290,10 @@
         : `柄揃い確率UP ×${b.value}（${b.games}G）`;
 
     $('title').textContent = c.title;
+
+    // 5ライン
+    $('line-list').innerHTML = LINES.map((line, li) =>
+        `<div class="grid-card">${grid3(null, Lottery.lineCells(li))}<div class="label">${line.name}</div></div>`).join('');
     $('spin-cost').textContent = c.coins.spinCost;
     $('package').textContent = `${c.coins.packagePrice.toLocaleString()}円で${c.coins.packageAmount}枚`;
 
@@ -355,7 +398,18 @@
             odds(c.lottery.castleChallenge[role]),
             odds(c.lottery.battle[role])
         ]));
-    $('chance-patterns').innerHTML = c.reels.chancePatterns.map(pattern).join('　');
+    // チャンス目: 実際のリール配列から作った出目の例と、出やすさ
+    const cats = ReelMap.categories(c);
+    const chanceTotal = c.reels.chancePatterns.reduce((sum, p) => sum + p.weight, 0);
+    $('chance-patterns').innerHTML = c.reels.chancePatterns.map(p => {
+        const example = cats[`chance:${p.name}`][0];
+        const grid = ReelMap.gridFor(example.stops, c.reels.strips);
+        const desc = p.line ? `${p.line.map(id => SYMBOL_NAMES[id]).join('・')} がどれかのライン上に並ぶ`
+            : p.cells.map(([reel, row, id]) => `${['左', '中', '右'][reel]}リール${['上段', '中段', '下段'][row]}に${SYMBOL_NAMES[id]}`).join('、');
+        return `<div class="grid-card">${grid3(grid, example.chance.cells, 'pink')}` +
+            `<div class="label"><b>${p.name}</b></div><div class="sub">${desc}</div>` +
+            `<div class="sub">チャンス目のうち ${pct(p.weight / chanceTotal)}</div></div>`;
+    }).join('');
 
     // 設定
     const m = c.machine.multipliers;

@@ -54,13 +54,6 @@
         debugNextRole = null;
         const effects = config.effects;
 
-        // ガセリーチ: いったん3つとも同じ柄にしておき、2本止まった時点で残りをハズレ柄に差し替える
-        if (outcome.role === 'miss' && Math.random() < effects.fakeReachRate) {
-            const symbol = config.reels.symbols[Math.floor(Math.random() * config.reels.symbols.length)];
-            outcome.results = [symbol, symbol, symbol];
-            outcome.fakeReach = true;
-        }
-
         // 先読み予告 (レバーON で雪が降る)
         const previewRate = effects.preview[outcome.role] || 0;
         if (Math.random() < previewRate) {
@@ -69,20 +62,16 @@
         }
 
         const stopOrder = [];
-        let reachSymbol = null;
+        let reach = null;
         const onStop = (i, count) => {
             Sound.stop(i);
             stopOrder.push(i);
             if (count === 2) {
                 const remaining = [0, 1, 2].find(k => !stopOrder.includes(k));
-                if (outcome.fakeReach) {
-                    outcome.results[remaining] = Lottery.missSymbol(outcome.results, remaining, config);
-                }
-                const [a, b] = stopOrder.map(k => outcome.results[k]);
-                if (a === b) {
-                    reachSymbol = a;
+                reach = Lottery.findReach(outcome, stopOrder, config);
+                if (reach) {
                     stopButtons[remaining].classList.add('reach');
-                    Lcd.reach(a);
+                    Lcd.reach(reach.symbol, reach.lineName);
                     Sound.chance();
                 } else if (outcome.isChance && Math.random() < effects.pushRate) {
                     stopButtons[remaining].classList.add('push');
@@ -91,14 +80,19 @@
             }
         };
         const spinSound = setInterval(Sound.spin, 200);
-        await Reels.spin(outcome.results, effects.timing.reelSpinStagger, onStop);
+        await Reels.spin(outcome.stops, effects.timing.reelSpinStagger, onStop);
         clearInterval(spinSound);
         stopButtons.forEach(btn => btn.classList.remove('reach', 'push'));
         Lcd.stopPreview();
 
+        // 揃ったライン・チャンス目の図柄を光らせる
+        if (outcome.winLine !== null) Reels.highlight(Lottery.lineCells(outcome.winLine), 'win');
+        if (outcome.chance) Reels.highlight(outcome.chance.cells, 'chance-cell');
+
         // リーチの結果
-        if (reachSymbol) {
-            const result = outcome.aligned ? 'get' : outcome.isChance ? 'chance' : 'no';
+        if (reach) {
+            // リーチしたラインが揃えば GET!!、別のラインで揃った・チャンス目のときはそれぞれの表示
+            const result = reach.line === outcome.winLine ? 'get' : outcome.isChance ? 'chance' : 'no';
             await Lcd.reachResult(result);
         }
 
