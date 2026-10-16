@@ -22,11 +22,11 @@ window.GAME_CONFIG = {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
             1: { chance: 1.00, castleEntry: 1.00, pointBig: 1.00 },
-            2: { chance: 1.10, castleEntry: 1.05, pointBig: 1.10 },
-            3: { chance: 1.20, castleEntry: 1.12, pointBig: 1.20 },
-            4: { chance: 1.35, castleEntry: 1.22, pointBig: 1.30 },
-            5: { chance: 1.50, castleEntry: 1.45, pointBig: 1.50 },
-            6: { chance: 1.70, castleEntry: 1.75, pointBig: 1.75 }
+            2: { chance: 1.12, castleEntry: 1.08, pointBig: 1.10 },
+            3: { chance: 1.30, castleEntry: 1.20, pointBig: 1.25 },
+            4: { chance: 1.70, castleEntry: 1.55, pointBig: 1.50 },
+            5: { chance: 2.20, castleEntry: 2.10, pointBig: 1.85 },
+            6: { chance: 3.00, castleEntry: 3.00, pointBig: 2.25 }
         }
     },
 
@@ -102,7 +102,7 @@ window.GAME_CONFIG = {
             bar: 1 / 150,
             seven: 1 / 300,
             sevenBar: 1 / 500,   // 7・7・BAR: 必ず突入し、最初の相手はおにおに
-            chance: 1 / 30
+            chance: 1 / 29
         },
         // RASH / BATTLE 中 (リプレイ多めでコインが減りにくい)
         battle: {
