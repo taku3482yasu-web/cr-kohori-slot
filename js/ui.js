@@ -53,7 +53,15 @@ const UI = (() => {
             resetModal: $('reset-modal'),
             resetConfirm: $('reset-confirm-button'),
             resetCancel: $('reset-cancel-button'),
-            spinButton: $('spin-button')
+            spinButton: $('spin-button'),
+            dcTotal: $('dc-total'),
+            dcCurrent: $('dc-current'),
+            dcRash: $('dc-rash'),
+            dcSuper: $('dc-super'),
+            dcOdds: $('dc-odds'),
+            dcGraph: $('dc-graph'),
+            dcHistory: $('dc-history'),
+            dcEmpty: $('dc-empty')
         };
         initAudioSettings();
         initDataReset();
@@ -106,7 +114,61 @@ const UI = (() => {
             els.spentLabel.textContent = 'TOTAL SPENT:';
             els.spent.textContent = state.totalSpent.toLocaleString();
         }
+        renderDataCounter(state);
         if (config.debug) els.debugState.textContent = JSON.stringify(state, null, 2);
+    }
+
+    // ----- データカウンター・大当たり履歴 -----
+    const TRIGGER_LABELS = {
+        castle: '城突入',
+        sevenBar: '7・7・BAR',
+        freeze: 'ロングフリーズ',
+        revenge: 'リベンジ'
+    };
+    let dataCounterKey = '';
+
+    function renderDataCounter(state) {
+        const inRash = StateMachine.isRashMode(state);
+        const shown = state.hitHistory.slice(0, config.dataCounter.historyShown);
+        const liveCoins = inRash ? state.rash.coinsWon : 0;
+        const key = JSON.stringify([state.totalGames, state.gamesSinceHit, state.rashCount, state.superCount,
+            state.mode, liveCoins, inRash ? state.rash.defeatCount : 0, shown]);
+        if (key === dataCounterKey) return;
+        dataCounterKey = key;
+
+        els.dcTotal.textContent = state.totalGames.toLocaleString();
+        els.dcCurrent.textContent = inRash ? (state.mode === MODES.SUPER_RASH ? 'SUPER中' : 'RASH中') : state.gamesSinceHit;
+        els.dcRash.textContent = state.rashCount;
+        els.dcSuper.textContent = state.superCount;
+        els.dcOdds.textContent = state.rashCount ? `1/${Math.round(state.totalGames / state.rashCount)}` : '-';
+
+        // 当選までのゲーム数のグラフ (左が古い)
+        const maxGames = Math.max(100, ...shown.map(h => h.games));
+        els.dcGraph.innerHTML = [...shown].reverse().map(h => {
+            const height = Math.max(4, Math.round(h.games / maxGames * 100));
+            const kind = h.active ? 'active' : h.super ? 'super' : 'rash';
+            return `<div class="dc-bar dc-bar-${kind}" title="${h.no}回目 ${h.games}G"><span>${h.games}</span><i style="height:${height}%"></i></div>`;
+        }).join('');
+
+        els.dcEmpty.hidden = shown.length > 0;
+        els.dcHistory.innerHTML = shown.map(h => {
+            const coins = h.active ? liveCoins : h.coins;
+            const defeats = h.active ? state.rash.defeatCount : h.defeats;
+            const kind = h.active
+                ? `<span class="dc-live">${state.mode === MODES.SUPER_RASH ? 'SUPER' : 'RASH'}中</span>`
+                : h.super ? '<span class="dc-gold">SUPER</span>' : '<span class="dc-red">RASH</span>';
+            return `<tr><td>${h.no}</td><td>${h.games}G</td><td>${TRIGGER_LABELS[h.trigger] || '-'}</td>` +
+                `<td>${kind}</td><td>${coins.toLocaleString()}枚</td><td>${defeats}体</td><td>${trophyCell(h)}</td></tr>`;
+        }).join('');
+    }
+
+    // 履歴のトロフィー欄: 色の見本と「○以上」(出なかったときは -)
+    function trophyCell(hit) {
+        const color = hit.trophy && config.trophy.colors[hit.trophy];
+        if (!color) return '-';
+        const style = color.rainbow ? '' : ` style="background:${color.main}"`;
+        const label = hit.trophy === 1 ? color.name : hit.trophy === 6 ? `${color.name} 6確定` : `${color.name} ${hit.trophy}以上`;
+        return `<span class="dc-trophy${color.rainbow ? ' dc-trophy-rainbow' : ''}"${style}></span>${label}`;
     }
 
     // ----- キー割り当て -----

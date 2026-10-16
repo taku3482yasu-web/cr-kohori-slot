@@ -60,6 +60,8 @@ const SaveData = (() => {
         if (!Object.values(RASH_PHASES).includes(state.rash.phase)) return false;
         if (state.rash.enemyId && !Battle.findEnemy(config, state.rash.enemyId)) return false;
         if (!Array.isArray(state.companions)) return false;
+        if (!Array.isArray(state.hitHistory)) state.hitHistory = [];
+        if (!Number.isFinite(state.gamesSinceHit)) state.gamesSinceHit = 0;
         state.companions = state.companions.filter(id => config.companions.members.some(m => m.id === id));
         return Number.isFinite(state.coins);
     }

@@ -111,6 +111,11 @@
             display: inline-block; font-size: 0.75rem; padding: 0 6px; border-radius: 8px;
             background: #3a2a10; color: var(--gold); border: 1px solid #6a5010; white-space: nowrap;
         }
+        .trophy-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+        .trophy-list li { display: flex; align-items: center; gap: 6px; }
+        .trophy-swatch {
+            display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid #000;
+        }
     </style>
 </head>
 <body>
@@ -284,6 +289,11 @@
         <p>台には設定1〜6があり、起動時に決まります（設定1が最も出やすい）。現在の設定は ⚙ SETTINGS の「台の設定」で確認できます。</p>
         <div class="table-wrap"><table id="setting-table"></table></div>
         <p class="note">RASH の継続率はどの設定でも同じです。</p>
+        <h3>設定示唆トロフィー</h3>
+        <p>おにおにRASH（SUPER）が終わると、<span id="trophy-rate"></span>くらいの確率で液晶の左下にトロフィーが出ます。<b>色で「設定○以上」を示唆</b>します（次のレバー ON で消えます。大当たり履歴にも残ります）。高い設定ほど、上の色が出やすくなります。</p>
+        <ul id="trophy-list" class="trophy-list"></ul>
+        <h3>データカウンター</h3>
+        <p>リールの下に、総ゲーム数・現在のゲーム数（前回の RASH から）・RASH と SUPER の回数・初当たり確率と、<b>大当たり履歴</b>（当選までのゲーム数・契機・SUPER 到達・獲得枚数・撃破数、新しい順に<span id="dc-shown"></span>件）を表示します。グラフは当選までのゲーム数（赤: RASH、金: SUPER 到達）です。</p>
     </section>
 
     <a class="back" href="index.html">← ゲームに戻る</a>
@@ -538,6 +548,15 @@
     // 設定
     const m = c.machine.multipliers;
     const settings = Object.keys(m);
+    $('dc-shown').textContent = c.dataCounter.historyShown;
+    $('trophy-rate').textContent = `${Math.round(1 / c.trophy.rate)}回に1回`;
+    $('trophy-list').innerHTML =Object.entries(c.trophy.colors).map(([s, t]) => {
+        const swatch = t.rainbow
+            ? 'background: linear-gradient(90deg, #ff4040, #ffd040, #40e060, #40a0ff, #c060ff)'
+            : `background: ${t.main}`;
+        const meaning = s === '1' ? '示唆なし' : s === '6' ? '<span class="red">設定6確定</span>' : `設定${s}以上`;
+        return `<li><span class="trophy-swatch" style="${swatch}"></span>${t.name} … ${meaning}</li>`;
+    }).join('');
     table('setting-table', ['設定', '通常時のチャンス目', '城突入チャレンジのチャンス目', '城突入率', 'ポイントチャンス（多）'],
         settings.map(s => [
             s,

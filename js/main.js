@@ -59,6 +59,7 @@
         spinButton.disabled = true;
         state.coins -= cost;
         Lcd.clearMessage();
+        Lcd.hideTrophy();
         refresh();
 
         const outcome = debugNextRole ? Lottery.makeOutcome(debugNextRole, config) : Lottery.draw(state, config);

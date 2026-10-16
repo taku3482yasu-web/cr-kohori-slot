@@ -66,6 +66,30 @@
             </div>
         </div>
 
+        <!-- データカウンター・大当たり履歴 -->
+        <section class="data-counter" aria-label="データカウンター">
+            <div class="dc-stats">
+                <div class="dc-item"><span class="dc-label">総ゲーム数</span><span id="dc-total" class="dc-value">0</span></div>
+                <div class="dc-item"><span class="dc-label">現在</span><span id="dc-current" class="dc-value">0</span></div>
+                <div class="dc-item"><span class="dc-label">RASH</span><span id="dc-rash" class="dc-value dc-red">0</span></div>
+                <div class="dc-item"><span class="dc-label">SUPER</span><span id="dc-super" class="dc-value dc-gold">0</span></div>
+                <div class="dc-item"><span class="dc-label">初当たり</span><span id="dc-odds" class="dc-value">-</span></div>
+            </div>
+            <div id="dc-graph" class="dc-graph" aria-hidden="true"></div>
+            <details class="dc-history" open>
+                <summary>大当たり履歴</summary>
+                <div class="dc-table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>回</th><th>当選G</th><th>契機</th><th>種別</th><th>獲得</th><th>撃破</th><th>トロフィー</th></tr>
+                        </thead>
+                        <tbody id="dc-history"></tbody>
+                    </table>
+                </div>
+                <p id="dc-empty" class="dc-empty">まだ大当たりはありません</p>
+            </details>
+        </section>
+
         <!-- デバッグパネル (config.debug が true のときだけ表示) -->
         <details id="debug-panel" class="debug-panel" hidden>
             <summary>DEBUG</summary>

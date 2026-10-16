@@ -365,14 +365,14 @@ const Battle = {
             probUpGames: rash.probUpGames
         }];
         if (rash.enemyHp <= 0) events.push(...this.endNaitei(state, config, true));
-        else if (rash.gamesRemaining <= 0) events.push(...this.endNaitei(state, config, false));
+        else if (rash.gamesRemaining <= 0) events.push(...this.endNaitei(state, config, false, rng));
         return events;
     },
 
     // ゾーンの結果
     //   突破: 撃破ボーナス、おにおにRASH なら SUPER へ
     //   失敗: おにおにRASH なら RASH 終了 → 城突入チャレンジ、SUPER なら次の相手を決め直して継続
-    endNaitei(state, config, win) {
+    endNaitei(state, config, win, rng = Math.random) {
         const rash = state.rash;
         const enemy = config.naitei.enemy;
         rash.phase = RASH_PHASES.SELECT;
@@ -398,11 +398,12 @@ const Battle = {
         }
 
         const toCastle = state.mode === MODES.RASH;
+        const trophy = toCastle ? GameFlow.pickTrophy(state, config, rng) : null;
         const events = [{
             type: 'naiteiResult', win: false, name: enemy.name, toCastle,
-            coinsWon: rash.coinsWon, defeatCount: rash.defeatCount
+            coinsWon: rash.coinsWon, defeatCount: rash.defeatCount, trophy
         }];
-        if (toCastle) events.push(...GameFlow.returnToCastle(state, config));
+        if (toCastle) events.push(...GameFlow.returnToCastle(state, config, trophy));
         return events;
     },
 
@@ -501,6 +502,6 @@ const Battle = {
             rash.phase = RASH_PHASES.BATTLE;
             return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games }];
         }
-        return [{ type: 'questionResult', continued: false }, ...GameFlow.endRash(state, config)];
+        return [{ type: 'questionResult', continued: false }, ...GameFlow.endRash(state, config, rng)];
     }
 };

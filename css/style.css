@@ -458,6 +458,168 @@ body[data-mode="CASTLE_CHALLENGE"] #spin-button:not(:disabled) {
     margin-top: 2px;
 }
 
+/* データカウンター・大当たり履歴 */
+.data-counter {
+    width: 100%;
+    background: #0b0e16;
+    border: 3px solid #3a3f55;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: 'DotGothic16', 'Courier New', monospace;
+    color: #ddd;
+}
+
+.dc-stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.dc-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #161b28;
+    border-radius: 6px;
+    padding: 4px 2px;
+    min-width: 0;
+}
+
+.dc-label {
+    color: #8a93a8;
+    font-size: 0.7rem;
+}
+
+.dc-value {
+    color: #ff9a3c;
+    font-size: 1.15rem;
+    text-shadow: 0 0 6px rgba(255, 140, 40, 0.6);
+    white-space: nowrap;
+}
+
+.dc-red {
+    color: #ff5050;
+}
+
+.dc-gold {
+    color: var(--gold);
+}
+
+.dc-live {
+    color: #7fffd4;
+}
+
+.dc-graph {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 72px;
+    margin-top: 8px;
+    padding: 0 2px;
+    border-bottom: 1px solid #3a3f55;
+}
+
+.dc-graph:empty {
+    display: none;
+}
+
+.dc-bar {
+    flex: 1;
+    max-width: 40px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    min-width: 0;
+}
+
+.dc-bar span {
+    font-size: 0.6rem;
+    color: #aab;
+}
+
+.dc-bar i {
+    display: block;
+    width: 100%;
+    border-radius: 2px 2px 0 0;
+    background: #e03030;
+}
+
+.dc-bar-super i {
+    background: var(--gold);
+}
+
+.dc-bar-active i {
+    background: #7fffd4;
+}
+
+.dc-history {
+    margin-top: 8px;
+}
+
+.dc-history summary {
+    cursor: pointer;
+    color: #ff9a3c;
+    font-size: 0.85rem;
+}
+
+.dc-table-wrap {
+    overflow-x: auto;
+}
+
+.dc-history table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.dc-history th,
+.dc-history td {
+    padding: 3px 6px;
+    border-bottom: 1px solid #222838;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.dc-history th {
+    color: #8a93a8;
+    font-weight: normal;
+}
+
+.dc-history th:nth-child(3),
+.dc-history td:nth-child(3),
+.dc-history th:nth-child(4),
+.dc-history td:nth-child(4) {
+    text-align: center;
+}
+
+.dc-history td:nth-child(7) {
+    text-align: left;
+}
+
+.dc-trophy {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 4px;
+    border: 1px solid #000;
+    border-radius: 2px;
+    vertical-align: -1px;
+}
+
+.dc-trophy-rainbow {
+    background: linear-gradient(90deg, #ff4040, #ffd040, #40e060, #40a0ff, #c060ff);
+}
+
+.dc-empty {
+    margin: 6px 0 0;
+    color: #667;
+    font-size: 0.8rem;
+}
+
 /* デバッグパネル */
 .debug-panel {
     width: 100%;
@@ -758,6 +920,27 @@ button {
 
     .debug-panel {
         font-size: 0.75rem;
+    }
+
+    .data-counter {
+        padding: 8px;
+        border-width: 2px;
+    }
+
+    .dc-stats {
+        gap: 4px;
+    }
+
+    .dc-label {
+        font-size: 0.6rem;
+    }
+
+    .dc-value {
+        font-size: 0.9rem;
+    }
+
+    .dc-history table {
+        font-size: 0.72rem;
     }
 
     .modal {

@@ -45,6 +45,7 @@ const Lcd = (() => {
     let reachView = null;      // リーチ表示 { symbol, start }
     let preview = 0;           // 先読みの雪 (0: なし / 1: 白 / 2: 金)
     let cutIn = null;          // カットイン { who, text, color, start, duration }
+    let trophy = null;         // 設定示唆トロフィー { level, born, until } (level: 示す設定「○以上」)
     let bubbles = null;        // ポイントチャンスの吹き出し { values: [左, 右], cursor, chosen, decided }
     let freeze = null;         // ロングフリーズ { phase: 'still' | 'noise' | 'black' | 'rainbow', snapshot, start }
     let party = [];            // 表示中の仲間 (加わった順の id)
@@ -224,6 +225,7 @@ const Lcd = (() => {
         drawTitleCard(time);
         drawWipe(time);
         drawGateText(time);
+        drawTrophy(time);
         drawFlash(time);
     }
 
@@ -1885,6 +1887,7 @@ const Lcd = (() => {
         battle.visible = false;
         battle.enemyId = null;
         if (event.toCastle) {
+            showTrophy(event.trophy);
             showTitle('おにおにRASH 終了', `獲得 ${event.coinsWon}枚　撃破 ${event.defeatCount}体`, RASH_COLOR, 2500);
             await sleep(2500);
             showTitle('SE城突入ゾーンへ戻る', 'もう一度 城を目指せ!!', '#ff8080', 1600);
@@ -2003,6 +2006,7 @@ const Lcd = (() => {
 
     async function rashEnd(event) {
         const name = event.wasSuper ? 'SUPERおにおにRASH' : 'おにおにRASH';
+        showTrophy(event.trophy);
         showTitle(`${name} 終了`, `獲得 ${event.coinsWon}枚　撃破 ${event.defeatCount}体`, logoColor(), 2500);
         await sleep(2500);
         if (event.companionNames && event.companionNames.length) {
@@ -2138,6 +2142,92 @@ const Lcd = (() => {
         }
     }
 
+    // ----- 設定示唆トロフィー (RASH 終了時に左下へ) -----
+    // k: 縁 / h: ハイライト / #: 本体 / d: 影 / b: 台座
+    const TROPHY_ART = [
+        '..kkkkkkkkkk..',
+        'kkkhh#####dkkk',
+        'k.kh######dk.k',
+        'k.kh######dk.k',
+        '.kkh######dkk.',
+        '...kh####dk...',
+        '....kh##dk....',
+        '.....k##k.....',
+        '.....k##k.....',
+        '....kh##dk....',
+        '..kkkkkkkkkk..',
+        '..kbbbbbbbbk..',
+        '..kbbbbbbbbk..',
+        '..kkkkkkkkkk..'
+    ];
+
+    // level: 示す設定 (出なかったときは null)
+    function showTrophy(level) {
+        if (!config.trophy.colors[level]) return;
+        trophy = { level, born: performance.now(), until: Infinity };
+        if (config.trophy.colors[level].rainbow) Sound.rainbow();
+        else Sound.chance();
+    }
+
+    // 次のレバー ON で消す (出てから minShow ミリ秒は残す)
+    function hideTrophy() {
+        if (!trophy) return;
+        trophy.until = Math.max(performance.now(), trophy.born + config.trophy.minShow);
+    }
+
+    function drawTrophy(time) {
+        if (!trophy) return;
+        if (time > trophy.until) {
+            trophy = null;
+            return;
+        }
+        const color = config.trophy.colors[trophy.level];
+        const px = 2;
+        const size = TROPHY_ART.length * px;
+        const t = Math.max(0, performance.now() - trophy.born);
+        // 上から落ちてきて少し弾む
+        const drop = t < 300 ? (1 - t / 300) * -24 : t < 450 ? -Math.sin((t - 300) / 150 * Math.PI) * 4 : 0;
+        const x = 6;
+        const y = Math.round(H - size - 6 + drop);
+        const fadeOut = Math.min(1, Math.max(0, (trophy.until - time) / 400));
+        ctx.save();
+        ctx.globalAlpha = fadeOut;
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(x + 2, H - 8, size - 4, 3);
+        // 光の筋が斜めに通り過ぎる (1.6秒ごと)
+        const glint = ((t % 1600) / 1600) * (size * 2.5) - size / 2;
+        TROPHY_ART.forEach((row, r) => {
+            [...row].forEach((c, col) => {
+                if (c === '.') return;
+                let fill;
+                if (c === 'k') fill = '#1a1208';
+                else if (c === 'b') fill = '#5a3a1a';
+                else if (color.rainbow) {
+                    const hue = (time / 5 + r * 25 + col * 12) % 360;
+                    fill = `hsl(${hue}, 100%, ${c === 'h' ? 85 : c === 'd' ? 38 : 60}%)`;
+                } else {
+                    fill = c === 'h' ? color.light : c === 'd' ? color.dark : color.main;
+                }
+                if (c !== 'k' && c !== 'b' && Math.abs((col + r) * px - glint) < 3) fill = '#ffffff';
+                ctx.fillStyle = fill;
+                ctx.fillRect(x + col * px, y + r * px, px, px);
+            });
+        });
+        // 6 (虹) はキラキラも出す
+        if (color.rainbow) {
+            for (let i = 0; i < 3; i++) {
+                const phase = (time / 400 + i / 3) % 1;
+                const sx = x + ((i * 11 + 3) % size);
+                const sy = y + ((i * 7 + 2) % (size - 8));
+                ctx.globalAlpha = fadeOut * (1 - phase);
+                ctx.fillStyle = `hsl(${(time / 3 + i * 120) % 360}, 100%, 80%)`;
+                ctx.fillRect(sx - 1, sy, 3, 1);
+                ctx.fillRect(sx, sy - 1, 1, 3);
+            }
+        }
+        ctx.restore();
+    }
+
     // テスト用: 指定時刻のフレームをその場で描く
     function renderFrame(time = performance.now()) {
         draw(time);
@@ -2145,6 +2235,6 @@ const Lcd = (() => {
 
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
-        reach, push, reachResult, longFreeze, playChanceEffect
+        reach, push, reachResult, longFreeze, playChanceEffect, hideTrophy
     };
 })();

@@ -472,6 +472,41 @@ window.GAME_CONFIG = {
         }
     },
 
+    // ----- 設定示唆トロフィー -----
+    // RASH (SUPER) が終わると rate の確率で液晶の左下にトロフィーが出る。
+    // 色は「設定○以上」を示す (colors のキー = 示す設定。白は設定1以上 = どの設定でも出る、虹は設定6確定)
+    //   weights: 設定ごとの、出たときの色の重み。示す設定が台の設定以下の色だけが出る。
+    //            台の設定と同じ色 (出せる中でいちばん上の色) を出やすくして示唆を強めにしている
+    //   minShow: 最低限表示する時間 (ミリ秒)。これを過ぎて次のレバー ON で消える
+    trophy: {
+        rate: 0.5,
+        weights: {
+            1: { 1: 100 },
+            2: { 1: 55, 2: 45 },
+            3: { 1: 40, 2: 20, 3: 40 },
+            4: { 1: 30, 2: 15, 3: 15, 4: 40 },
+            5: { 1: 25, 2: 10, 3: 10, 4: 15, 5: 40 },
+            6: { 1: 20, 2: 10, 3: 10, 4: 10, 5: 15, 6: 35 }
+        },
+        colors: {
+            1: { name: '白', main: '#f2f2f2', light: '#ffffff', dark: '#a8a8b8' },
+            2: { name: '青', main: '#3f8cff', light: '#a8ccff', dark: '#1d4ea8' },
+            3: { name: '緑', main: '#3fcf5f', light: '#a8f0b8', dark: '#1d7a33' },
+            4: { name: '紫', main: '#a860ff', light: '#d8b8ff', dark: '#5a2a9a' },
+            5: { name: '赤', main: '#ff3a3a', light: '#ffb0b0', dark: '#9a1a1a' },
+            6: { name: '虹', rainbow: true }
+        },
+        minShow: 6000
+    },
+
+    // ----- データカウンター -----
+    //   historySize: 大当たり履歴に残す件数 (新しい順)
+    //   historyShown: 画面に表示する件数
+    dataCounter: {
+        historySize: 50,
+        historyShown: 10
+    },
+
     // ----- キー割り当ての初期値 -----
     keys: {
         lever: 'Space',

@@ -117,6 +117,10 @@ function createInitialState(config, rng = Math.random) {
         rashCount: 0,
         superCount: 0,
 
+        // データカウンター
+        gamesSinceHit: 0,      // 前回の RASH から (通常時・城突入チャレンジの) ゲーム数
+        hitHistory: [],        // 大当たり履歴 (新しい順) { no, games, trigger, totalGames, coins, defeats, super, active }
+
         // 仲間 (加わった順の id。members の並びが弱い順)
         companions: [],
 
@@ -189,6 +193,7 @@ const StateMachine = {
 const GameFlow = {
     onGameEnd(state, outcome, config, rng = Math.random) {
         state.totalGames++;
+        if (!StateMachine.isRashMode(state)) state.gamesSinceHit++;
         const events = [this.applyPayout(state, outcome, config)];
         if (outcome.isFreeze) {
             events.push(...this.longFreeze(state, config, rng));
@@ -234,7 +239,7 @@ const GameFlow = {
                 events.push({ type: 'revengeSuccess' });
                 events.push(StateMachine.transition(state, MODES.RASH));
                 state.rash = createRashState();
-                state.rashCount++;
+                this.recordHit(state, config, 'revenge');
                 events.push({ type: 'rashStart' });
                 return events;
             }
@@ -381,7 +386,7 @@ const GameFlow = {
             events.push(StateMachine.transition(state, MODES.RASH));
             state.rash = createRashState();
             if (oniEntry) state.rash.nextForcedEnemy = 'onioni';
-            state.rashCount++;
+            this.recordHit(state, config, oniEntry ? 'sevenBar' : 'castle');
             state.normal.chancePoint = 0;
             events.push({ type: 'rashStart' });
             return events;
@@ -417,7 +422,8 @@ const GameFlow = {
     },
 
     // 内定の時ゾーンの失敗 (おにおにRASH 中): RASH 終了 → SE城前の城突入チャレンジへ (仲間は残る)
-    returnToCastle(state, config) {
+    returnToCastle(state, config, trophy = null) {
+        this.finishHit(state, false, trophy);
         state.rash = createRashState();
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
@@ -433,7 +439,7 @@ const GameFlow = {
         events.push(StateMachine.transition(state, MODES.RASH));
         state.rash = createRashState();
         state.rash.nextForcedEnemy = 'onioni';
-        state.rashCount++;
+        this.recordHit(state, config, 'freeze');
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
         state.normal.revengeGames = 0;
@@ -444,13 +450,15 @@ const GameFlow = {
     },
 
     // RASH / SUPER 終了 → 通常時 (ループ中のマップへ戻る)
-    endRash(state, config) {
+    endRash(state, config, rng = Math.random) {
         const rash = state.rash;
         const companionNames = Companions.members(state, config).map(m => m.name);
+        const trophy = this.pickTrophy(state, config, rng);
         const events = [{
             type: 'rashEnd', coinsWon: rash.coinsWon, defeatCount: rash.defeatCount,
-            wasSuper: state.mode === MODES.SUPER_RASH, companionNames
+            wasSuper: state.mode === MODES.SUPER_RASH, companionNames, trophy
         }];
+        this.finishHit(state, state.mode === MODES.SUPER_RASH, trophy);
         state.companions = [];   // RASH が終わると仲間は帰っていく
         events.push(StateMachine.transition(state, MODES.NORMAL));
         state.rash = createRashState();
@@ -461,6 +469,44 @@ const GameFlow = {
         state.normal.revengeGames = config.revenge.games;
         events.push({ type: 'revengeStart', games: config.revenge.games });
         return events;
+    },
+
+    // ----- 大当たり履歴 (データカウンター) -----
+    // RASH 突入: 当選までのゲーム数と契機を記録 (trigger: castle / sevenBar / freeze / revenge)
+    recordHit(state, config, trigger) {
+        state.rashCount++;
+        for (const hit of state.hitHistory) hit.active = false;
+        state.hitHistory.unshift({
+            no: state.rashCount,
+            games: state.gamesSinceHit,
+            trigger,
+            totalGames: state.totalGames,
+            coins: 0,
+            defeats: 0,
+            super: false,
+            active: true
+        });
+        state.hitHistory.length = Math.min(state.hitHistory.length, config.dataCounter.historySize);
+        state.gamesSinceHit = 0;
+    },
+
+    // RASH 終了: 獲得枚数・撃破数・SUPER 到達・出たトロフィーを記録
+    finishHit(state, reachedSuper, trophy) {
+        const hit = state.hitHistory[0];
+        if (!hit || !hit.active) return;
+        hit.coins = state.rash.coinsWon;
+        hit.defeats = state.rash.defeatCount;
+        hit.super = reachedSuper;
+        hit.trophy = trophy;
+        hit.active = false;
+    },
+
+    // RASH 終了時の設定示唆トロフィー: rate の確率で出て、色 (= 示す設定「○以上」) を weights で選ぶ。出なければ null
+    pickTrophy(state, config, rng = Math.random) {
+        const cfg = config.trophy;
+        if (rng() >= cfg.rate) return null;
+        const weights = cfg.weights[state.setting];
+        return Number(Lottery.weightedPick(Object.keys(weights), level => weights[level], rng));
     },
 
     // 払い出し (柄が揃ったとき)
