@@ -182,6 +182,8 @@
         setBreak: debugAction(() => DebugState.setBreak(state)),
         forceOni: debugAction(() => DebugState.forceEnemy(state, 'onioni')),
         pointChance: debugAction(() => DebugState.forcePointChance(state, config)),
+        companion: debugAction(() => DebugState.forceCompanion(state)),
+        allCompanions: debugAction(() => DebugState.allCompanions(state, config)),
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },
         forceGold: debugAction(() => DebugState.forceEnemy(state, config.goldDog.id)),
         coins: debugAction(() => { state.coins += 1000; })

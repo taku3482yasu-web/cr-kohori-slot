@@ -37,6 +37,48 @@ const ALLOWED_TRANSITIONS = {
     SUPER_RASH: ['NORMAL']
 };
 
+// 仲間
+const Companions = {
+    members(state, config) {
+        return state.companions.map(id => config.companions.members.find(m => m.id === id)).filter(Boolean);
+    },
+
+    castleEntryMultiplier(state, config) {
+        return this.members(state, config).reduce((mult, m) => mult * m.castleEntry, 1);
+    },
+
+    extraDamage(state, config) {
+        return this.members(state, config).map(m => ({ id: m.id, name: m.name, amount: m.extraDamage }));
+    },
+
+    // 一番強い仲間 (members の並びで後ろほど強い)
+    strongest(state, config) {
+        const list = config.companions.members.filter(m => state.companions.includes(m.id));
+        return list[list.length - 1] || null;
+    },
+
+    // お仲間チャレンジ (通常時のマップ移動中)
+    challenge(state, config, rng) {
+        const cfg = config.companions;
+        const forced = state.debugForceCompanion;
+        state.debugForceCompanion = false;
+        const candidates = cfg.members.filter(m => !state.companions.includes(m.id));
+        if (candidates.length === 0 || !(forced || rng() < cfg.challengeRate)) return [];
+        const member = Lottery.weightedPick(candidates, m => m.weight, rng);
+        const success = rng() < cfg.successRate;
+        if (success) state.companions.push(member.id);
+        return [{ type: 'companionChallenge', memberId: member.id, name: member.name, success }];
+    },
+
+    // 肩代わり: 一番強い仲間が saveRate で RASH の終了を防ぐ (成功するとその仲間は離脱)
+    trySave(state, config, rng) {
+        const member = this.strongest(state, config);
+        if (!member || rng() >= member.saveRate) return null;
+        state.companions = state.companions.filter(id => id !== member.id);
+        return member;
+    }
+};
+
 // 台の設定 (1〜6)
 const MachineSetting = {
     pick(config, rng = Math.random) {
@@ -60,6 +102,9 @@ function createInitialState(config, rng = Math.random) {
         totalGames: 0,
         rashCount: 0,
         superCount: 0,
+
+        // 仲間 (加わった順の id。members の並びが弱い順)
+        companions: [],
 
         // 通常時
         normal: {
@@ -176,7 +221,9 @@ const GameFlow = {
         const pc = config.pointChance;
         const forced = state.debugForcePointChance;
         state.debugForcePointChance = false;
+        let pointChanceHappened = false;
         if (normal.chancePoint < cp.threshold && (forced || rng() < pc.rate)) {
+            pointChanceHappened = true;
             const small = pc.small[Math.floor(rng() * pc.small.length)];
             const big = pc.big[Math.floor(rng() * pc.big.length)];
             const bigRate = Math.min(1, (pc.bigRate[outcome.role] ?? 0) * MachineSetting.multipliers(state, config).pointBig);
@@ -184,6 +231,11 @@ const GameFlow = {
             const amount = chosen === 'big' ? big : small;
             normal.chancePoint = Math.min(cp.threshold, normal.chancePoint + amount);
             events.push({ type: 'pointChance', small, big, chosen, amount, total: normal.chancePoint });
+        }
+
+        // お仲間チャレンジ (ポイントチャンスと同じゲームでは起きない)
+        if (!pointChanceHappened && normal.chancePoint < cp.threshold) {
+            events.push(...Companions.challenge(state, config, rng));
         }
 
         // 規定値に到達 → SE城前へ
@@ -213,7 +265,11 @@ const GameFlow = {
     startCastleChallenge(state, config) {
         const events = [StateMachine.transition(state, MODES.CASTLE_CHALLENGE)];
         state.challenge.gamesRemaining = config.castle.challengeGames;
-        events.push({ type: 'challengeStart', games: config.castle.challengeGames });
+        events.push({
+            type: 'challengeStart',
+            games: config.castle.challengeGames,
+            companionBoost: Companions.castleEntryMultiplier(state, config)
+        });
         return events;
     },
 
@@ -221,7 +277,9 @@ const GameFlow = {
     handleCastleChallenge(state, outcome, config, rng) {
         const challenge = state.challenge;
         challenge.gamesRemaining--;
-        const rate = Math.min(1, (config.castle.entryRate[outcome.role] || 0) * MachineSetting.multipliers(state, config).castleEntry);
+        const rate = Math.min(1, (config.castle.entryRate[outcome.role] || 0)
+            * MachineSetting.multipliers(state, config).castleEntry
+            * Companions.castleEntryMultiplier(state, config));
         const success = rng() < rate;
         const events = [{ type: 'challengeGame', remaining: challenge.gamesRemaining, role: outcome.role, success }];
 
@@ -278,7 +336,12 @@ const GameFlow = {
     // RASH / SUPER 終了 → 通常時 (ループ中のマップへ戻る)
     endRash(state, config) {
         const rash = state.rash;
-        const events = [{ type: 'rashEnd', coinsWon: rash.coinsWon, defeatCount: rash.defeatCount, wasSuper: state.mode === MODES.SUPER_RASH }];
+        const companionNames = Companions.members(state, config).map(m => m.name);
+        const events = [{
+            type: 'rashEnd', coinsWon: rash.coinsWon, defeatCount: rash.defeatCount,
+            wasSuper: state.mode === MODES.SUPER_RASH, companionNames
+        }];
+        state.companions = [];   // RASH が終わると仲間は帰っていく
         events.push(StateMachine.transition(state, MODES.NORMAL));
         state.rash = createRashState();
         state.normal.chancePoint = 0;
@@ -346,6 +409,16 @@ const DebugState = {
     setSetting(state, setting) {
         state.setting = setting;
         return [{ type: 'debugQuiet' }];
+    },
+    // 次のゲームでお仲間チャレンジを発生させる (通常時)
+    forceCompanion(state) {
+        state.debugForceCompanion = true;
+        return [{ type: 'debugQuiet' }];
+    },
+    // 仲間を全員加える
+    allCompanions(state, config) {
+        state.companions = config.companions.members.map(m => m.id);
+        return [{ type: 'debug' }];
     },
     // 次のゲームでポイントチャンスを発生させる (通常時)
     forcePointChance(state, config) {

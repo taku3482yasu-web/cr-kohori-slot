@@ -12,10 +12,11 @@
 const Lcd = (() => {
     const FONT = '"DotGothic16", "MS Gothic", "Osaka-Mono", monospace';
     const WALK_SPEED = 0.03;   // 背景のスクロール速度 (px / ms)
-    const KOORI_HOME_X = 40;
+    const KOORI_HOME_X = 72;           // 後ろに仲間が並べるよう少し右に
     const KOORI_SCALE = 2;
     const CASTLE_GATE = { x: 170, y: 92, w: 16, h: 12 };   // backgrounds.js の城門の位置
-    const KOORI_BATTLE_X = 44;
+    const KOORI_BATTLE_X = 62;
+    const COMPANION_GAP = 20;          // 仲間どうしの間隔 (こおりくんの後ろに並ぶ)
     const ENEMY_X = 190;
     const RASH_COLOR = '#ff3030';
     const SUPER_COLOR = '#ffd700';
@@ -45,6 +46,9 @@ const Lcd = (() => {
     let cutIn = null;          // カットイン { who, text, color, start, duration }
     let bubbles = null;        // ポイントチャンスの吹き出し { values: [左, 右], cursor, chosen, decided }
     let freeze = null;         // ロングフリーズ { phase: 'still' | 'noise' | 'black' | 'rainbow', snapshot, start }
+    let party = [];            // 表示中の仲間 (加わった順の id)
+    const partyJump = {};      // 仲間ごとのジャンプ (アニメーション値)
+    let visitor = null;        // お仲間チャレンジで現れた仲間候補 { id, x, silhouette, alpha }
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
     const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true };
@@ -110,6 +114,8 @@ const Lcd = (() => {
         displayMap = state.normal.map;
         letterboxTarget = 0;
         bubbles = null;
+        party = [...state.companions];
+        visitor = null;
         setNow(gate, 0);
         koori.visible = true;
         koori.moving = false;
@@ -171,7 +177,10 @@ const Lcd = (() => {
                 drawTorches(time);
                 drawGate(time);
             }
+            const groundY = Backgrounds.get(displayMap).groundY;
+            drawParty(time, valueAt(koori.x, time), groundY, 1.5);
             drawKoori(time);
+            drawVisitor(time, groundY);
             drawBubbles(time);
             if (scene === 'field') drawNormalHud(time);
             if (scene === 'challenge') drawChallengeHud(time);
@@ -228,6 +237,35 @@ const Lcd = (() => {
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.fillRect(x + 4, bg.groundY - 2, size - 8, 3);
         drawSprite(ctx, SPRITES.koori, frame, x, bg.groundY - size + bob + jump, KOORI_SCALE);
+    }
+
+    function jumpOf(id) {
+        if (!partyJump[id]) partyJump[id] = animated(0);
+        return partyJump[id];
+    }
+
+    // 仲間をこおりくんの後ろに並べて描く (近い順に後ろへ)
+    function drawParty(time, kooriX, groundY, scale) {
+        if (!koori.visible) return;
+        const moving = isWalking() || koori.moving;
+        party.forEach((id, k) => {
+            const frame = moving && Math.floor(time / 140 + k) % 2 ? 1 : 0;
+            const bob = moving && frame ? -1 : 0;
+            const x = kooriX + 8 - COMPANION_GAP * (k + 1);
+            ctx.fillStyle = 'rgba(0,0,0,0.25)';
+            ctx.fillRect(x - 8, groundY - 2, 16, 3);
+            Characters.drawCompanion(ctx, id, x, groundY + bob + valueAt(jumpOf(id), time), { scale, frame });
+        });
+    }
+
+    function drawVisitor(time, groundY) {
+        if (!visitor) return;
+        Characters.drawCompanion(ctx, visitor.id, valueAt(visitor.x, time), groundY, {
+            scale: 2,
+            frame: Math.floor(time / 300) % 2,
+            silhouette: visitor.silhouette,
+            alpha: Math.max(0, valueAt(visitor.alpha, time))
+        });
     }
 
     // ポイントチャンス: こおりくんの頭上に2つの吹き出し
@@ -377,7 +415,8 @@ const Lcd = (() => {
         Backgrounds.draw(ctx, hallId, 0);
         drawFlames(hall.braziers, time);
 
-        // こおりくん
+        // 仲間とこおりくん
+        drawParty(time, KOORI_BATTLE_X, hall.groundY, 1.5);
         if (koori.visible) {
             const frame = koori.moving && Math.floor(time / 100) % 2 ? 'walk2' : 'walk1';
             const x = valueAt(koori.x, time);
@@ -885,6 +924,67 @@ const Lcd = (() => {
         bubbles = null;
     }
 
+    // ----- 演出: お仲間チャレンジ -----
+    async function companionChallenge(event) {
+        clearMessage();
+        visitor = { id: event.memberId, x: animated(W + 20), silhouette: true, alpha: animated(1) };
+        startFlash('#7fffd4', 300);
+        Sound.chance();
+        showTitle('お仲間チャレンジ!!', '仲間になりたそうに こちらを見ている…', '#7fffd4', 1400);
+        await animateTo(visitor.x, 176, 900);
+        await sleep(500);
+        // こおりくんが声をかける
+        await animateTo(koori.jump, -8, 120);
+        await animateTo(koori.jump, 0, 120);
+        showMessage('仲間になって!!', '#ffffff', 1000);
+        await sleep(1000);
+        showMessage('…', '#aaaaaa', 900);
+        await sleep(900);
+        visitor.silhouette = false;
+        if (event.success) {
+            startFlash('#ffffff', 500);
+            startShake(config.effects.intensity.shakeSmall, 300);
+            Sound.fanfare();
+            const member = config.companions.members.find(m => m.id === event.memberId);
+            showTitle(`${event.name}が仲間になった!!`,
+                `突入率×${member.castleEntry} / 追加ダメージ+${member.extraDamage} / 肩代わり${Math.round(member.saveRate * 100)}%`,
+                '#7fffd4', 2200);
+            await sleep(1000);
+            // こおりくんの後ろへ走っていく
+            const k = party.length;
+            await animateTo(visitor.x, valueAt(koori.x) + 8 - COMPANION_GAP * (k + 1), 700);
+            visitor = null;
+            party.push(event.memberId);
+            await sleep(500);
+        } else {
+            Sound.miss();
+            showTitle('ことわられた…', `${event.name}は去っていった`, '#9fb8d8', 1600);
+            await sleep(500);
+            animateTo(visitor.alpha, 0, 900);
+            await animateTo(visitor.x, W + 30, 900);
+            visitor = null;
+            await sleep(200);
+        }
+    }
+
+    // 肩代わり: 仲間がかばって RASH 継続、その仲間は離脱
+    async function companionSave(event) {
+        const id = event.memberId;
+        startFlash('#7fffd4', 400);
+        Sound.bigHit();
+        showTitle(`${event.name}がかばってくれた!!`, `RASH継続!! BATTLE +${event.games}G`, '#7fffd4', 2200);
+        if (party.includes(id)) {
+            await animateTo(jumpOf(id), -16, 200);
+            await animateTo(jumpOf(id), 0, 200);
+        }
+        await sleep(1200);
+        party = party.filter(p => p !== id);
+        Sound.miss();
+        showMessage(`${event.name}は力尽きた…`, '#aaccff', 1200);
+        battle.games = event.games;
+        await sleep(1200);
+    }
+
     // ----- 演出: 城突入チャレンジ -----
     async function challengeIntro(event) {
         const timing = config.effects.timing;
@@ -892,7 +992,8 @@ const Lcd = (() => {
         letterboxTarget = 1;
         startFlash('#ff3030', 500);
         startShake(config.effects.intensity.shakeSmall, 400);
-        showTitle('城突入チャレンジ!!', `${event.games}G以内に チャンス目を引け！`, '#ff8080', timing.castleMovie);
+        const boost = event.companionBoost > 1 ? `（仲間の力で突入率×${Math.round(event.companionBoost * 100) / 100}）` : '';
+        showTitle('城突入チャレンジ!!', `${event.games}G以内に チャンス目を引け！${boost}`, '#ff8080', timing.castleMovie);
         koori.moving = true;
         await animateTo(koori.x, 112, timing.castleMovie * 0.5);
         koori.moving = false;
@@ -1023,16 +1124,34 @@ const Lcd = (() => {
         startShake(event.big ? intensity.shakeLarge : intensity.shakeSmall, event.big ? 400 : 150);
         if (event.big) startFlash('#ffffff', 300);
         if (event.big) Sound.bigHit(); else Sound.hit();
+        // こおりくん自身の分 (仲間の追加ダメージは後で別に表示)
+        const extraSum = (event.companionHits || []).reduce((sum, h) => sum + h.amount, 0);
         damageNumbers.push({
-            text: event.guarded ? 'ガード!' : `-${event.amount}`,
+            text: event.guarded ? 'ガード!' : `-${event.amount - extraSum}`,
             color: event.guarded ? '#aaccff' : event.big ? '#ff4040' : '#ffe45a',
             size: event.big ? 16 : 12,
             born: performance.now()
         });
-        animateTo(battle.hp, event.hp, 300);
+        // 仲間の追撃 (こおりくんの攻撃に続いて、仲間がジャンプしてダメージ)
+        const hits = event.guarded ? [] : (event.companionHits || []);
+        // まずこおりくんの分だけ HP を減らし、仲間の追撃で残りを減らす
+        animateTo(battle.hp, hits.length ? event.hp + extraSum : event.hp, 300);
         await sleep(timing.hitStop + 100);
         await animateTo(koori.x, KOORI_BATTLE_X, 250);
         koori.moving = false;
+        for (const hit of hits) {
+            if (!party.includes(hit.id)) continue;
+            animateTo(jumpOf(hit.id), -12, 120).then(() => animateTo(jumpOf(hit.id), 0, 140));
+            await sleep(120);
+            battle.hurtUntil = performance.now() + 150;
+            Sound.hit();
+            damageNumbers.push({ text: `+${hit.amount}`, color: '#7fffd4', size: 10, born: performance.now() });
+            await sleep(160);
+        }
+        if (hits.length) {
+            animateTo(battle.hp, event.hp, 250);
+            await sleep(250);
+        }
         if (event.guardBreak) {
             startFlash('#c080ff', 400);
             showMessage('ガードブレイク!!', '#e0b0ff', 900);
@@ -1148,6 +1267,11 @@ const Lcd = (() => {
         const name = event.wasSuper ? 'SUPERおにおにRASH' : 'おにおにRASH';
         showTitle(`${name} 終了`, `獲得 ${event.coinsWon}枚　撃破 ${event.defeatCount}体`, logoColor(), 2500);
         await sleep(2500);
+        if (event.companionNames && event.companionNames.length) {
+            showTitle('仲間たちは帰っていった', `${event.companionNames.join('・')} ありがとう！`, '#7fffd4', 1800);
+            await sleep(1800);
+            party = [];
+        }
         pendingScene = 'field';
     }
 
@@ -1213,6 +1337,12 @@ const Lcd = (() => {
                     break;
                 case 'break':
                     await breakStart();
+                    break;
+                case 'companionChallenge':
+                    await companionChallenge(event);
+                    break;
+                case 'companionSave':
+                    await companionSave(event);
                     break;
                 case 'freezeBonus':
                     await freezeBonus(event);

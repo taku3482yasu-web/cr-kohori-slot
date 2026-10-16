@@ -105,7 +105,7 @@ window.GAME_CONFIG = {
         },
         // RASH / BATTLE 中 (リプレイ多めでコインが減りにくい)
         battle: {
-            replay: 1 / 2,
+            replay: 1 / 2.2,
             bell: 1 / 8,
             diamond: 1 / 15,
             cherry: 1 / 20,
@@ -151,6 +151,22 @@ window.GAME_CONFIG = {
             replay: 0.15,
             miss: 0.1
         }
+    },
+
+    // ----- お仲間チャレンジ (通常時) -----
+    // マップ移動中に challengeRate の確率で発生し、successRate で仲間が加わる。
+    // 現れる仲間は weight の重みで抽選 (すでに仲間の人は出ない)。仲間は RASH が終わるか、肩代わりするまで一緒にいる
+    //   castleEntry: 城突入チャレンジの突入率の倍率 (仲間全員分を掛け合わせる)
+    //   extraDamage: BATTLE でダメージが入るたびに追加で与えるダメージ
+    //   saveRate:    「？？」で揃わず RASH が終わるとき、一番強い仲間がこの確率で肩代わり → RASH 継続 (その仲間は離脱)
+    companions: {
+        challengeRate: 1 / 60,
+        successRate: 0.20,
+        members: [
+            { id: 'yasu', name: 'やすさん', weight: 60, castleEntry: 1.15, extraDamage: 2, saveRate: 0.15 },
+            { id: 'tamu', name: 'たむさん', weight: 30, castleEntry: 1.3, extraDamage: 4, saveRate: 0.25 },
+            { id: 'dake', name: 'だけさん', weight: 10, castleEntry: 1.5, extraDamage: 6, saveRate: 0.4 }
+        ]
     },
 
     // ----- マップ -----
@@ -242,7 +258,7 @@ window.GAME_CONFIG = {
         {
             id: 'okagappa', name: 'おかがっぱ',
             weight: 50, superWeight: 40, hp: 60,
-            bonus: { type: 'coins', value: 40 }
+            bonus: { type: 'coins', value: 35 }
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり',
@@ -257,12 +273,12 @@ window.GAME_CONFIG = {
         {
             id: 'sasaki', name: 'Mr.SASAKI',
             weight: 8, superWeight: 12, hp: 150,
-            bonus: { type: 'coins', value: 150 }
+            bonus: { type: 'coins', value: 120 }
         },
         {
             id: 'onioni', name: 'おにおに',
             weight: 20, superWeight: 15, hp: 200,
-            bonus: { type: 'coins', value: 300 },
+            bonus: { type: 'coins', value: 250 },
             requiresUnlock: true          // 撃破数が oniUnlockDefeats に達するまで出ない
         }
     ],

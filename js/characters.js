@@ -258,6 +258,104 @@ const Characters = (() => {
         }
     };
 
+    // ----- 仲間 (16x24 ドット、オリジナルデザイン) -----
+    const COMPANIONS = {
+        // やすさん: 眼鏡・青いパーカー
+        yasu: {
+            w: 16, h: 24,
+            draw(r, frame) {
+                const up = frame ? -1 : 0;
+                r(4, 1, 8, 4, '#2a2a2a');
+                r(4, 4, 8, 7, SKIN);
+                r(4, 6, 3, 2, '#333333');
+                r(9, 6, 3, 2, '#333333');
+                r(5, 6, 1, 1, '#bbddee');
+                r(10, 6, 1, 1, '#bbddee');
+                r(7, 6, 2, 1, '#333333');
+                r(7, 9, 2, 1, '#a04030');
+                r(3, 11, 10, 7, '#3a6ad0');
+                r(7, 11, 1, 3, '#ffffff');
+                r(8, 11, 1, 3, '#ffffff');
+                r(1, 12 + up, 2, 5, '#3a6ad0');
+                r(13, 12 + up, 2, 5, '#3a6ad0');
+                r(1, 17 + up, 2, 1, SKIN);
+                r(13, 17 + up, 2, 1, SKIN);
+                r(4, 18, 3, 4, '#2a3a6a');
+                r(9, 18, 3, 4, '#2a3a6a');
+                r(3, 22, 4, 2, '#ffffff');
+                r(9, 22, 4, 2, '#ffffff');
+            }
+        },
+        // たむさん: 赤い帽子・緑のジャケット
+        tamu: {
+            w: 16, h: 24,
+            draw(r, frame) {
+                const up = frame ? -1 : 0;
+                r(3, 1, 10, 3, '#d02020');
+                r(9, 3, 5, 1, '#a01010');
+                r(4, 4, 8, 7, SKIN);
+                r(4, 4, 1, 2, '#5a3a1a');
+                r(11, 4, 1, 2, '#5a3a1a');
+                r(6, 6, 1, 2, '#111111');
+                r(9, 6, 1, 2, '#111111');
+                r(6, 9, 4, 1, '#a04030');
+                r(3, 11, 10, 7, '#2e8a4a');
+                r(8, 11, 1, 7, '#dddddd');
+                r(1, 12 + up, 2, 5, '#2e8a4a');
+                r(13, 12 + up, 2, 5, '#2e8a4a');
+                r(1, 17 + up, 2, 1, SKIN);
+                r(13, 17 + up, 2, 1, SKIN);
+                r(4, 18, 3, 4, '#5a4a3a');
+                r(9, 18, 3, 4, '#5a4a3a');
+                r(3, 22, 4, 2, '#2a2a2a');
+                r(9, 22, 4, 2, '#2a2a2a');
+            }
+        },
+        // だけさん: ハチマキ・たくましい体・オレンジのタンクトップ
+        dake: {
+            w: 16, h: 24,
+            draw(r, frame) {
+                const up = frame ? -1 : 0;
+                const tan = '#d89a6a';
+                r(4, 1, 8, 3, '#151515');
+                r(4, 3, 8, 1, '#ff3030');
+                r(12, 3, 3, 1, '#ff3030');
+                r(13, 4, 2, 1, '#ff3030');
+                r(4, 4, 8, 7, tan);
+                r(5, 5, 2, 1, '#151515');
+                r(9, 5, 2, 1, '#151515');
+                r(5, 6, 2, 1, '#111111');
+                r(9, 6, 2, 1, '#111111');
+                r(6, 9, 4, 1, '#7a2a1a');
+                r(2, 11, 12, 7, '#ff8a20');
+                r(1, 11, 2, 4, tan);
+                r(13, 11, 2, 4, tan);
+                r(0, 13 + up, 2, 5, tan);
+                r(14, 13 + up, 2, 5, tan);
+                r(3, 18, 4, 4, '#2a2a2a');
+                r(9, 18, 4, 4, '#2a2a2a');
+                r(3, 22, 4, 2, '#7a5a3a');
+                r(9, 22, 4, 2, '#7a5a3a');
+            }
+        }
+    };
+
+    // 仲間を描く。(x, groundY) は足元の中央。silhouette で黒い影、alpha で透明度
+    function drawCompanion(ctx, id, x, groundY, { scale = 2, frame = 0, silhouette = false, alpha = 1 } = {}) {
+        const c = COMPANIONS[id];
+        if (!c) return;
+        const left = Math.round(x - (c.w * scale) / 2);
+        const top = Math.round(groundY - c.h * scale);
+        ctx.globalAlpha = alpha;
+        c.draw((rx, ry, rw, rh, color) => {
+            const x0 = Math.round(left + rx * scale), x1 = Math.round(left + (rx + rw) * scale);
+            const y0 = Math.round(top + ry * scale), y1 = Math.round(top + (ry + rh) * scale);
+            ctx.fillStyle = silhouette ? '#101018' : color;
+            ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        }, frame);
+        ctx.globalAlpha = 1;
+    }
+
     // 敵を描く。(x, groundY) は足元の中央。hurt で白く光る、alpha で透明度
     function drawEnemy(ctx, id, x, groundY, { scale = 2, frame = 0, hurt = false, alpha = 1 } = {}) {
         const enemy = ENEMIES[id];
@@ -279,5 +377,5 @@ const Characters = (() => {
         return enemy ? { w: enemy.w, h: enemy.h } : { w: 0, h: 0 };
     }
 
-    return { drawEnemy, size, has: id => Boolean(ENEMIES[id]) };
+    return { drawEnemy, drawCompanion, size, has: id => Boolean(ENEMIES[id]) };
 })();

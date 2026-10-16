@@ -124,6 +124,7 @@
         <a href="#lines">リールとライン</a>
         <a href="#flow">ゲームの流れ</a>
         <a href="#normal">通常時</a>
+        <a href="#companions">お仲間</a>
         <a href="#castle">城突入</a>
         <a href="#rash">おにおにRASH</a>
         <a href="#enemies">対戦相手</a>
@@ -191,6 +192,13 @@
         <p id="pc-text"></p>
         <div class="table-wrap"><table id="pc-table"></table></div>
         <p class="note">設定が高いほど「多いポイント」を選びやすくなります。</p>
+    </section>
+
+    <section id="companions">
+        <h2>お仲間チャレンジ</h2>
+        <p id="companion-text"></p>
+        <div class="table-wrap"><table id="companion-table"></table></div>
+        <ul id="companion-list"></ul>
     </section>
 
     <section id="castle">
@@ -330,6 +338,25 @@
         `「多いポイント」（${pc.big.map(v => '+' + v).join(' / ')}）の吹き出しから1つを選びます。どちらを選ぶかは<b>そのゲームの出目</b>で決まります。`;
     table('pc-table', ['出目', '「多い」を選ぶ確率（設定1）'],
         Object.entries(pc.bigRate).map(([role, r]) => [`${roleView(role)} ${SYMBOL_NAMES[role]}`, pct(r)]));
+
+    // お仲間チャレンジ (ドット絵付き)
+    const cc = c.companions;
+    const memberTotal = cc.members.reduce((sum, m) => sum + m.weight, 0);
+    $('companion-text').innerHTML = `通常時（マップ移動中）に <b>${odds(cc.challengeRate)}</b> で発生。現れた仲間候補に声をかけ、<b>${pct(cc.successRate)}</b> で仲間になります。弱い仲間ほど現れやすく、すでに仲間の人は現れません。`;
+    table('companion-table', ['', '名前', '現れやすさ', '城突入率', '追加ダメージ', '肩代わり'],
+        cc.members.map(m => ['', `<b>${m.name}</b>`, pct(m.weight / memberTotal), `×${m.castleEntry}`, `+${m.extraDamage}`, pct(m.saveRate)]));
+    [...$('companion-table').querySelectorAll('tbody tr')].forEach((tr, i) => {
+        const cv = document.createElement('canvas');
+        cv.width = 32; cv.height = 48; cv.className = 'enemy'; cv.style.width = '32px';
+        Characters.drawCompanion(cv.getContext('2d'), cc.members[i].id, 16, 48, { scale: 2 });
+        tr.children[0].appendChild(cv);
+    });
+    $('companion-list').innerHTML = [
+        '<b>城突入率</b>: 城突入チャレンジの突入率が上がります（仲間全員分を掛け合わせ）',
+        '<b>追加ダメージ</b>: BATTLE でダメージが入るたびに、仲間が追撃します（ベル・ハズレでは追撃なし）',
+        '<b>肩代わり</b>: 「？？」で揃わず RASH が終わるとき、一番強い仲間がかばって RASH が続くことがあります（かばった仲間は離脱）',
+        '仲間は RASH が終わると帰っていきます。また城を目指すときに集め直しましょう'
+    ].map(t => `<li>${t}</li>`).join('');
 
     // 城突入
     $('castle-text').innerHTML = `${c.castle.challengeGames}ゲームの間、毎ゲーム出目に応じた確率で突入を判定します。チャレンジ中はチャンス目が <b>${odds(c.lottery.castleChallenge.chance)}</b> と出やすくなっています。`;

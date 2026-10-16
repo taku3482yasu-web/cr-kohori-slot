@@ -117,7 +117,10 @@ const Battle = {
 
         const damage = this.damageFor(outcome.role, config);
         const kill = damage === 'kill';
-        let amount = kill ? rash.enemyHp : damage;
+        // 仲間の追加ダメージ (ダメージが入ったときだけ)
+        const companionHits = !kill && damage > 0 ? Companions.extraDamage(state, config) : [];
+        const extra = companionHits.reduce((sum, h) => sum + h.amount, 0);
+        let amount = kill ? rash.enemyHp : damage + extra;
         // 負けセットでは敵がガードして倒しきれない (撃破役・ブレイク中を除く)
         const canGuard = !rash.setWillWin && !rash.breakActive && !kill;
         let guarded = false;
@@ -134,6 +137,7 @@ const Battle = {
             guardBreak: kill && !rash.setWillWin,   // 本来ガードされるセットで撃破役を引いた
             big: kill || outcome.isChance,
             guarded,
+            companionHits,
             breakActive: rash.breakActive,
             hp: rash.enemyHp,
             maxHp: rash.enemyMaxHp,
@@ -270,6 +274,15 @@ const Battle = {
             rash.setWillWin = rng() < this.presetRate(state, config);
             rash.phase = RASH_PHASES.BATTLE;
             return [{ type: 'questionResult', continued: true, games }];
+        }
+        // 仲間の肩代わり: RASH を続ける
+        const saver = Companions.trySave(state, config, rng);
+        if (saver) {
+            const games = Lottery.weightedPick(config.rash.continueGames, g => g.weight, rng).games;
+            rash.gamesRemaining = games;
+            rash.setWillWin = rng() < this.presetRate(state, config);
+            rash.phase = RASH_PHASES.BATTLE;
+            return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games }];
         }
         return [{ type: 'questionResult', continued: false }, ...GameFlow.endRash(state, config)];
     }
