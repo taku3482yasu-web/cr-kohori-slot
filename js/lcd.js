@@ -49,6 +49,8 @@ const Lcd = (() => {
     let party = [];            // 表示中の仲間 (加わった順の id)
     const partyJump = {};      // 仲間ごとのジャンプ (アニメーション値)
     let visitor = null;        // お仲間チャレンジで現れた仲間候補 { id, x, silhouette, alpha }
+    let treasure = null;       // 宝物庫ゾーン { remaining, games, total, chestOpenUntil, coins: [...] }
+    let nextBonusGames = 0;    // 次の BATTLE に上乗せされるゲーム数 (表示用)
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
     const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true };
@@ -132,6 +134,10 @@ const Lcd = (() => {
             setNow(battle.alpha, 1);
             setNow(battle.drop, 0);
             battle.defeats = rash.defeatCount;
+            nextBonusGames = rash.bonusGames;
+            treasure = rash.phase === RASH_PHASES.TREASURE
+                ? { remaining: rash.treasureGames, games: config.treasure.games, total: rash.treasureTotal, chestOpenUntil: 0, coins: [] }
+                : null;
             battle.probUpGames = rash.probUpGames;
             battle.probUpMultiplier = rash.probUpMultiplier;
             battle.breakActive = rash.breakActive;
@@ -410,6 +416,10 @@ const Lcd = (() => {
     }
 
     function drawRash(time) {
+        if (treasure) {
+            drawTreasure(time);
+            return;
+        }
         const hallId = logoSuper ? 'goldHall' : 'castleHall';
         const hall = Backgrounds.get(hallId);
         Backgrounds.draw(ctx, hallId, 0);
@@ -447,6 +457,9 @@ const Lcd = (() => {
         text(logo, 10, 6, { color: logoColor(), outline: '#200000' });
         if (battle.defeats > 0) {
             text(`撃破 ${battle.defeats}`, 8, 24, { color: '#fff', size: 10 });
+        }
+        if (nextBonusGames > 0) {
+            text(`次のBATTLE +${nextBonusGames}G`, 8, battle.probUpGames > 0 ? 48 : 36, { color: '#ffd23a', size: 10 });
         }
         if (battle.probUpGames > 0) {
             const blink = Math.floor(time / 300) % 2;
@@ -490,7 +503,7 @@ const Lcd = (() => {
         damageNumbers.forEach(d => {
             const age = (time - d.born) / 900;
             const y = 56 - Math.sin(Math.min(1, age * 2) * Math.PI / 2) * 14;
-            text(d.text, ENEMY_X, y, { color: d.color, size: d.size, align: 'center' });
+            text(d.text, treasure ? CHEST.x + CHEST.w / 2 : ENEMY_X, y, { color: d.color, size: d.size, align: 'center' });
         });
     }
 
@@ -924,6 +937,122 @@ const Lcd = (() => {
         bubbles = null;
     }
 
+    // ----- 宝物庫ゾーン -----
+    const CHEST = { x: 168, y: 92, w: 40, h: 28 };
+
+    function drawTreasure(time) {
+        const bg = Backgrounds.get('treasure');
+        Backgrounds.draw(ctx, 'treasure', 0);
+        drawFlames(bg.torches, time);
+
+        // 宝箱 (揃うとふたが開いて光る)
+        const open = time < treasure.chestOpenUntil;
+        const { x, y, w, h } = CHEST;
+        if (open) {
+            const glow = ctx.createRadialGradient(x + w / 2, y, 2, x + w / 2, y, 50);
+            glow.addColorStop(0, 'rgba(255,240,150,0.85)');
+            glow.addColorStop(1, 'rgba(255,200,50,0)');
+            ctx.fillStyle = glow;
+            ctx.fillRect(x - 40, y - 50, w + 80, 80);
+        }
+        ctx.fillStyle = '#6a3a14';
+        ctx.fillRect(x, y + 10, w, h - 10);
+        ctx.fillStyle = '#c8a040';
+        ctx.fillRect(x, y + 10, w, 2);
+        ctx.fillRect(x + w / 2 - 3, y + 12, 6, 7);
+        ctx.fillRect(x + 4, y + 10, 2, h - 10);
+        ctx.fillRect(x + w - 6, y + 10, 2, h - 10);
+        if (open) {
+            ctx.fillStyle = '#fff2a0';
+            ctx.fillRect(x + 2, y + 6, w - 4, 4);
+            ctx.fillStyle = '#5a3010';
+            ctx.fillRect(x, y - 10, w, 10);   // 開いたふた
+            ctx.fillStyle = '#c8a040';
+            ctx.fillRect(x, y - 10, w, 2);
+        } else {
+            ctx.fillStyle = '#7a4418';
+            ctx.fillRect(x, y, w, 10);
+            ctx.fillStyle = '#c8a040';
+            ctx.fillRect(x, y, w, 2);
+        }
+
+        // 飛び出すコイン
+        treasure.coins = treasure.coins.filter(c => time - c.born < 900);
+        treasure.coins.forEach(c => {
+            const t = (time - c.born) / 1000;
+            const cx = x + w / 2 + c.vx * t * 60;
+            const cy = y + 4 - c.vy * t * 60 + 120 * t * t;
+            ctx.fillStyle = '#ffd23a';
+            ctx.fillRect(Math.round(cx), Math.round(cy), 3, 3);
+            ctx.fillStyle = '#fff2a0';
+            ctx.fillRect(Math.round(cx), Math.round(cy), 1, 1);
+        });
+
+        // 仲間とこおりくん
+        drawParty(time, 70, bg.groundY, 1.5);
+        const frame = Math.floor(time / 300) % 2 ? 'walk2' : 'walk1';
+        drawSprite(ctx, SPRITES.koori, frame, 70, bg.groundY - 16 * KOORI_SCALE + valueAt(koori.jump, time), KOORI_SCALE);
+
+        // 表示: ゾーン名・残りゲーム (ランプ)・上乗せの合計
+        const title = '宝物庫ゾーン';
+        box(4, 4, textWidth(title, 12) + 12, 17, 'rgba(0,0,0,0.75)', '#ffd23a');
+        text(title, 10, 6, { color: '#ffd23a', outline: '#3a2a00' });
+        const lampW = 10, gap = 3, n = treasure.games;
+        const lx = W - 8 - n * (lampW + gap);
+        box(lx - 5, 4, n * (lampW + gap) + 7, 15, 'rgba(0,0,0,0.75)', '#ffd23a');
+        const blink = Math.floor(time / 250) % 2;
+        for (let i = 0; i < n; i++) {
+            const lit = i < treasure.remaining;
+            ctx.fillStyle = lit ? (i === treasure.remaining - 1 && blink ? '#ffffff' : '#ffd23a') : '#3a2a10';
+            ctx.fillRect(lx + i * (lampW + gap), 8, lampW, 7);
+        }
+        text(`次のBATTLE +${treasure.total}G`, W / 2, 26, { color: '#fff2a0', size: 16, align: 'center', outline: '#3a2a00' });
+    }
+
+    async function treasureStart(event) {
+        clearMessage();
+        letterboxTarget = 1;
+        startFlash('#ffd23a', 600);
+        startShake(config.effects.intensity.shakeLarge, 500);
+        Sound.fanfare();
+        treasure = { remaining: event.games, games: event.games, total: 0, chestOpenUntil: 0, coins: [] };
+        showTitle('宝物庫ゾーン突入!!', `${event.games}G間 柄を揃えて次のBATTLEのゲーム数を増やせ!`, '#ffd23a', 2400);
+        await sleep(2400);
+        letterboxTarget = 0;
+    }
+
+    async function treasureGame(event) {
+        if (!treasure) return;
+        treasure.remaining = event.remaining;
+        if (event.added > 0) {
+            treasure.total = event.total;
+            const now = performance.now();
+            treasure.chestOpenUntil = now + 900;
+            for (let i = 0; i < 8 + event.added; i++) {
+                treasure.coins.push({ born: now + i * 15, vx: Math.random() * 2 - 1, vy: 1.2 + Math.random() * 1.4 });
+            }
+            const big = event.added >= 10;
+            if (big) startFlash('#ffffff', 400);
+            startShake(big ? config.effects.intensity.shakeLarge : config.effects.intensity.shakeSmall, 250);
+            if (big) Sound.fanfare(); else Sound.win();
+            damageNumbers.push({ text: `+${event.added}G`, color: big ? '#ff6a3a' : '#ffd23a', size: big ? 16 : 12, born: now });
+            await animateTo(koori.jump, -10, 120);
+            await animateTo(koori.jump, 0, 120);
+            await sleep(500);
+        } else {
+            showMessage('…', '#aaaaaa', 500);
+            await sleep(400);
+        }
+    }
+
+    async function treasureEnd(event) {
+        nextBonusGames = event.bonusGames;
+        showTitle('宝物庫ゾーン終了', `次のBATTLE +${event.total}G!!`, '#ffd23a', 2000);
+        Sound.fanfare();
+        await sleep(2000);
+        treasure = null;
+    }
+
     // ----- 演出: お仲間チャレンジ -----
     async function companionChallenge(event) {
         clearMessage();
@@ -1076,6 +1205,7 @@ const Lcd = (() => {
         await sleep(500);
         roulette = null;
 
+        nextBonusGames = 0;
         battle.enemyId = event.enemyId;
         battle.maxHp = event.hp;
         battle.games = event.games;
@@ -1337,6 +1467,15 @@ const Lcd = (() => {
                     break;
                 case 'break':
                     await breakStart();
+                    break;
+                case 'treasureStart':
+                    await treasureStart(event);
+                    break;
+                case 'treasureGame':
+                    await treasureGame(event);
+                    break;
+                case 'treasureEnd':
+                    await treasureEnd(event);
                     break;
                 case 'companionChallenge':
                     await companionChallenge(event);

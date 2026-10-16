@@ -25,8 +25,8 @@ window.GAME_CONFIG = {
             2: { chance: 1.10, castleEntry: 1.05, pointBig: 1.10 },
             3: { chance: 1.20, castleEntry: 1.10, pointBig: 1.20 },
             4: { chance: 1.35, castleEntry: 1.15, pointBig: 1.30 },
-            5: { chance: 1.60, castleEntry: 1.25, pointBig: 1.50 },
-            6: { chance: 1.85, castleEntry: 1.38, pointBig: 1.75 }
+            5: { chance: 1.65, castleEntry: 1.28, pointBig: 1.50 },
+            6: { chance: 1.95, castleEntry: 1.42, pointBig: 1.75 }
         }
     },
 
@@ -101,7 +101,7 @@ window.GAME_CONFIG = {
             melon: 1 / 100,
             bar: 1 / 150,
             seven: 1 / 300,
-            chance: 1 / 22
+            chance: 1 / 24
         },
         // RASH / BATTLE 中 (リプレイ多めでコインが減りにくい)
         battle: {
@@ -211,10 +211,10 @@ window.GAME_CONFIG = {
         super: { continueRate: 0.93, presetRate: 0.896 },    // SUPERおにおにRASH
         // BATTLE開始時のゲーム数 (重み付き抽選)
         initialGames: [
-            { games: 5, weight: 30 },
+            { games: 5, weight: 35 },
             { games: 10, weight: 40 },
-            { games: 15, weight: 20 },
-            { games: 20, weight: 10 }
+            { games: 15, weight: 18 },
+            { games: 20, weight: 7 }
         ],
         // 「？？」から継続したときのゲーム数 (重み付き抽選)
         continueGames: [
@@ -227,6 +227,34 @@ window.GAME_CONFIG = {
         oniUnlockDefeats: 3,
         // SUPER中はおにおにを常に候補に入れるか
         superOniAlwaysAvailable: true
+    },
+
+    // ----- 宝物庫ゾーン (RASH / SUPER 中のゲーム数上乗せ特化ゾーン) -----
+    // BATTLE 中の1ゲームごとに rate の確率で突入 (「？？」のときは突入しない)。games ゲームの間 BATTLE は中断し、
+    // lottery の確率で抽選して、揃った柄に応じて gamesByRole のゲーム数を「次の BATTLE」に上乗せする
+    treasure: {
+        rate: 1 / 100,
+        games: 5,
+        lottery: {
+            replay: 1 / 3,
+            bell: 1 / 5,
+            cherry: 1 / 12,
+            diamond: 1 / 15,
+            melon: 1 / 20,
+            bar: 1 / 40,
+            sevenBar: 1 / 100,
+            seven: 1 / 80
+        },
+        gamesByRole: {
+            replay: 1,
+            bell: 2,
+            cherry: 3,
+            diamond: 3,
+            melon: 5,
+            bar: 10,
+            sevenBar: 10,
+            seven: 20
+        }
     },
 
     // ----- BATTLE のダメージ -----

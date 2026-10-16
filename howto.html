@@ -127,6 +127,7 @@
         <a href="#companions">お仲間</a>
         <a href="#castle">城突入</a>
         <a href="#rash">おにおにRASH</a>
+        <a href="#treasure">宝物庫ゾーン</a>
         <a href="#enemies">対戦相手</a>
         <a href="#super">SUPER</a>
         <a href="#freeze">ロングフリーズ</a>
@@ -217,6 +218,13 @@
         <ul id="guard-list"></ul>
         <h3>BATTLE のゲーム数</h3>
         <div class="table-wrap"><table id="games-table"></table></div>
+    </section>
+
+    <section id="treasure">
+        <h2>宝物庫ゾーン</h2>
+        <p id="treasure-text"></p>
+        <div class="table-wrap"><table id="treasure-table"></table></div>
+        <p class="note">チャンス目・ハズレではゲーム数は増えません。宝物庫ゾーン中は BATTLE が中断され、残りゲーム数は減りません。</p>
     </section>
 
     <section id="enemies">
@@ -389,6 +397,15 @@
             `${g.games}G`,
             pct(g.weight / totalW(c.rash.initialGames)),
             c.rash.continueGames[i] ? pct(c.rash.continueGames[i].weight / totalW(c.rash.continueGames)) : '-'
+        ]));
+
+    // 宝物庫ゾーン
+    const tz = c.treasure;
+    $('treasure-text').innerHTML = `おにおにRASH・SUPER の BATTLE 中に <b>${odds(tz.rate)}</b> で突入する、ゲーム数上乗せ特化ゾーン（「？？」のときは突入しません）。` +
+        `<b>${tz.games}ゲーム</b>の間、柄が揃うたびに宝箱が開き、揃った柄に応じて<b>次の BATTLE のゲーム数</b>が増えます。`;
+    table('treasure-table', ['柄', '確率', '次のBATTLE'],
+        Object.entries(tz.gamesByRole).sort((a, b) => a[1] - b[1]).map(([role, g]) => [
+            `${roleView(role)} ${SYMBOL_NAMES[role]}`, odds(tz.lottery[role]), `<b>+${g}G</b>`
         ]));
 
     // 対戦相手 (ドット絵付き)

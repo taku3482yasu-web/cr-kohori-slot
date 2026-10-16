@@ -50,6 +50,8 @@ const Battle = {
         const rash = state.rash;
         const table = this.battleTable(state, config);
 
+        if (rash.phase === RASH_PHASES.TREASURE) return Lottery.drawRole(config.treasure.lottery, rng);
+
         if (rash.phase === RASH_PHASES.QUESTION) {
             if (!rash.setWillWin) return 'miss';
             // 揃う役の中から確率表の比率で選ぶ (撃破役は紛らわしいので除く)
@@ -219,6 +221,41 @@ const Battle = {
         return { ...bonus };
     },
 
+    // ----- 宝物庫ゾーン -----
+    // BATTLE のゲームのあと (撃破して次の相手を決める前も含む) に一定確率で突入。「？？」のときは突入しない
+    maybeStartTreasure(state, config, rng) {
+        const rash = state.rash;
+        const forced = rash.debugForceTreasure;
+        rash.debugForceTreasure = false;
+        if (rash.phase !== RASH_PHASES.BATTLE && rash.phase !== RASH_PHASES.SELECT) return [];
+        if (!forced && rng() >= config.treasure.rate) return [];
+        rash.treasureReturnPhase = rash.phase;
+        rash.phase = RASH_PHASES.TREASURE;
+        rash.treasureGames = config.treasure.games;
+        rash.treasureTotal = 0;
+        return [{ type: 'treasureStart', games: config.treasure.games }];
+    },
+
+    // 宝物庫ゾーンの1ゲーム: 揃った柄に応じて次の BATTLE のゲーム数を上乗せ
+    treasureGame(state, outcome, config) {
+        const rash = state.rash;
+        const added = outcome.aligned ? (config.treasure.gamesByRole[outcome.role] || 0) : 0;
+        rash.bonusGames += added;
+        rash.treasureTotal += added;
+        rash.treasureGames--;
+        const events = [{ type: 'treasureGame', role: outcome.role, added, total: rash.treasureTotal, remaining: rash.treasureGames }];
+        if (rash.treasureGames <= 0) events.push(...this.endTreasure(state));
+        return events;
+    },
+
+    endTreasure(state) {
+        const rash = state.rash;
+        rash.phase = rash.treasureReturnPhase || RASH_PHASES.SELECT;
+        rash.treasureReturnPhase = null;
+        rash.treasureGames = 0;
+        return [{ type: 'treasureEnd', total: rash.treasureTotal, bonusGames: rash.bonusGames }];
+    },
+
     // ロングフリーズ (RASH / SUPER 中)
     //   RASH:  戦闘中の敵を完全撃破 → superRate で SUPER 直行、それ以外は次の相手がおにおに
     //   SUPER: 戦闘中の敵に勝利 → 次の相手がゴールド金面犬
@@ -226,6 +263,7 @@ const Battle = {
         const rash = state.rash;
         const wasSuper = this.isSuper(state);
         const events = [{ type: 'freezeBonus', kind: wasSuper ? 'super' : 'rash' }];
+        if (rash.phase === RASH_PHASES.TREASURE) events.push(...this.endTreasure(state));
 
         // 戦闘中なら完全撃破
         let defeat = null;

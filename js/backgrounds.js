@@ -394,11 +394,63 @@ const Backgrounds = (() => {
         });
     }
 
+    // ----- 宝物庫ゾーン: 金貨の山と宝箱 -----
+    function buildTreasure() {
+        const rng = seeded(71);
+        return {
+            groundY: 124,
+            torches: [{ x: 40, y: 54 }, { x: 214, y: 54 }],
+            layers: [
+                layer(0, p => {
+                    // 石の壁とアーチ
+                    p.rect(0, 0, W, 112, '#2a1e14');
+                    for (let y = 0, row = 0; y < 112; y += 8, row++) {
+                        p.rect(0, y, W, 1, '#1e150e');
+                        for (let x = (row % 2) * 10; x < W; x += 20) p.rect(x, y, 1, 8, '#1e150e');
+                    }
+                    for (let y = 0; y < 30; y++) {
+                        const half = Math.round(Math.sqrt(Math.max(0, 900 - (30 - y) * (30 - y))) * 2.4);
+                        p.rect(W / 2 - half, 10 + y, half * 2, 1, '#3a2a1a');
+                    }
+                    p.rect(0, 0, W, 4, '#c8a040');
+                    // たいまつの柱
+                    [40, 214].forEach(x => p.rect(x - 1, 58, 5, 40, '#5a3a20'));
+                    // 奥の宝の山
+                    const pile = (cx, baseY, halfW, h) => {
+                        p.tri(cx, baseY, halfW, h, '#c8901a');
+                        p.tri(cx, baseY - 2, halfW - 4, h - 4, '#ffd23a');
+                        for (let i = 0; i < halfW; i++) {
+                            const x = cx - halfW + Math.floor(rng() * halfW * 2);
+                            const y = baseY - Math.floor(rng() * (h - 3)) - 1;
+                            p.rect(x, y, 2, 1, rng() < 0.5 ? '#fff2a0' : '#b8860b');
+                        }
+                    };
+                    pile(60, 112, 46, 22);
+                    pile(200, 112, 52, 26);
+                    pile(128, 112, 30, 14);
+                    // 宝石
+                    for (let i = 0; i < 18; i++) {
+                        const colors = ['#ff4060', '#40c0ff', '#40e080', '#c060ff'];
+                        p.rect(20 + Math.floor(rng() * 216), 92 + Math.floor(rng() * 16), 2, 2, colors[i % 4]);
+                    }
+                    // 床
+                    p.rect(0, 112, W, 32, '#3a2a1a');
+                    for (let x = 0; x < W; x += 16) p.rect(x, 112, 1, 32, '#2a1e12');
+                    for (let y = 120; y < H; y += 8) p.rect(0, y, W, 1, '#2a1e12');
+                    for (let i = 0; i < 30; i++) {
+                        p.rect(Math.floor(rng() * W), 114 + Math.floor(rng() * 28), 3, 1, '#ffd23a');
+                    }
+                })
+            ]
+        };
+    }
+
     const BUILDERS = {
         tsugakuro: buildTsugakuro,
         ongagawa: buildOngagawa,
         ebisucho: buildEbisucho,
         seCastle: buildSeCastle,
+        treasure: buildTreasure,
         castleHall: buildHall({
             wall: '#3a1a24', wallLine: '#2a1018', pillar: '#5a2028', pillarLight: '#7a3038',
             trim: '#a08040', curtain: '#8a1a1a', curtainDark: '#6a1010', floorA: '#2a1418', floorB: '#3e1e24'

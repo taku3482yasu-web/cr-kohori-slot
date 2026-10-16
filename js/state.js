@@ -19,7 +19,8 @@ const MODES = Object.freeze({
 const RASH_PHASES = Object.freeze({
     SELECT: 'SELECT',     // 1ゲーム目: 対戦相手と残りゲーム数を決定
     BATTLE: 'BATTLE',     // BATTLE中
-    QUESTION: 'QUESTION'  // 残りゲーム数「？？」: 揃えば継続、揃わなければ終了
+    QUESTION: 'QUESTION', // 残りゲーム数「？？」: 揃えば継続、揃わなければ終了
+    TREASURE: 'TREASURE'  // 宝物庫ゾーン: BATTLE を中断し、揃った柄で次の BATTLE のゲーム数を上乗せ
 });
 
 const MODE_LABELS = {
@@ -140,7 +141,10 @@ function createRashState() {
         breakActive: false,      // ブレイク状態 (敵がガードできない)
         probUpGames: 0,          // 柄揃い確率アップの残りゲーム数
         probUpMultiplier: 1,
-        bonusGames: 0,           // 次の BATTLE に上乗せするゲーム数 (撃破ボーナス)
+        bonusGames: 0,           // 次の BATTLE に上乗せするゲーム数 (撃破ボーナス・宝物庫ゾーン)
+        treasureGames: 0,        // 宝物庫ゾーンの残りゲーム数
+        treasureTotal: 0,        // 宝物庫ゾーンで上乗せしたゲーム数の合計
+        treasureReturnPhase: null, // 宝物庫ゾーンが終わったら戻るフェーズ
         coinsWon: 0              // このRASHでの獲得枚数
     };
 }
@@ -310,9 +314,11 @@ const GameFlow = {
             case RASH_PHASES.SELECT:
                 return Battle.startBattle(state, config, rng);
             case RASH_PHASES.BATTLE:
-                return Battle.battleGame(state, outcome, config, rng);
+                return [...Battle.battleGame(state, outcome, config, rng), ...Battle.maybeStartTreasure(state, config, rng)];
             case RASH_PHASES.QUESTION:
                 return Battle.questionGame(state, outcome, config, rng);
+            case RASH_PHASES.TREASURE:
+                return Battle.treasureGame(state, outcome, config);
         }
         return [];
     },
@@ -408,6 +414,11 @@ const DebugState = {
     // 台の設定を変える
     setSetting(state, setting) {
         state.setting = setting;
+        return [{ type: 'debugQuiet' }];
+    },
+    // 次の BATTLE のゲームのあとに宝物庫ゾーンへ
+    forceTreasure(state) {
+        state.rash.debugForceTreasure = true;
         return [{ type: 'debugQuiet' }];
     },
     // 次のゲームでお仲間チャレンジを発生させる (通常時)

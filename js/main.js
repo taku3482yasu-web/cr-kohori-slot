@@ -183,6 +183,7 @@
         forceOni: debugAction(() => DebugState.forceEnemy(state, 'onioni')),
         pointChance: debugAction(() => DebugState.forcePointChance(state, config)),
         companion: debugAction(() => DebugState.forceCompanion(state)),
+        treasure: debugAction(() => DebugState.forceTreasure(state)),
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },
         forceGold: debugAction(() => DebugState.forceEnemy(state, config.goldDog.id)),
