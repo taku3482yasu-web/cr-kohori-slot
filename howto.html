@@ -128,6 +128,7 @@
         <a href="#castle">城突入</a>
         <a href="#rash">おにおにRASH</a>
         <a href="#treasure">宝物庫ゾーン</a>
+        <a href="#revenge">リベンジ</a>
         <a href="#enemies">対戦相手</a>
         <a href="#super">SUPER</a>
         <a href="#freeze">ロングフリーズ</a>
@@ -228,6 +229,11 @@
         <p id="treasure-freeze"></p>
     </section>
 
+    <section id="revenge">
+        <h2>リベンジチャンス</h2>
+        <p id="revenge-text"></p>
+    </section>
+
     <section id="enemies">
         <h2>対戦相手</h2>
         <p>倒すとボーナスがもらえます。強い相手ほど出にくく、ボーナスも大きくなります。</p>
@@ -252,7 +258,7 @@
         <p class="note">確率は1ゲームあたりの当選確率（設定1の値）。チャンス目は揃いではない特別な出目です。</p>
         <div class="table-wrap"><table id="role-table"></table></div>
         <h3>チャンス目</h3>
-        <p>揃いではない特別な出目。CP が増えたり、城に突入しやすかったり、BATTLE で大ダメージになったりします。チャンス目の図柄はピンクに光ります。</p>
+        <p>揃いではない特別な出目。CP が増えたり、城に突入しやすかったり、BATTLE で大ダメージになったり、RASH 終了後のリベンジチャンスで再突入できたりします。チャンス目の図柄はピンクに光り、種類ごとに専用の演出が出ます（スイカ崩れ: 果汁が飛び散る / BAR崩れ: BAR が落ちてくる / 7崩れ: 赤い光と大きな7で激アツ）。</p>
         <div class="chance-list" id="chance-patterns"></div>
     </section>
 
@@ -399,6 +405,9 @@
             pct(g.weight / totalW(c.rash.initialGames)),
             c.rash.continueGames[i] ? pct(c.rash.continueGames[i].weight / totalW(c.rash.continueGames)) : '-'
         ]));
+
+    // リベンジチャンス
+    $('revenge-text').innerHTML = `おにおにRASH・SUPER が終わって通常時に戻ったあと、<b>${c.revenge.games}ゲーム</b>の間に<b>チャンス目</b>を引くと、<span class="red">おにおにRASH に再突入</span>！ この間はポイントチャンス・お仲間チャレンジは起きません。`;
 
     // 宝物庫ゾーン
     const tz = c.treasure;

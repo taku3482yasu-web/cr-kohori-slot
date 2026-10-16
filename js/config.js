@@ -23,10 +23,10 @@ window.GAME_CONFIG = {
         multipliers: {
             1: { chance: 1.00, castleEntry: 1.00, pointBig: 1.00 },
             2: { chance: 1.10, castleEntry: 1.05, pointBig: 1.10 },
-            3: { chance: 1.20, castleEntry: 1.10, pointBig: 1.20 },
-            4: { chance: 1.35, castleEntry: 1.15, pointBig: 1.30 },
-            5: { chance: 1.65, castleEntry: 1.28, pointBig: 1.50 },
-            6: { chance: 1.95, castleEntry: 1.42, pointBig: 1.75 }
+            3: { chance: 1.20, castleEntry: 1.12, pointBig: 1.20 },
+            4: { chance: 1.35, castleEntry: 1.22, pointBig: 1.30 },
+            5: { chance: 1.45, castleEntry: 1.35, pointBig: 1.50 },
+            6: { chance: 1.60, castleEntry: 1.55, pointBig: 1.75 }
         }
     },
 
@@ -90,7 +90,7 @@ window.GAME_CONFIG = {
             melon: 1 / 200,
             bar: 1 / 400,
             seven: 1 / 600,
-            chance: 1 / 40
+            chance: 1 / 45
         },
         // 城突入チャレンジ中 (チャンス目が出やすい)
         castleChallenge: {
@@ -101,7 +101,7 @@ window.GAME_CONFIG = {
             melon: 1 / 100,
             bar: 1 / 150,
             seven: 1 / 300,
-            chance: 1 / 24
+            chance: 1 / 28
         },
         // RASH / BATTLE 中 (リプレイ多めでコインが減りにくい)
         battle: {
@@ -227,6 +227,12 @@ window.GAME_CONFIG = {
         oniUnlockDefeats: 3,
         // SUPER中はおにおにを常に候補に入れるか
         superOniAlwaysAvailable: true
+    },
+
+    // ----- リベンジチャンス (RASH 終了後の引き戻し) -----
+    // RASH / SUPER が終わって通常時に戻ったあと games ゲームの間にチャンス目を引くと、おにおにRASH に再突入
+    revenge: {
+        games: 3
     },
 
     // ----- 宝物庫ゾーン (RASH / SUPER 中のゲーム数上乗せ特化ゾーン) -----
@@ -370,6 +376,12 @@ window.GAME_CONFIG = {
         },
         cutInRate: 0.5,       // 大ダメージ時にカットインを出す確率
         fakeReachRate: 0.12,  // ハズレのときに 7・BAR のリーチ目 (ガセリーチ) が出る出目を選ぶ確率
+        // チャンス目ごとの演出 (チャンス目の名前 → 表示)
+        chanceEffects: {
+            'スイカ崩れ': { text: 'スイカ崩れ!!', sub: 'チャンス目', color: '#5ad05a', duration: 1300 },
+            'BAR崩れ': { text: 'BAR崩れ!!', sub: 'チャンス目', color: '#ffffff', duration: 1400 },
+            '7崩れ': { text: '7崩れ!!', sub: '激アツ!!', color: '#ff3a3a', duration: 1700 }
+        },
         // リーチ演出を出す図柄 (当たるラインのリーチは図柄に関係なく出す)
         reachSymbols: ['seven', 'bar', 'melon'],
         pushRate: 0.5,        // チャンス目のとき、最後の STOP が金色に光って「押せ!!」が出る確率

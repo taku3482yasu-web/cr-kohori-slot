@@ -96,6 +96,7 @@ const UI = (() => {
         els.mode.textContent = MODE_LABELS[state.mode];
         document.body.dataset.mode = state.mode;   // モードに応じたボタン・筐体の光り方 (CSS)
         document.body.dataset.phase = StateMachine.isRashMode(state) ? state.rash.phase : '';
+        document.body.dataset.revenge = state.mode === MODES.NORMAL && state.normal.revengeGames > 0 ? 'on' : '';
         if (showProfit) {
             const coinValue = config.coins.packagePrice / config.coins.packageAmount;
             const profit = Math.floor(state.totalCoinsWon * coinValue - state.totalSpent);

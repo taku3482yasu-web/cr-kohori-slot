@@ -113,7 +113,8 @@ function createInitialState(config, rng = Math.random) {
             loopIndex: 0,          // ループ内の現在位置 (SE城前から戻るときに使う)
             gamesInMap: 0,
             chancePoint: 0,
-            castleWaitRemaining: 0 // SE城前でチャレンジ発生までの残りゲーム数
+            castleWaitRemaining: 0, // SE城前でチャレンジ発生までの残りゲーム数
+            revengeGames: 0        // リベンジチャンスの残りゲーム数 (RASH 終了後)
         },
 
         // 城突入チャレンジ
@@ -208,6 +209,23 @@ const GameFlow = {
         const events = [];
         const cp = config.chancePoint;
 
+        // リベンジチャンス: チャンス目で RASH に再突入
+        if (normal.revengeGames > 0) {
+            normal.revengeGames--;
+            if (outcome.isChance) {
+                normal.revengeGames = 0;
+                events.push({ type: 'revengeSuccess' });
+                events.push(StateMachine.transition(state, MODES.RASH));
+                state.rash = createRashState();
+                state.rashCount++;
+                events.push({ type: 'rashStart' });
+                return events;
+            }
+            events.push({ type: 'revengeGame', remaining: normal.revengeGames });
+            if (normal.revengeGames === 0) events.push({ type: 'revengeEnd' });
+        }
+        const inRevenge = events.some(e => e.type === 'revengeGame');
+
         // チャンスポイント: 1ゲームごとの加算 + チャンス目・柄揃いの追加加算
         let bonus = 0;
         let reason = null;
@@ -226,7 +244,7 @@ const GameFlow = {
         const forced = state.debugForcePointChance;
         state.debugForcePointChance = false;
         let pointChanceHappened = false;
-        if (normal.chancePoint < cp.threshold && (forced || rng() < pc.rate)) {
+        if (!inRevenge && normal.chancePoint < cp.threshold && (forced || rng() < pc.rate)) {
             pointChanceHappened = true;
             const small = pc.small[Math.floor(rng() * pc.small.length)];
             const big = pc.big[Math.floor(rng() * pc.big.length)];
@@ -238,7 +256,7 @@ const GameFlow = {
         }
 
         // お仲間チャレンジ (ポイントチャンスと同じゲームでは起きない)
-        if (!pointChanceHappened && normal.chancePoint < cp.threshold) {
+        if (!inRevenge && !pointChanceHappened && normal.chancePoint < cp.threshold) {
             events.push(...Companions.challenge(state, config, rng));
         }
 
@@ -334,6 +352,7 @@ const GameFlow = {
         state.rashCount++;
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
+        state.normal.revengeGames = 0;
         state.challenge.gamesRemaining = 0;
         events.push({ type: 'rashStart' });
         return events;
@@ -353,6 +372,9 @@ const GameFlow = {
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
         events.push(this.changeMap(state, config.map.loop[state.normal.loopIndex]));
+        // 通常時に戻ったらリベンジチャンス
+        state.normal.revengeGames = config.revenge.games;
+        events.push({ type: 'revengeStart', games: config.revenge.games });
         return events;
     },
 
@@ -370,6 +392,7 @@ const GameFlow = {
 const DebugState = {
     toNormal(state, config) {
         state.mode = MODES.NORMAL;
+        state.normal.revengeGames = 0;
         state.normal.map = config.map.loop[state.normal.loopIndex];
         state.normal.gamesInMap = 0;
         state.normal.chancePoint = 0;
@@ -415,6 +438,12 @@ const DebugState = {
     setSetting(state, setting) {
         state.setting = setting;
         return [{ type: 'debugQuiet' }];
+    },
+    // リベンジチャンスを始める (通常時)
+    startRevenge(state, config) {
+        if (state.mode !== MODES.NORMAL) return [{ type: 'debugQuiet' }];
+        state.normal.revengeGames = config.revenge.games;
+        return [{ type: 'revengeStart', games: config.revenge.games }];
     },
     // 次の BATTLE のゲームのあとに宝物庫ゾーンへ
     forceTreasure(state) {

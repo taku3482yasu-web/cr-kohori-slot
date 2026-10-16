@@ -116,7 +116,8 @@
         }
 
         if (outcome.aligned) Sound.win();
-        else if (outcome.isChance) Sound.chance();
+        // チャンス目ごとの演出
+        if (outcome.isChance) await Lcd.playChanceEffect(outcome.chanceName);
 
         const events = GameFlow.onGameEnd(state, outcome, config);
         if (config.debug) console.log('outcome', outcome, 'events', events);
@@ -184,6 +185,7 @@
         pointChance: debugAction(() => DebugState.forcePointChance(state, config)),
         companion: debugAction(() => DebugState.forceCompanion(state)),
         treasure: debugAction(() => DebugState.forceTreasure(state)),
+        revenge: debugAction(() => DebugState.startRevenge(state, config)),
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },
         forceGold: debugAction(() => DebugState.forceEnemy(state, config.goldDog.id)),

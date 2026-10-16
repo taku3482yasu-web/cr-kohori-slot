@@ -51,6 +51,8 @@ const Lcd = (() => {
     let visitor = null;        // お仲間チャレンジで現れた仲間候補 { id, x, silhouette, alpha }
     let treasure = null;       // 宝物庫ゾーン { remaining, games, total, chestOpenUntil, coins: [...] }
     let nextBonusGames = 0;    // 次の BATTLE に上乗せされるゲーム数 (表示用)
+    let revenge = null;        // リベンジチャンス { remaining, games }
+    let chanceFx = null;       // チャンス目の演出 { name, start, duration, particles }
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
     const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true };
@@ -118,6 +120,9 @@ const Lcd = (() => {
         bubbles = null;
         party = [...state.companions];
         visitor = null;
+        revenge = state.mode === MODES.NORMAL && state.normal.revengeGames > 0
+            ? { remaining: state.normal.revengeGames, games: config.revenge.games }
+            : null;
         setNow(gate, 0);
         koori.visible = true;
         koori.moving = false;
@@ -195,6 +200,7 @@ const Lcd = (() => {
         drawPopups(time);
         drawMessage(time);
         drawPreview(time);
+        drawChanceFx(time);
         drawReach(time);
         drawLetterbox();
         drawCutIn(time);
@@ -363,6 +369,11 @@ const Lcd = (() => {
     function drawNormalHud(time) {
         drawMapPlate();
 
+        if (revenge) {
+            drawRevengeHud(time);
+            return;
+        }
+
         if (displayMap === config.map.castle) {
             const remaining = state.normal.castleWaitRemaining;
             const label = remaining > 0 ? `城突入まで あと${remaining}G` : '城突入チャレンジ!!';
@@ -385,6 +396,29 @@ const Lcd = (() => {
         ctx.fillRect(gx, gy, Math.round(gw * cp / threshold), gh);
         ctx.fillStyle = 'rgba(255,255,255,0.4)';
         ctx.fillRect(gx, gy, Math.round(gw * cp / threshold), 1);
+    }
+
+    // リベンジチャンス: 赤い縁取りと残りゲーム数のランプ
+    function drawRevengeHud(time) {
+        const pulse = 0.25 + 0.15 * Math.sin(time / 200);
+        ctx.fillStyle = `rgba(255,40,40,${pulse})`;
+        ctx.fillRect(0, 0, W, 3);
+        ctx.fillRect(0, H - 3, W, 3);
+        ctx.fillRect(0, 0, 3, H);
+        ctx.fillRect(W - 3, 0, 3, H);
+        const n = revenge.games;
+        const bw = 104, bx = W - bw - 4;
+        box(bx, 4, bw, 30, 'rgba(70,0,10,0.85)', '#ff4a4a');
+        text('リベンジチャンス', bx + bw / 2, 6, { color: '#ffd0d0', size: 10, align: 'center', outline: null });
+        const lampW = 14, gap = 4;
+        const startX = bx + (bw - (lampW * n + gap * (n - 1))) / 2;
+        const blink = Math.floor(time / 250) % 2;
+        for (let i = 0; i < n; i++) {
+            const lit = i < revenge.remaining;
+            ctx.fillStyle = lit ? (i === revenge.remaining - 1 && blink ? '#ffffff' : '#ff3a3a') : '#3a1018';
+            ctx.fillRect(startX + i * (lampW + gap), 21, lampW, 8);
+        }
+        text('チャンス目でRASH再突入!!', W / 2, H - 18, { color: '#ffd0d0', size: 10, align: 'center' });
     }
 
     // 城突入チャレンジ: 残りゲーム数をランプで表示
@@ -839,6 +873,139 @@ const Lcd = (() => {
         startFlash('#ff3030', 400);
         showTitle(`次の相手は ${event.name}`, '確定!!', '#ff6060', 1600);
         await sleep(1600);
+    }
+
+    // ----- チャンス目の演出 (チャンス目の種類ごと) -----
+    function startChanceFx(name) {
+        const fx = config.effects.chanceEffects[name];
+        if (!fx) return 0;
+        const now = performance.now();
+        const particles = [];
+        for (let i = 0; i < 40; i++) {
+            particles.push({
+                angle: Math.random() * Math.PI * 2,
+                speed: 40 + Math.random() * 90,
+                color: name === 'スイカ崩れ' ? (i % 3 ? '#ff3a4a' : '#3ab03a') : name === '7崩れ' ? (i % 2 ? '#ff3a3a' : '#ffd23a') : (i % 2 ? '#ffffff' : '#222222'),
+                size: 2 + (i % 3)
+            });
+        }
+        chanceFx = { name, fx, start: now, duration: fx.duration, particles };
+        return fx.duration;
+    }
+
+    function drawChanceFx(time) {
+        if (!chanceFx) return;
+        const t = (time - chanceFx.start) / chanceFx.duration;
+        if (t >= 1) {
+            chanceFx = null;
+            return;
+        }
+        const { name, fx, particles } = chanceFx;
+        const cx = W / 2, cy = 66;
+        const elapsed = (time - chanceFx.start) / 1000;
+
+        if (name === 'スイカ崩れ') {
+            // 大きなスイカが跳ねて、果汁が飛び散る
+            ctx.fillStyle = 'rgba(0,40,0,0.45)';
+            ctx.fillRect(0, 0, W, H);
+            const bounce = Math.abs(Math.sin(elapsed * 9)) * 12 * (1 - t);
+            ctx.drawImage(Symbols.canvas('melon'), cx - 36, cy - 44 - bounce, 72, 72);
+            particles.forEach(p => {
+                const d = p.speed * elapsed;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(Math.round(cx + Math.cos(p.angle) * d), Math.round(cy - 8 + Math.sin(p.angle) * d + 60 * elapsed * elapsed), p.size, p.size);
+            });
+        } else if (name === 'BAR崩れ') {
+            // 白黒の点滅と、上から落ちてくる BAR の板
+            ctx.fillStyle = Math.floor(time / 90) % 2 ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.55)';
+            ctx.fillRect(0, 0, W, H);
+            [0, 1, 2].forEach(i => {
+                const delay = i * 0.12;
+                const k = Math.min(1, Math.max(0, (elapsed - delay) / 0.25));
+                const y = -40 + (cy - 30 + i * 6 + 40) * k;
+                ctx.drawImage(Symbols.canvas('bar'), cx - 84 + i * 56, y, 56, 56);
+            });
+            if (elapsed > 0.2 && elapsed < 0.6) startShake(config.effects.intensity.shakeLarge, 120);
+        } else {
+            // 7崩れ: 赤い光の筋と脈打つ大きな 7
+            ctx.fillStyle = 'rgba(40,0,0,0.6)';
+            ctx.fillRect(0, 0, W, H);
+            ctx.save();
+            ctx.translate(cx, cy - 6);
+            ctx.rotate(elapsed * 1.5);
+            for (let i = 0; i < 10; i++) {
+                ctx.rotate(Math.PI / 5);
+                ctx.fillStyle = i % 2 ? 'rgba(255,60,40,0.35)' : 'rgba(255,210,60,0.3)';
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(170, -16);
+                ctx.lineTo(170, 16);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+            const pulse = 1 + 0.12 * Math.sin(elapsed * 14);
+            const size = Math.round(76 * pulse);
+            ctx.drawImage(Symbols.canvas('seven'), cx - size / 2, cy - 6 - size / 2, size, size);
+            particles.forEach(p => {
+                const d = p.speed * elapsed * 1.3;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(Math.round(cx + Math.cos(p.angle) * d), Math.round(cy - 6 + Math.sin(p.angle) * d), p.size, p.size);
+            });
+        }
+
+        // 文字
+        const appear = Math.min(1, t / 0.15);
+        const size = Math.round(20 + 8 * (1 - appear));
+        text(fx.text, cx, H - 46, { color: fx.color, size, align: 'center', outline: '#000' });
+        text(fx.sub, cx, H - 22, { color: name === '7崩れ' ? '#ffd23a' : '#ffffff', size: 12, align: 'center' });
+    }
+
+    // チャンス目の演出を流す (main.js から呼ぶ)
+    async function playChanceEffect(name) {
+        clearMessage();
+        const duration = startChanceFx(name);
+        if (!duration) return;
+        if (name === '7崩れ') {
+            startFlash('#ff3a3a', 400);
+            startShake(config.effects.intensity.shakeLarge, 500);
+            Sound.fanfare();
+        } else if (name === 'BAR崩れ') {
+            Sound.bigHit();
+        } else {
+            startFlash('#7aff7a', 300);
+            Sound.win();
+        }
+        await sleep(duration);
+    }
+
+    // ----- 演出: リベンジチャンス -----
+    async function revengeStart(event) {
+        revenge = { remaining: event.games, games: event.games };
+        startFlash('#ff3a3a', 400);
+        startShake(config.effects.intensity.shakeSmall, 300);
+        Sound.chance();
+        showTitle('リベンジチャンス!!', `${event.games}G以内にチャンス目で RASH 再突入!!`, '#ff6a6a', 2000);
+        await sleep(2000);
+    }
+
+    async function revengeSuccess() {
+        revenge = null;
+        letterboxTarget = 1;
+        startFlash('#ffffff', 500);
+        startShake(config.effects.intensity.shakeLarge, 500);
+        Sound.fanfare();
+        showTitle('リベンジ成功!!', 'おにおにRASH 再突入!!', '#ff3030', 2000);
+        await sleep(2000);
+        await playWipe(true, 300);
+        letterboxTarget = 0;
+    }
+
+    async function revengeEnd() {
+        revenge = null;
+        Sound.miss();
+        showMessage('リベンジ失敗…', '#9fb8d8', 1200);
+        await sleep(1000);
     }
 
     // ----- 演出の部品 -----
@@ -1417,8 +1584,6 @@ const Lcd = (() => {
                         } else {
                             showMessage(`WIN!! +${event.amount}`, '#ffe45a');
                         }
-                    } else if (event.isChance && scene !== 'rash') {
-                        showMessage('チャンス目!!', '#ff8af0');
                     }
                     break;
                 case 'chancePoint':
@@ -1469,6 +1634,18 @@ const Lcd = (() => {
                 case 'break':
                     await breakStart();
                     break;
+                case 'revengeStart':
+                    await revengeStart(event);
+                    break;
+                case 'revengeGame':
+                    if (revenge) revenge.remaining = event.remaining;
+                    break;
+                case 'revengeSuccess':
+                    await revengeSuccess();
+                    break;
+                case 'revengeEnd':
+                    await revengeEnd();
+                    break;
                 case 'treasureStart':
                     await treasureStart(event);
                     break;
@@ -1511,5 +1688,8 @@ const Lcd = (() => {
         draw(time);
     }
 
-    return { init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview, reach, push, reachResult, longFreeze };
+    return {
+        init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
+        reach, push, reachResult, longFreeze, playChanceEffect
+    };
 })();

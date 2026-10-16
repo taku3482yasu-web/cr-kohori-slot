@@ -396,6 +396,12 @@ body[data-mode="SUPER_RASH"] .slot-machine {
     box-shadow: 0 0 50px rgba(255, 215, 0, 0.55);
 }
 
+/* リベンジチャンス中はレバーが赤く光る */
+body[data-revenge="on"] #spin-button:not(:disabled) {
+    background: linear-gradient(to bottom, #ff8a8a, #d03030);
+    animation: lever-glow 0.5s infinite alternate;
+}
+
 /* 「？？」のゲームはレバーが金色に光る */
 body[data-phase="QUESTION"] #spin-button:not(:disabled) {
     background: linear-gradient(to bottom, #fff07a, #d4a017);
