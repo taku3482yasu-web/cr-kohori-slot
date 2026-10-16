@@ -31,7 +31,7 @@ const MODE_LABELS = {
 
 // 許可する遷移 (これ以外の遷移はエラーにする)
 const ALLOWED_TRANSITIONS = {
-    NORMAL: ['CASTLE_CHALLENGE'],
+    NORMAL: ['CASTLE_CHALLENGE', 'RASH'],   // RASH へはロングフリーズで直行
     CASTLE_CHALLENGE: ['RASH', 'NORMAL'],
     RASH: ['SUPER_RASH', 'NORMAL'],
     SUPER_RASH: ['NORMAL']
@@ -125,6 +125,10 @@ const GameFlow = {
     onGameEnd(state, outcome, config, rng = Math.random) {
         state.totalGames++;
         const events = [this.applyPayout(state, outcome, config)];
+        if (outcome.isFreeze) {
+            events.push(...this.longFreeze(state, config, rng));
+            return events;
+        }
         switch (state.mode) {
             case MODES.NORMAL:
                 events.push(...this.handleNormal(state, outcome, config, rng));
@@ -253,6 +257,22 @@ const GameFlow = {
                 return Battle.questionGame(state, outcome, config, rng);
         }
         return [];
+    },
+
+    // ロングフリーズの効果
+    longFreeze(state, config, rng) {
+        if (StateMachine.isRashMode(state)) return Battle.longFreeze(state, config, rng);
+        // 通常時・城突入チャレンジ: おにおにRASH へ (最初の相手はおにおに)
+        const events = [{ type: 'freezeBonus', kind: 'rash' }];
+        events.push(StateMachine.transition(state, MODES.RASH));
+        state.rash = createRashState();
+        state.rash.nextForcedEnemy = 'onioni';
+        state.rashCount++;
+        state.normal.chancePoint = 0;
+        state.normal.castleWaitRemaining = 0;
+        state.challenge.gamesRemaining = 0;
+        events.push({ type: 'rashStart' });
+        return events;
     },
 
     // RASH / SUPER 終了 → 通常時 (ループ中のマップへ戻る)

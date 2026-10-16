@@ -23,6 +23,23 @@ const Sound = (() => {
         osc.stop(ctx.currentTime + duration);
     }
 
+    // ザーッというノイズ (ロングフリーズ)
+    function noise(duration, volume = 0.12) {
+        if (!ctx) return;
+        const length = Math.floor(ctx.sampleRate * duration);
+        const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+        const src = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        src.buffer = buffer;
+        gain.gain.setValueAtTime(volume, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + duration);
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        src.start();
+    }
+
     function sequence(notes, interval, type, duration, volume) {
         notes.forEach((freq, i) => setTimeout(() => tone(freq, type, duration, volume), i * interval));
     }
@@ -30,6 +47,8 @@ const Sound = (() => {
     return {
         init,
         context: () => ctx,
+        noise,
+        rainbow: () => sequence([523.25, 659.25, 783.99, 1046.5, 1318.5, 1568, 2093], 110, 'triangle', 0.5, 0.09),
         spin: () => tone(200, 'sawtooth', 0.1, 0.05),
         stop: (i) => tone(400 - i * 100, 'square', 0.1, 0.1),
         win: () => sequence([523.25, 659.25, 783.99], 100, 'sine', 0.3, 0.1),

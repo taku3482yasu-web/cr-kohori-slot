@@ -84,6 +84,7 @@ const Bgm = (() => {
     let timer = null;
     let volume = 0.5;
     let enabled = true;
+    let paused = false;
 
     function frequency(note) {
         const match = /^([A-G]#?)(\d)$/.exec(note);
@@ -92,7 +93,7 @@ const Bgm = (() => {
     }
 
     function applyVolume() {
-        if (master) master.gain.setTargetAtTime(enabled ? volume * 0.12 : 0, ctx.currentTime, 0.05);
+        if (master) master.gain.setTargetAtTime(enabled && !paused ? volume * 0.12 : 0, ctx.currentTime, 0.02);
     }
 
     // 音声の準備 (ユーザー操作のあとで呼ぶ)
@@ -120,7 +121,7 @@ const Bgm = (() => {
     }
 
     function schedule() {
-        if (!ctx || !trackName || !enabled) return;
+        if (!ctx || !trackName || !enabled || paused) return;
         const track = BGM_TRACKS[trackName];
         const stepDur = 60 / track.bpm / 2;
         if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05;
@@ -153,8 +154,15 @@ const Bgm = (() => {
         applyVolume();
     }
 
+    // 一時停止 (ロングフリーズ中は無音にする)
+    function setPaused(on) {
+        paused = on;
+        if (!on && ctx) nextTime = ctx.currentTime + 0.1;
+        applyVolume();
+    }
+
     return {
-        init, play, setVolume, setEnabled,
+        init, play, setVolume, setEnabled, setPaused,
         get volume() { return volume; },
         get enabled() { return enabled; }
     };

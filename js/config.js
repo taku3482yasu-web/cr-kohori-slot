@@ -71,11 +71,11 @@ window.GAME_CONFIG = {
         // チャンス目 (揃いではない特別な出目)。抽選で 'chance' に当選すると weight の重みでどれかが出る
         //   line:  5ラインのどれかにこの並びが出る
         //   cells: 指定の位置 ([リール, 段, 図柄]。段は 0:上段 1:中段 2:下段) にこの図柄が出る
+        // ※ 左リール中段のチェリーはロングフリーズ専用 (longFreeze.cells)
         chancePatterns: [
-            { name: 'スイカ崩れ', weight: 35, line: ['melon', 'cherry', 'melon'] },
-            { name: 'BAR崩れ', weight: 25, line: ['bar', 'cherry', 'bar'] },
-            { name: '7崩れ', weight: 15, line: ['seven', 'bar', 'seven'] },
-            { name: '中段チェリー', weight: 25, cells: [[0, 1, 'cherry']] }
+            { name: 'スイカ崩れ', weight: 45, line: ['melon', 'cherry', 'melon'] },
+            { name: 'BAR崩れ', weight: 35, line: ['bar', 'cherry', 'bar'] },
+            { name: '7崩れ', weight: 20, line: ['seven', 'bar', 'seven'] }
         ]
     },
 
@@ -101,7 +101,7 @@ window.GAME_CONFIG = {
             melon: 1 / 100,
             bar: 1 / 150,
             seven: 1 / 300,
-            chance: 1 / 19
+            chance: 1 / 22
         },
         // RASH / BATTLE 中 (リプレイ多めでコインが減りにくい)
         battle: {
@@ -242,7 +242,7 @@ window.GAME_CONFIG = {
         {
             id: 'okagappa', name: 'おかがっぱ',
             weight: 50, superWeight: 40, hp: 60,
-            bonus: { type: 'coins', value: 45 }
+            bonus: { type: 'coins', value: 40 }
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり',
@@ -274,6 +274,30 @@ window.GAME_CONFIG = {
         hp: 250,
         bonus: { type: 'coins', value: 2000 },
         nextForcedEnemy: 'onioni'   // 撃破後の次の対戦相手
+    },
+
+    // ----- ロングフリーズ -----
+    // 1ゲームごとに prob[モード] の確率で当選。当選したゲームは左リール中段にチェリー (cells) が止まり、
+    // その瞬間に画面が止まる → ノイズ → 暗転 →「こおりいきていける！」(虹色) とこおりくんが虹色に光る
+    //   通常時・城突入チャレンジ: おにおにRASH へ (最初の相手はおにおに)
+    //   おにおにRASH: 戦闘中の敵を完全撃破 → superRate で SUPER 直行、それ以外は次の相手がおにおに
+    //   SUPER: 戦闘中の敵に勝利 → 次の相手がゴールド金面犬
+    longFreeze: {
+        prob: {
+            NORMAL: 1 / 8192,
+            CASTLE_CHALLENGE: 1 / 8192,
+            RASH: 1 / 8192,
+            SUPER_RASH: 1 / 8192
+        },
+        superRate: 0.75,
+        cells: [[0, 1, 'cherry']],
+        text: 'こおりいきていける！',
+        timing: {             // ミリ秒
+            still: 1500,      // 画面が止まる
+            noise: 1300,      // ノイズ
+            black: 900,       // 暗転
+            rainbow: 4000     // 虹色の表示
+        }
     },
 
     // ----- 演出 -----

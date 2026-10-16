@@ -19,6 +19,16 @@
         Bgm.play(bgmTrack(state));
     }
 
+    // ロングフリーズ: STOP を押せなくし、BGM を止めて液晶の演出を流す
+    async function playLongFreeze(stopSpinSound) {
+        stopSpinSound();
+        Reels.lockStops(true);
+        Bgm.setPaused(true);
+        await Lcd.longFreeze();
+        Bgm.setPaused(false);
+        Reels.lockStops(false);
+    }
+
     // 場面ごとの BGM
     function bgmTrack(s) {
         if (s.mode === MODES.SUPER_RASH) return 'super';
@@ -63,10 +73,17 @@
 
         const stopOrder = [];
         let reach = null;
+        let freezePlaying = null;
+        let spinSound = null;
         const onStop = (i, count) => {
             Sound.stop(i);
             stopOrder.push(i);
-            if (count === 2) {
+            // ロングフリーズ: 左リール中段にチェリーが止まった瞬間に発生
+            if (i === 0 && outcome.isFreeze) {
+                freezePlaying = playLongFreeze(() => clearInterval(spinSound));
+                return;
+            }
+            if (count === 2 && !outcome.isFreeze) {
                 const remaining = [0, 1, 2].find(k => !stopOrder.includes(k));
                 reach = Lottery.findReach(outcome, stopOrder, config);
                 if (reach) {
@@ -79,8 +96,9 @@
                 }
             }
         };
-        const spinSound = setInterval(Sound.spin, 200);
+        spinSound = setInterval(Sound.spin, 200);
         await Reels.spin(outcome.stops, effects.timing.reelSpinStagger, onStop);
+        if (freezePlaying) await freezePlaying;
         clearInterval(spinSound);
         stopButtons.forEach(btn => btn.classList.remove('reach', 'push'));
         Lcd.stopPreview();
@@ -88,6 +106,7 @@
         // 揃ったライン・チャンス目の図柄を光らせる
         if (outcome.winLine !== null) Reels.highlight(Lottery.lineCells(outcome.winLine), 'win');
         if (outcome.chance) Reels.highlight(outcome.chance.cells, 'chance-cell');
+        if (outcome.isFreeze) Reels.highlight(outcome.freezeCells, 'freeze-cell');
 
         // リーチの結果
         if (reach) {

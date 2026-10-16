@@ -215,6 +215,52 @@ const Battle = {
         return { ...bonus };
     },
 
+    // ロングフリーズ (RASH / SUPER 中)
+    //   RASH:  戦闘中の敵を完全撃破 → superRate で SUPER 直行、それ以外は次の相手がおにおに
+    //   SUPER: 戦闘中の敵に勝利 → 次の相手がゴールド金面犬
+    longFreeze(state, config, rng) {
+        const rash = state.rash;
+        const wasSuper = this.isSuper(state);
+        const events = [{ type: 'freezeBonus', kind: wasSuper ? 'super' : 'rash' }];
+
+        // 戦闘中なら完全撃破
+        let defeat = null;
+        if (rash.enemyId) {
+            const amount = rash.enemyHp;
+            rash.enemyHp = 0;
+            events.push({
+                type: 'damage', role: 'longFreeze', amount, kill: true, guardBreak: false, big: true, guarded: false,
+                freeze: true, breakActive: rash.breakActive, hp: 0, maxHp: rash.enemyMaxHp,
+                gamesRemaining: rash.gamesRemaining, probUpGames: rash.probUpGames
+            });
+            const defeatEvents = this.defeatEnemy(state, config);
+            defeat = defeatEvents[0];
+            events.push(...defeatEvents);
+        }
+
+        // 次の相手を確定させる (撃破時に決まった確定相手より優先)
+        const forceNext = (enemyId) => {
+            rash.nextForcedEnemy = enemyId;
+            const name = this.findEnemy(config, enemyId).name;
+            if (defeat) defeat.nextForcedName = name;
+            else events.push({ type: 'nextForced', name });
+        };
+
+        if (wasSuper) {
+            forceNext(config.goldDog.id);
+        } else if (state.mode === MODES.RASH) {
+            // おにおにを撃破して SUPER に移っていなければ、SUPER 直行の抽選
+            if (rng() < config.longFreeze.superRate) {
+                events.push(StateMachine.transition(state, MODES.SUPER_RASH));
+                state.superCount++;
+                events.push({ type: 'superStart' });
+            } else {
+                forceNext('onioni');
+            }
+        }
+        return events;
+    },
+
     // 「？？」のゲーム: 揃えば継続 (同じ相手・HPのまま新しいセット)、揃わなければ RASH 終了
     questionGame(state, outcome, config, rng) {
         const rash = state.rash;

@@ -128,6 +128,7 @@
         <a href="#rash">おにおにRASH</a>
         <a href="#enemies">対戦相手</a>
         <a href="#super">SUPER</a>
+        <a href="#freeze">ロングフリーズ</a>
         <a href="#roles">役と確率</a>
         <a href="#setting">設定</a>
     </nav>
@@ -220,6 +221,13 @@
     <section id="super">
         <h2>SUPERおにおにRASH</h2>
         <ul id="super-list"></ul>
+    </section>
+
+    <section id="freeze">
+        <h2>ロングフリーズ</h2>
+        <p id="freeze-text"></p>
+        <div class="table-wrap"><table id="freeze-table"></table></div>
+        <p class="note">左リール中段のチェリーはロングフリーズのときだけ止まります。</p>
     </section>
 
     <section id="roles">
@@ -388,6 +396,16 @@
         `${odds(c.goldDog.prob)} で <span class="gold">${c.goldDog.name}</span> が出現。倒すと <b>${c.goldDog.bonus.value}枚</b>、次の相手はおにおに確定`,
         '「？？」で揃わなければ終了'
     ].map(t => `<li>${t}</li>`).join('');
+
+    // ロングフリーズ
+    const lf = c.longFreeze;
+    $('freeze-text').innerHTML = `どのモードでも <b>${odds(lf.prob.NORMAL)}</b> の超低確率で発生。` +
+        `<b>左リール中段にチェリー</b>が止まった瞬間に画面が止まり、ノイズ → 暗転 → <span class="gold">「${lf.text}」</span> の虹色表示で、こおりくんが虹色に光ります。`;
+    table('freeze-table', ['発生したとき', '効果'], [
+        ['通常時・城突入チャレンジ', 'おにおにRASH に突入。最初の相手は <b>おにおに</b>'],
+        ['おにおにRASH', `戦闘中の敵を<b>完全撃破</b> → ${pct(lf.superRate)} で <span class="gold">SUPER</span> 直行、${pct(1 - lf.superRate)} で次の相手がおにおに`],
+        ['SUPERおにおにRASH', `戦闘中の敵に<b>勝利</b> → 次の相手は <span class="gold">${c.goldDog.name}</span>`]
+    ]);
 
     // 役と確率
     const roles = Object.keys(c.lottery.normal);

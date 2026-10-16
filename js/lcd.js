@@ -44,6 +44,7 @@ const Lcd = (() => {
     let preview = 0;           // 先読みの雪 (0: なし / 1: 白 / 2: 金)
     let cutIn = null;          // カットイン { who, text, color, start, duration }
     let bubbles = null;        // ポイントチャンスの吹き出し { values: [左, 右], cursor, chosen, decided }
+    let freeze = null;         // ロングフリーズ { phase: 'still' | 'noise' | 'black' | 'rainbow', snapshot, start }
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
     const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true };
@@ -153,6 +154,10 @@ const Lcd = (() => {
     }
 
     function draw(time) {
+        if (freeze) {
+            drawFreeze(time);
+            return;
+        }
         ctx.save();
         if (shake && time < shake.start + shake.duration) {
             const amp = shake.amp;
@@ -648,6 +653,141 @@ const Lcd = (() => {
         return sleep(duration);
     }
 
+    // ----- ロングフリーズ -----
+    // 画面が止まる → ノイズ → 暗転 → 虹色の「こおりいきていける！」と虹色に光るこおりくん
+    function drawFreeze(time) {
+        const { phase, snapshot } = freeze;
+        if (phase === 'still') {
+            ctx.drawImage(snapshot, 0, 0);
+            return;
+        }
+        if (phase === 'noise') {
+            ctx.drawImage(snapshot, 0, 0);
+            // 横にずれる帯
+            for (let k = 0; k < 14; k++) {
+                const y = Math.floor(Math.random() * H);
+                const h = 2 + Math.floor(Math.random() * 8);
+                const dx = Math.round((Math.random() * 2 - 1) * 24);
+                ctx.drawImage(snapshot, 0, y, W, h, dx, y, W, h);
+            }
+            // 砂嵐
+            for (let k = 0; k < 900; k++) {
+                const v = Math.floor(Math.random() * 255);
+                ctx.fillStyle = `rgb(${v},${v},${v})`;
+                ctx.fillRect(Math.floor(Math.random() * W), Math.floor(Math.random() * H), 2, 1);
+            }
+            ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '255,0,80' : '0,200,255'},0.12)`;
+            ctx.fillRect(0, 0, W, H);
+            return;
+        }
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        if (phase === 'black') return;
+
+        // 虹色の表示
+        const t = time - freeze.start;
+        const hue = (t / 6) % 360;
+        // 背景の光の筋
+        ctx.save();
+        ctx.translate(W / 2, 92);
+        for (let i = 0; i < 12; i++) {
+            ctx.rotate(Math.PI / 6);
+            ctx.fillStyle = `hsla(${(hue + i * 30) % 360}, 90%, 55%, 0.18)`;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(160, -14);
+            ctx.lineTo(160, 14);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
+        // こおりくん (虹色に光る)
+        const glow = ctx.createRadialGradient(W / 2, 92, 4, W / 2, 92, 52);
+        glow.addColorStop(0, `hsla(${hue}, 100%, 70%, 0.9)`);
+        glow.addColorStop(1, `hsla(${(hue + 120) % 360}, 100%, 50%, 0)`);
+        ctx.fillStyle = glow;
+        ctx.fillRect(W / 2 - 60, 32, 120, 120);
+        drawRainbowKoori(W / 2 - 32, 60, 4, hue);
+        // 文字 (1文字ずつ色を変えて揺らす)
+        const message = config.longFreeze.text;
+        const size = 18;
+        ctx.font = `${size}px ${FONT}`;
+        const widths = [...message].map(ch => ctx.measureText(ch).width);
+        let x = W / 2 - widths.reduce((a, b) => a + b, 0) / 2;
+        [...message].forEach((ch, i) => {
+            const y = 14 + Math.round(Math.sin(t / 150 + i * 0.7) * 3);
+            text(ch, x, y, { color: `hsl(${(hue + i * 28) % 360}, 95%, 62%)`, size, outline: '#000' });
+            x += widths[i];
+        });
+        // きらきら
+        for (let i = 0; i < 24; i++) {
+            const sx = (i * 97 + t * 0.03) % W;
+            const sy = (i * 53 + t * 0.02 * (1 + (i % 3))) % H;
+            ctx.fillStyle = `hsl(${(hue + i * 15) % 360}, 100%, 75%)`;
+            ctx.fillRect(Math.round(sx), Math.round(sy), 2, 2);
+        }
+    }
+
+    // こおりくんを虹色に塗る (ドット絵の上に色を重ねる)
+    const rainbowCanvas = document.createElement('canvas');
+    function drawRainbowKoori(x, y, scale, hue) {
+        const size = 16 * scale;
+        rainbowCanvas.width = size;
+        rainbowCanvas.height = size;
+        const g = rainbowCanvas.getContext('2d');
+        g.imageSmoothingEnabled = false;
+        drawSprite(g, SPRITES.koori, 'walk1', 0, 0, scale);
+        g.globalCompositeOperation = 'source-atop';
+        const grad = g.createLinearGradient(0, 0, size, size);
+        for (let i = 0; i <= 6; i++) grad.addColorStop(i / 6, `hsl(${(hue + i * 60) % 360}, 100%, 60%)`);
+        g.globalAlpha = 0.6;
+        g.fillStyle = grad;
+        g.fillRect(0, 0, size, size);
+        ctx.drawImage(rainbowCanvas, x, y);
+    }
+
+    async function longFreeze() {
+        const timing = config.longFreeze.timing;
+        const snapshot = document.createElement('canvas');
+        snapshot.width = W;
+        snapshot.height = H;
+        snapshot.getContext('2d').drawImage(canvas, 0, 0);
+        clearMessage();
+        reachView = null;
+        preview = 0;
+        document.body.classList.add('long-freeze');
+        freeze = { phase: 'still', snapshot };
+        await sleep(timing.still);
+        freeze.phase = 'noise';
+        Sound.noise(timing.noise / 1000);
+        await sleep(timing.noise);
+        freeze.phase = 'black';
+        await sleep(timing.black);
+        freeze.phase = 'rainbow';
+        freeze.start = performance.now();
+        Sound.rainbow();
+        await sleep(timing.rainbow);
+        freeze = null;
+        document.body.classList.remove('long-freeze');
+        startFlash('#ffffff', 700);
+    }
+
+    // フリーズ後の効果の告知
+    async function freezeBonus(event) {
+        const sub = event.kind === 'super' ? '勝利確定!! 次はゴールド金面犬'
+            : scene === 'rash' ? '完全撃破!!' : 'おにおにRASH 確定!! おにおにと対決';
+        startShake(config.effects.intensity.shakeLarge, 600);
+        Sound.fanfare();
+        showTitle('ロングフリーズ!!', sub, '#ffffff', 2200);
+        await sleep(2200);
+    }
+
+    async function nextForced(event) {
+        startFlash('#ff3030', 400);
+        showTitle(`次の相手は ${event.name}`, '確定!!', '#ff6060', 1600);
+        await sleep(1600);
+    }
+
     // ----- 演出の部品 -----
     function showMessage(str, color = '#fff', duration = config.effects.timing.resultDisplay) {
         message = { text: str, color, until: performance.now() + duration };
@@ -872,7 +1012,9 @@ const Lcd = (() => {
         battle.probUpGames = event.probUpGames;
         if (event.amount <= 0 && !event.guarded) return;   // ベル・ハズレは攻撃なし
 
-        if (event.big && Math.random() < config.effects.cutInRate) {
+        if (event.freeze) {
+            await playCutIn('koori', '完全撃破!!', '#8a2ab0');
+        } else if (event.big && Math.random() < config.effects.cutInRate) {
             await playCutIn('koori', event.kill ? '必殺!!' : 'くらえ!!', event.kill ? '#b01828' : '#1a5ab0');
         }
         koori.moving = true;
@@ -1072,6 +1214,12 @@ const Lcd = (() => {
                 case 'break':
                     await breakStart();
                     break;
+                case 'freezeBonus':
+                    await freezeBonus(event);
+                    break;
+                case 'nextForced':
+                    await nextForced(event);
+                    break;
                 case 'oniUnlocked':
                     await oniUnlocked();
                     break;
@@ -1090,5 +1238,5 @@ const Lcd = (() => {
         draw(time);
     }
 
-    return { init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview, reach, push, reachResult };
+    return { init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview, reach, push, reachResult, longFreeze };
 })();

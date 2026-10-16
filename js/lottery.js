@@ -7,6 +7,8 @@
 //   揃い役   … ちょうど1ラインだけその役が揃い、チャンス目にならない出目
 //   チャンス目 … どのラインも揃わず、指定のチャンス目が1つだけ出る出目
 //   ハズレ   … どのラインも揃わず、チャンス目にもならない出目
+//   ロングフリーズ … どのラインも揃わず、左リール中段にチェリー (longFreeze.cells) が出る出目
+//   ※ 左リール中段チェリーはロングフリーズ専用なので、それ以外の出目には出さない
 // =====================================================================
 
 // 5ライン: 各リール (左・中・右) で見る段 (0:上段 1:中段 2:下段)
@@ -61,7 +63,8 @@ const ReelMap = (() => {
                 chances.push({ name: p.name, cells: p.cells.map(([reel, row]) => [reel, row]) });
             }
         });
-        return { wins, specials, chances, reachLike };
+        const freeze = config.longFreeze.cells.every(([reel, row, sym]) => grid[reel][row] === sym);
+        return { wins, specials, chances, reachLike, freeze };
     }
 
     function build(config) {
@@ -73,9 +76,11 @@ const ReelMap = (() => {
             for (let b = 0; b < n1; b++) {
                 for (let c = 0; c < n2; c++) {
                     const stops = [a, b, c];
-                    const { wins, specials, chances, reachLike } = classify(gridFor(stops, strips), config);
+                    const { wins, specials, chances, reachLike, freeze } = classify(gridFor(stops, strips), config);
                     const hits = wins.length + specials.length;
-                    if (hits === 1 && chances.length === 0) {
+                    if (freeze) {
+                        if (hits === 0 && chances.length === 0) add('freeze', { stops });
+                    } else if (hits === 1 && chances.length === 0) {
                         const hit = wins[0] || specials[0];
                         add(`hit:${hit.role}`, { stops, winLine: hit.line });
                     } else if (hits === 0 && chances.length === 1) {
@@ -117,8 +122,9 @@ const Lottery = {
         return 'miss';
     },
 
-    // 1ゲーム分の抽選結果 (outcome) を返す
+    // 1ゲーム分の抽選結果 (outcome) を返す。ロングフリーズは他の役より先に抽選する
     draw(state, config, rng = Math.random) {
+        if (rng() < (config.longFreeze.prob[state.mode] || 0)) return this.makeOutcome('longFreeze', config, rng);
         const role = StateMachine.isRashMode(state)
             ? Battle.drawRole(state, config, rng)
             : this.drawRole(this.tableFor(state, config), rng);
@@ -135,6 +141,8 @@ const Lottery = {
             key = `chance:${chanceName}`;
         } else if (role === 'miss') {
             key = rng() < config.effects.fakeReachRate ? 'missReach' : 'miss';
+        } else if (role === 'longFreeze') {
+            key = 'freeze';
         } else {
             key = `hit:${role}`;
         }
@@ -147,8 +155,10 @@ const Lottery = {
             grid,                                   // 見えている出目 grid[リール][段]
             winLine: entry.winLine ?? null,         // 揃ったライン (LINES の番号)
             chance: entry.chance || null,           // チャンス目 { name, cells }
-            aligned: role !== 'chance' && role !== 'miss',
+            aligned: role !== 'chance' && role !== 'miss' && role !== 'longFreeze',
             isChance: role === 'chance',
+            isFreeze: role === 'longFreeze',
+            freezeCells: role === 'longFreeze' ? config.longFreeze.cells.map(([reel, row]) => [reel, row]) : null,
             chanceName
         };
     },
@@ -205,6 +215,7 @@ const Lottery = {
         }
         if (!cats.miss) errors.push('リール配列にハズレの出目がありません');
         if (!cats.missReach) errors.push('リール配列にガセリーチの出目がありません');
+        if (!cats.freeze) errors.push('リール配列にロングフリーズの出目がありません');
         return errors;
     }
 };

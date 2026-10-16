@@ -100,6 +100,13 @@ const Reels = (() => {
         }
     }
 
+    // STOP ボタンを一時的に押せなくする (ロングフリーズ中)。解除すると止まっていないリールの STOP が押せる
+    function lockStops(locked) {
+        stopButtons.forEach((btn, i) => {
+            btn.disabled = locked || stopped[i];
+        });
+    }
+
     function isSpinning() {
         return stopped.some(s => !s);
     }
@@ -119,5 +126,5 @@ const Reels = (() => {
         litCells = [];
     }
 
-    return { init, spin, stop, isSpinning, highlight, clearHighlight };
+    return { init, spin, stop, isSpinning, highlight, clearHighlight, lockStops };
 })();
