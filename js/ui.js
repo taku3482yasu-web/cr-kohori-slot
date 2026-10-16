@@ -48,7 +48,12 @@ const UI = (() => {
             bgmEnabled: $('bgm-enabled'),
             bgmVolume: $('bgm-volume'),
             saveInfo: $('save-info'),
-            resetData: $('reset-data-button')
+            resetData: $('reset-data-button'),
+            resetButton: $('reset-button'),
+            resetModal: $('reset-modal'),
+            resetConfirm: $('reset-confirm-button'),
+            resetCancel: $('reset-cancel-button'),
+            spinButton: $('spin-button')
         };
         initAudioSettings();
         initDataReset();
@@ -77,7 +82,7 @@ const UI = (() => {
         });
         document.addEventListener('keydown', onKeyDown);
         document.addEventListener('keyup', (e) => {
-            if (els.modal.hidden && Object.values(keyBindings).includes(e.code)) e.preventDefault();
+            if (!isDialogOpen() && Object.values(keyBindings).includes(e.code)) e.preventDefault();
         });
 
         els.debugPanel.hidden = !config.debug;
@@ -164,6 +169,11 @@ const UI = (() => {
             renderKeyBindings();
             return;
         }
+        // ダイアログを開いている間はゲーム操作を受け付けない (Esc で閉じる)
+        if (!els.resetModal.hidden) {
+            if (e.code === 'Escape') closeResetDialog();
+            return;
+        }
         if (!els.modal.hidden) {
             if (e.code === 'Escape') closeSettings();
             return;
@@ -233,22 +243,35 @@ const UI = (() => {
         });
     }
 
-    // ----- データの消去 (確認のためボタンを2回押す) -----
-    let resetArmedUntil = 0;
+    // ----- リセット (確認ダイアログで「リセットする」を押したときだけ) -----
+    function isDialogOpen() {
+        return !els.modal.hidden || !els.resetModal.hidden;
+    }
+
+    function openResetDialog() {
+        // リールの回転中・演出中はリセットしない
+        if (els.spinButton.disabled) return;
+        if (!els.modal.hidden) closeSettings();
+        els.resetModal.hidden = false;
+        els.resetCancel.focus();
+    }
+
+    function closeResetDialog() {
+        els.resetModal.hidden = true;
+        els.resetButton.blur();
+    }
+
     function initDataReset() {
-        els.resetData.addEventListener('click', () => {
-            if (performance.now() < resetArmedUntil) {
-                SaveData.clear();
-                location.reload();
-                return;
-            }
-            resetArmedUntil = performance.now() + 3000;
-            els.resetData.textContent = '本当に消去する？（もう一度押す）';
-            els.resetData.classList.add('danger');
-            setTimeout(() => {
-                els.resetData.textContent = 'データを消去';
-                els.resetData.classList.remove('danger');
-            }, 3000);
+        els.resetButton.addEventListener('click', openResetDialog);
+        els.resetData.addEventListener('click', openResetDialog);
+        els.resetCancel.addEventListener('click', closeResetDialog);
+        els.resetModal.addEventListener('click', (e) => {
+            if (e.target === els.resetModal) closeResetDialog();
+        });
+        // 保存データだけを消して読み込み直す (キー割り当て・サウンドの設定は別に保存しているので残る)
+        els.resetConfirm.addEventListener('click', () => {
+            SaveData.clear();
+            location.reload();
         });
     }
 

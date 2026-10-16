@@ -37,6 +37,9 @@ const Reels = (() => {
         strips = config.reels.strips;
         reelEls = reelElements;
         stopButtons = buttons;
+        // 最初はハズレの出目で止めておく (当たりに見える並びを避ける)
+        const misses = ReelMap.categories(config).miss;
+        const initialStops = misses[Math.floor(Math.random() * misses.length)].stops;
         reelEls.forEach((reel, r) => {
             const strip = reel.querySelector('.reel-strip');
             strip.innerHTML = '';
@@ -52,10 +55,9 @@ const Reels = (() => {
                     strip.appendChild(div);
                 });
             }
-            // 最初は1コマ目が中段に来る位置で止めておく
-            strip.style.transform = `translateY(-${offsetFor(r, 1)}px)`;
+            strip.style.transform = `translateY(-${offsetFor(r, initialStops[r])}px)`;
         });
-        targetStops = [1, 1, 1];
+        targetStops = [...initialStops];
         stopButtons.forEach(btn => btn.disabled = true);
     }
 

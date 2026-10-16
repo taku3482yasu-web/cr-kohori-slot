@@ -18,6 +18,7 @@
         <div class="top-bar">
             <span id="mode-display" class="mode-display"></span>
             <a id="howto-button" href="howto.html">？ 遊び方</a>
+            <button id="reset-button">↺ リセット</button>
             <button id="settings-button">⚙ SETTINGS</button>
         </div>
 
@@ -130,7 +131,7 @@
             <section class="modal-section">
                 <h3>データ</h3>
                 <p id="save-info" class="modal-note"></p>
-                <button id="reset-data-button" class="modal-button">データを消去</button>
+                <button id="reset-data-button" class="modal-button">ゲームをリセット</button>
             </section>
             <section class="modal-section">
                 <h3>キー割り当て</h3>
@@ -139,6 +140,23 @@
                 <button id="reset-keys-button" class="modal-button">初期設定に戻す</button>
             </section>
             <button id="close-settings-button" class="modal-button modal-close">閉じる</button>
+        </div>
+    </div>
+
+    <!-- リセットの確認 -->
+    <div id="reset-modal" class="modal" hidden>
+        <div class="modal-content" role="alertdialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-desc">
+            <h2 id="reset-title">リセット</h2>
+            <p id="reset-desc" class="reset-text">ゲームを最初からやり直しますか？</p>
+            <ul class="reset-list">
+                <li>コイン・統計・進行状況（マップ・CP・RASH など）が最初に戻ります</li>
+                <li>台の設定も抽選し直します</li>
+                <li>キー割り当てとサウンドの設定はそのまま残ります</li>
+            </ul>
+            <div class="modal-actions">
+                <button id="reset-cancel-button" class="modal-button">キャンセル</button>
+                <button id="reset-confirm-button" class="modal-button danger">リセットする</button>
+            </div>
         </div>
     </div>
 

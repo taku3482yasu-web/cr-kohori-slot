@@ -57,7 +57,8 @@ body {
 }
 
 #settings-button,
-#howto-button {
+#howto-button,
+#reset-button {
     padding: 8px 16px;
     background: #444;
     color: white;
@@ -74,6 +75,40 @@ body {
     font-size: 0.83rem;
     line-height: 1.2;
     border-color: var(--ice);
+}
+
+#reset-button {
+    border-color: #c86a6a;
+}
+
+.top-bar {
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* リセットの確認 */
+.reset-text {
+    font-size: 1rem;
+    font-weight: bold;
+    margin: 0 0 8px;
+    text-align: center;
+}
+
+.reset-list {
+    font-size: 0.85rem;
+    color: #bbb;
+    margin: 0 0 14px;
+    padding-left: 1.2em;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.modal-actions .modal-button {
+    flex: 1;
+    padding: 10px;
 }
 
 /* ステータス */
@@ -569,7 +604,7 @@ button {
     }
 
     .top-bar {
-        gap: 8px;
+        gap: 6px;
     }
 
     .mode-display {
@@ -578,9 +613,10 @@ button {
     }
 
     #settings-button,
-    #howto-button {
-        padding: 5px 12px;
-        font-size: 0.75rem;
+    #howto-button,
+    #reset-button {
+        padding: 5px 10px;
+        font-size: 0.72rem;
     }
 
     .status-panel {
