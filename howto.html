@@ -426,7 +426,7 @@
     $('guard-list').innerHTML = [
         '相手はガードすることがあり、ダメージを受けても倒れずに耐えます（「ガード!」）',
         `<b>BAR揃い・7揃い・7・7・BAR</b> はガードを崩して確定撃破（「ガードブレイク!!」）`,
-        `<b>チェリー</b>が揃うと ${pct(c.breakState.rate)} で <b>ブレイク状態</b>。その相手を倒すまでガードできなくなります`
+        `<b>チェリー</b>が揃うと ${pct(c.breakState.rates.cherry)}、<b>チャンス目</b>が出ると ${pct(c.breakState.rates.chance)} で <b>ブレイク状態</b>。その攻撃から、相手を倒すまでガードできなくなります`
     ].map(t => `<li>${t}</li>`).join('');
     const totalW = list => list.reduce((s, g) => s + g.weight, 0);
     table('games-table', ['ゲーム数', '開始時', '「？？」から継続時'],

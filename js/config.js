@@ -234,8 +234,8 @@ window.GAME_CONFIG = {
         // presetRate:   セット開始時に「勝ちセット」にする確率 (先決め)。
         //               負けセットでもガード崩し・ブレイクで撃破できるぶん、continueRate より低くしてある。
         //               ダメージ・確率・ブレイク率を変えたら、シミュレーションで continueRate に合うよう調整する
-        normal: { continueRate: 0.70, presetRate: 0.550 },   // おにおにRASH
-        super: { continueRate: 0.93, presetRate: 0.896 },    // SUPERおにおにRASH
+        normal: { continueRate: 0.70, presetRate: 0.470 },   // おにおにRASH
+        super: { continueRate: 0.93, presetRate: 0.875 },    // SUPERおにおにRASH
         // BATTLE開始時のゲーム数 (重み付き抽選)
         initialGames: [
             { games: 5, weight: 45 },
@@ -352,11 +352,13 @@ window.GAME_CONFIG = {
     },
 
     // ----- ブレイク -----
-    // 指定の役が揃ったとき rate の確率でブレイク状態に。ブレイク中は敵がガードできない
-    // (今の敵を倒すか RASH が終わるまで続く)
+    // BATTLE 中に rates の役が出たとき、その確率でブレイク状態に。ブレイク中は敵がガードできない
+    // (その役の攻撃から有効。今の敵を倒すか RASH が終わるまで続く)
     breakState: {
-        roles: ['cherry'],
-        rate: 0.25
+        rates: {
+            cherry: 0.25,     // チェリー揃い
+            chance: 0.50      // チャンス目
+        }
     },
 
     // ----- 対戦相手 -----

@@ -8,7 +8,7 @@
 //   勝ちセット: 撃破するか、「？？」で必ず柄が揃う
 //   負けセット: 敵がガードしてダメージはHPが1残るまで、「？？」で揃わない
 //     ただし 'kill' の役 (BAR揃い・7️⃣7️⃣7️⃣・7️⃣7️⃣BAR) はガードを崩して撃破できる
-//     ブレイク状態 (チェリー揃いで一定確率) の間は敵がガードできない
+//     ブレイク状態 (チェリー揃い・チャンス目で一定確率) の間は敵がガードできない
 //   → ガード崩し・ブレイクで勝ちになる分を見込んで、先決めの確率 (presetRate) は
 //     目標の継続率 (continueRate) より低くしてある
 // =====================================================================
@@ -124,6 +124,13 @@ const Battle = {
         rash.gamesRemaining--;
         if (rash.probUpGames > 0) rash.probUpGames--;
 
+        // チェリー・チャンス目などで一定確率でブレイク状態に (この攻撃からガードできない)
+        const breakRate = config.breakState.rates[outcome.role] || 0;
+        if (!rash.breakActive && breakRate > 0 && rng() < breakRate) {
+            rash.breakActive = true;
+            events.push({ type: 'break' });
+        }
+
         const damage = this.damageFor(outcome.role, config);
         const kill = damage === 'kill';
         // 仲間の追加ダメージ (ダメージが入ったときだけ)
@@ -160,13 +167,6 @@ const Battle = {
         if (rash.enemyHp <= 0) {
             events.push(...this.defeatEnemy(state, config));
             return events;
-        }
-
-        // チェリーなどで一定確率でブレイク状態に
-        const brk = config.breakState;
-        if (!rash.breakActive && brk.roles.includes(outcome.role) && rng() < brk.rate) {
-            rash.breakActive = true;
-            events.push({ type: 'break' });
         }
 
         if (rash.gamesRemaining <= 0) {
