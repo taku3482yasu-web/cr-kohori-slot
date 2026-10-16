@@ -25,8 +25,8 @@ window.GAME_CONFIG = {
             2: { chance: 1.10, castleEntry: 1.05, pointBig: 1.10 },
             3: { chance: 1.20, castleEntry: 1.12, pointBig: 1.20 },
             4: { chance: 1.35, castleEntry: 1.22, pointBig: 1.30 },
-            5: { chance: 1.45, castleEntry: 1.35, pointBig: 1.50 },
-            6: { chance: 1.60, castleEntry: 1.55, pointBig: 1.75 }
+            5: { chance: 1.50, castleEntry: 1.45, pointBig: 1.50 },
+            6: { chance: 1.70, castleEntry: 1.75, pointBig: 1.75 }
         }
     },
 
@@ -101,7 +101,8 @@ window.GAME_CONFIG = {
             melon: 1 / 100,
             bar: 1 / 150,
             seven: 1 / 300,
-            chance: 1 / 28
+            sevenBar: 1 / 500,   // 7・7・BAR: 必ず突入し、最初の相手はおにおに
+            chance: 1 / 30
         },
         // RASH / BATTLE 中 (リプレイ多めでコインが減りにくい)
         battle: {
@@ -188,6 +189,7 @@ window.GAME_CONFIG = {
         challengeGames: 5,    // チャレンジのゲーム数
         // 出目ごとの突入率 (チャレンジ中の各ゲームで判定)
         entryRate: {
+            sevenBar: 1.0,   // 7・7・BAR は必ず突入 (最初の相手はおにおに)
             chance: 1.0,
             seven: 1.0,
             bar: 0.8,
@@ -315,8 +317,8 @@ window.GAME_CONFIG = {
         },
         {
             id: 'onioni', name: 'おにおに',
-            weight: 20, superWeight: 15, hp: 200,
-            bonus: { type: 'coins', value: 250 },
+            weight: 16, superWeight: 15, hp: 200,
+            bonus: { type: 'coins', value: 200 },
             requiresUnlock: true          // 撃破数が oniUnlockDefeats に達するまで出ない
         }
     ],

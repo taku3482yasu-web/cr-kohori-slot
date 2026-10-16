@@ -207,6 +207,7 @@
         <h2>城突入チャレンジ</h2>
         <p id="castle-text"></p>
         <div class="table-wrap"><table id="castle-table"></table></div>
+        <p id="castle-oni"></p>
         <p class="note">設定が高いほど突入しやすくなります（表は設定1の値）。</p>
     </section>
 
@@ -375,6 +376,7 @@
 
     // 城突入
     $('castle-text').innerHTML = `${c.castle.challengeGames}ゲームの間、毎ゲーム出目に応じた確率で突入を判定します。チャレンジ中はチャンス目が <b>${odds(c.lottery.castleChallenge.chance)}</b> と出やすくなっています。`;
+    $('castle-oni').innerHTML = `チャレンジ中に <b>7・7・BAR</b>（${odds(c.lottery.castleChallenge.sevenBar)}）が揃えば必ず突入し、<span class="red">最初の相手は おにおに</span>！`;
     table('castle-table', ['出目', '突入率'],
         Object.entries(c.castle.entryRate).sort((a, b) => b[1] - a[1])
             .map(([role, r]) => [`${roleView(role)} ${SYMBOL_NAMES[role]}`, pct(r)]));

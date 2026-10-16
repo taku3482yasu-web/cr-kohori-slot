@@ -306,9 +306,12 @@ const GameFlow = {
         const events = [{ type: 'challengeGame', remaining: challenge.gamesRemaining, role: outcome.role, success }];
 
         if (success) {
-            events.push({ type: 'castleEntry' });
+            // 7・7・BAR で突入したら最初の相手はおにおに
+            const oniEntry = outcome.role === 'sevenBar';
+            events.push({ type: 'castleEntry', oni: oniEntry });
             events.push(StateMachine.transition(state, MODES.RASH));
             state.rash = createRashState();
+            if (oniEntry) state.rash.nextForcedEnemy = 'onioni';
             state.rashCount++;
             state.normal.chancePoint = 0;
             events.push({ type: 'rashStart' });

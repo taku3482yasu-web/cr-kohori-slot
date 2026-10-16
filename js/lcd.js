@@ -1308,13 +1308,17 @@ const Lcd = (() => {
         koori.moving = false;
     }
 
-    async function castleEntry() {
+    async function castleEntry(event) {
         const timing = config.effects.timing;
         scene = 'entry';
         letterboxTarget = 1;
         startFlash('#ffffff', 600);
         startShake(config.effects.intensity.shakeLarge, 500);
-        showTitle('突入!!', '城の門が開いた！', '#ffd700', timing.castleMovie);
+        if (event.oni) {
+            showTitle('7・7・BAR!! 突入!!', '最初の相手は おにおに!!', '#ff4040', timing.castleMovie);
+        } else {
+            showTitle('突入!!', '城の門が開いた！', '#ffd700', timing.castleMovie);
+        }
         await animateTo(gate, 1, 700);
         koori.moving = true;
         await animateTo(koori.x, CASTLE_GATE.x, 700);
@@ -1605,7 +1609,7 @@ const Lcd = (() => {
                     if (!event.success) await challengeBounce();
                     break;
                 case 'castleEntry':
-                    await castleEntry();
+                    await castleEntry(event);
                     break;
                 case 'challengeFail':
                     await challengeFail(event);
