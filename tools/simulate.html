@@ -74,6 +74,7 @@
                     if (e.type === 'superStart') stats.super++;
                     if (e.type === 'pointChance') stats.pointChances++;
                     if (e.type === 'rashEnd') stats.rashCoins += e.coinsWon;
+                    if (e.type === 'naiteiResult' && e.toCastle) stats.rashCoins += e.coinsWon;   // 内定の時ゾーンの失敗で終了
                 }
             }
             stats.rtp = stats.coinOut / stats.coinIn;

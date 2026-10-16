@@ -213,10 +213,10 @@ window.GAME_CONFIG = {
         super: { continueRate: 0.93, presetRate: 0.896 },    // SUPERおにおにRASH
         // BATTLE開始時のゲーム数 (重み付き抽選)
         initialGames: [
-            { games: 5, weight: 35 },
-            { games: 10, weight: 40 },
-            { games: 15, weight: 18 },
-            { games: 20, weight: 7 }
+            { games: 5, weight: 45 },
+            { games: 10, weight: 38 },
+            { games: 15, weight: 13 },
+            { games: 20, weight: 4 }
         ],
         // 「？？」から継続したときのゲーム数 (重み付き抽選)
         continueGames: [
@@ -267,6 +267,32 @@ window.GAME_CONFIG = {
             seven: 20
         },
         freezeBonusGames: 50
+    },
+
+    // ----- 内定の時ゾーン (RASH / SUPER 中) -----
+    // 対戦相手とゲーム数を決める1ゲーム (SELECT) で triggerRoles が揃うと突入。
+    // 暗転 →「ここから先」「内定を持たぬものは通す事は出来ない」→ 仲間抽選 → enemy と games ゲームの1対1
+    //   companionRates: 突入時の仲間抽選。まだ仲間でない人それぞれが、この確率で加わる
+    //   winRate:        突破率 (先決め)。撃破役でもガードは崩せず、肩代わりもない
+    //                   突破するときは最後のゲームまでに必ず倒しきる
+    //   おにおにRASH: 突破で SUPER へ / 失敗で RASH 終了 → SE城の城突入チャレンジへ (仲間は残る)
+    //   SUPER:        突破で撃破ボーナス / 失敗しても SUPER は継続 (次の相手を決め直す)
+    // ゾーン中にロングフリーズが当たると突破
+    naitei: {
+        triggerRoles: ['seven', 'sevenBar'],
+        games: 10,
+        winRate: 0.5,
+        companionRates: { yasu: 0.5, tamu: 0.35, dake: 0.2 },
+        enemy: {
+            id: 'naitei', name: 'シーシャ・ナイテイ・ナイナイ',
+            hp: 200,
+            bonus: { type: 'coins', value: 300 }
+        },
+        timing: {             // ミリ秒
+            black: 800,       // 暗転
+            text1: 1400,      // 「ここから先」
+            text2: 2800       // 「内定を持たぬものは通す事は出来ない」
+        }
     },
 
     // ----- BATTLE のダメージ -----

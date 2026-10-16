@@ -16,6 +16,7 @@
 const Battle = {
     findEnemy(config, enemyId) {
         if (enemyId === config.goldDog.id) return config.goldDog;
+        if (enemyId === config.naitei.enemy.id) return config.naitei.enemy;
         return config.enemies.find(e => e.id === enemyId) || null;
     },
 
@@ -120,7 +121,7 @@ const Battle = {
         const damage = this.damageFor(outcome.role, config);
         const kill = damage === 'kill';
         // 仲間の追加ダメージ (ダメージが入ったときだけ)
-        const companionHits = !kill && damage > 0 ? Companions.extraDamage(state, config) : [];
+        let companionHits = !kill && damage > 0 ? Companions.extraDamage(state, config) : [];
         const extra = companionHits.reduce((sum, h) => sum + h.amount, 0);
         let amount = kill ? rash.enemyHp : damage + extra;
         // 負けセットでは敵がガードして倒しきれない (撃破役・ブレイク中を除く)
@@ -129,6 +130,9 @@ const Battle = {
         if (canGuard && amount >= rash.enemyHp) {
             amount = rash.enemyHp - 1;
             guarded = true;
+        } else if (!kill && amount > rash.enemyHp) {
+            companionHits = this.trimFinishingHits(companionHits, damage, rash.enemyHp);
+            amount = rash.enemyHp;
         }
         rash.enemyHp = Math.max(0, rash.enemyHp - amount);
         events.push({
@@ -166,6 +170,26 @@ const Battle = {
         return events;
     },
 
+    // とどめ: 残りHPを超える分は切り捨てる (こおりくん → 仲間の順に、残りHPまでしか入らない)
+    trimFinishingHits(companionHits, damage, hp) {
+        let left = hp - Math.min(damage, hp);
+        return companionHits
+            .map(h => {
+                const hit = { ...h, amount: Math.min(h.amount, left) };
+                left -= hit.amount;
+                return hit;
+            })
+            .filter(h => h.amount > 0);
+    },
+
+    // 撃破数でおにおにが対戦相手の候補に入る
+    checkOniUnlock(state, config) {
+        const rash = state.rash;
+        if (rash.oniUnlocked || rash.defeatCount < config.rash.oniUnlockDefeats) return [];
+        rash.oniUnlocked = true;
+        return [{ type: 'oniUnlocked' }];
+    },
+
     // 撃破: ボーナス → おにおに出現 → SUPER 移行 / ゴールド金面犬撃破後はおにおに確定
     defeatEnemy(state, config) {
         const rash = state.rash;
@@ -188,10 +212,7 @@ const Battle = {
             nextForcedName: forced ? forced.name : null
         }];
 
-        if (!rash.oniUnlocked && rash.defeatCount >= config.rash.oniUnlockDefeats) {
-            rash.oniUnlocked = true;
-            events.push({ type: 'oniUnlocked' });
-        }
+        events.push(...this.checkOniUnlock(state, config));
 
         if (enemy.id === 'onioni' && state.mode === MODES.RASH) {
             events.push(StateMachine.transition(state, MODES.SUPER_RASH));
@@ -257,12 +278,140 @@ const Battle = {
         return [{ type: 'treasureEnd', total: rash.treasureTotal, bonusGames: rash.bonusGames }];
     },
 
+    // ----- 内定の時ゾーン -----
+    // SELECT のゲームで 7揃い・7・7・BAR が揃ったら突入 (対戦相手の抽選より優先。確定済みの次の相手はゾーン後に持ち越す)
+    isNaiteiTrigger(state, outcome, config) {
+        const forced = state.rash.debugForceNaitei;
+        state.rash.debugForceNaitei = false;
+        return forced || config.naitei.triggerRoles.includes(outcome.role);
+    },
+
+    // 突入: 仲間抽選 → シーシャ・ナイテイ・ナイナイと games ゲームの1対1。突破するかは先決め (winRate)
+    startNaitei(state, config, rng) {
+        const cfg = config.naitei;
+        const rash = state.rash;
+        const companions = Companions.naiteiDraw(state, config, rng);
+        rash.phase = RASH_PHASES.NAITEI;
+        rash.enemyId = cfg.enemy.id;
+        rash.enemyHp = cfg.enemy.hp;
+        rash.enemyMaxHp = cfg.enemy.hp;
+        rash.gamesRemaining = cfg.games;
+        rash.goldDogFlag = false;
+        rash.breakActive = false;
+        rash.setWillWin = rng() < cfg.winRate;
+        return [{
+            type: 'naiteiStart',
+            enemyId: cfg.enemy.id,
+            name: cfg.enemy.name,
+            hp: cfg.enemy.hp,
+            games: cfg.games,
+            winRate: cfg.winRate,
+            companions,
+            isSuper: this.isSuper(state)
+        }];
+    },
+
+    // ゾーンの1ゲーム。負けのときは撃破役でもガードされ、勝ちのときは最後のゲームで必ず倒しきる
+    naiteiGame(state, outcome, config) {
+        const rash = state.rash;
+        rash.gamesRemaining--;
+        const damage = this.damageFor(outcome.role, config);
+        let kill = damage === 'kill';
+        let companionHits = !kill && damage > 0 ? Companions.extraDamage(state, config) : [];
+        const extra = companionHits.reduce((sum, h) => sum + h.amount, 0);
+        let amount = kill ? rash.enemyHp : damage + extra;
+        let guarded = false;
+        let finisher = false;
+        if (!rash.setWillWin && amount >= rash.enemyHp) {
+            amount = rash.enemyHp - 1;
+            kill = false;
+            companionHits = [];
+            guarded = true;
+        } else if (rash.setWillWin && rash.gamesRemaining <= 0 && amount < rash.enemyHp) {
+            // 最後のゲーム: ハズレでもとどめの一撃
+            amount = rash.enemyHp;
+            kill = true;
+            companionHits = [];
+            finisher = true;
+        } else if (!kill && amount > rash.enemyHp) {
+            companionHits = this.trimFinishingHits(companionHits, damage, rash.enemyHp);
+            amount = rash.enemyHp;
+        }
+        rash.enemyHp = Math.max(0, rash.enemyHp - amount);
+        const events = [{
+            type: 'damage',
+            role: outcome.role,
+            amount,
+            kill,
+            guardBreak: false,
+            big: kill || outcome.isChance,
+            guarded,
+            finisher,
+            companionHits,
+            breakActive: false,
+            hp: rash.enemyHp,
+            maxHp: rash.enemyMaxHp,
+            gamesRemaining: rash.gamesRemaining,
+            probUpGames: rash.probUpGames
+        }];
+        if (rash.enemyHp <= 0) events.push(...this.endNaitei(state, config, true));
+        else if (rash.gamesRemaining <= 0) events.push(...this.endNaitei(state, config, false));
+        return events;
+    },
+
+    // ゾーンの結果
+    //   突破: 撃破ボーナス、おにおにRASH なら SUPER へ
+    //   失敗: おにおにRASH なら RASH 終了 → 城突入チャレンジ、SUPER なら次の相手を決め直して継続
+    endNaitei(state, config, win) {
+        const rash = state.rash;
+        const enemy = config.naitei.enemy;
+        rash.phase = RASH_PHASES.SELECT;
+        rash.enemyId = null;
+        rash.gamesRemaining = 0;
+        rash.breakActive = false;
+
+        if (win) {
+            rash.defeatCount++;
+            const bonus = this.applyBonus(state, enemy.bonus);
+            const events = [{ type: 'naiteiResult', win: true, name: enemy.name, bonus, defeatCount: rash.defeatCount }];
+            events.push(...this.checkOniUnlock(state, config));
+            if (state.mode === MODES.RASH) {
+                events.push(StateMachine.transition(state, MODES.SUPER_RASH));
+                state.superCount++;
+                events.push({ type: 'superStart' });
+            }
+            return events;
+        }
+
+        const toCastle = state.mode === MODES.RASH;
+        const events = [{
+            type: 'naiteiResult', win: false, name: enemy.name, toCastle,
+            coinsWon: rash.coinsWon, defeatCount: rash.defeatCount
+        }];
+        if (toCastle) events.push(...GameFlow.returnToCastle(state, config));
+        return events;
+    },
+
     // ロングフリーズ (RASH / SUPER 中)
     //   RASH:  戦闘中の敵を完全撃破 → superRate で SUPER 直行、それ以外は次の相手がおにおに
     //   SUPER: 戦闘中の敵に勝利 → 次の相手がゴールド金面犬
     //   宝物庫ゾーン中: 戦闘中の敵を完全撃破 → 次の BATTLE +freezeBonusGames、SUPER 突入、次の相手がゴールド金面犬
+    //   内定の時ゾーン中: シーシャ・ナイテイ・ナイナイを完全撃破 → 突破
     longFreeze(state, config, rng) {
         const rash = state.rash;
+        if (rash.phase === RASH_PHASES.NAITEI) {
+            const amount = rash.enemyHp;
+            rash.enemyHp = 0;
+            return [
+                { type: 'freezeBonus', kind: 'naitei', games: 0 },
+                {
+                    type: 'damage', role: 'longFreeze', amount, kill: true, guardBreak: false, big: true, guarded: false,
+                    freeze: true, breakActive: false, hp: 0, maxHp: rash.enemyMaxHp,
+                    gamesRemaining: rash.gamesRemaining, probUpGames: rash.probUpGames
+                },
+                ...this.endNaitei(state, config, true)
+            ];
+        }
         const wasSuper = this.isSuper(state);
         const inTreasure = rash.phase === RASH_PHASES.TREASURE;
         const events = [{

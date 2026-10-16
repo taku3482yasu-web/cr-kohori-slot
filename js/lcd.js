@@ -20,6 +20,7 @@ const Lcd = (() => {
     const ENEMY_X = 190;
     const RASH_COLOR = '#ff3030';
     const SUPER_COLOR = '#ffd700';
+    const NAITEI_COLOR = '#ff3060';
 
     // 場面: field (通常時のマップ) / challenge (城突入チャレンジ) / entry (突入演出中) / rash
     let scene = 'field';
@@ -53,6 +54,8 @@ const Lcd = (() => {
     let nextBonusGames = 0;    // 次の BATTLE に上乗せされるゲーム数 (表示用)
     let revenge = null;        // リベンジチャンス { remaining, games }
     let chanceFx = null;       // チャンス目の演出 { name, start, duration, particles }
+    let naiteiZone = false;    // 内定の時ゾーンの場面か
+    let gateText = null;       // ゾーン突入の暗転と文字 { start, lines: [{ text, color, size, y, born, shake }], fadeStart }
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
     const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true };
@@ -126,6 +129,8 @@ const Lcd = (() => {
         setNow(gate, 0);
         koori.visible = true;
         koori.moving = false;
+        gateText = null;
+        naiteiZone = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.NAITEI;
         if (StateMachine.isRashMode(state)) {
             scene = 'rash';
             logoSuper = state.mode === MODES.SUPER_RASH;
@@ -208,6 +213,7 @@ const Lcd = (() => {
         drawBigLogo(time);
         drawTitleCard(time);
         drawWipe(time);
+        drawGateText(time);
         drawFlash(time);
     }
 
@@ -442,10 +448,12 @@ const Lcd = (() => {
 
     // ----- RASH / BATTLE -----
     function logoColor() {
+        if (naiteiZone) return NAITEI_COLOR;
         return logoSuper ? SUPER_COLOR : RASH_COLOR;
     }
 
     function logoText() {
+        if (naiteiZone) return '内定の時';
         return logoSuper ? 'SUPERおにおにRASH' : 'おにおにRASH';
     }
 
@@ -454,10 +462,16 @@ const Lcd = (() => {
             drawTreasure(time);
             return;
         }
-        const hallId = logoSuper ? 'goldHall' : 'castleHall';
+        const hallId = logoSuper && !naiteiZone ? 'goldHall' : 'castleHall';
         const hall = Backgrounds.get(hallId);
         Backgrounds.draw(ctx, hallId, 0);
         drawFlames(hall.braziers, time);
+        if (naiteiZone) {
+            // 内定の時ゾーン: 赤黒く沈んだ広間がゆっくり脈打つ
+            const pulse = 0.5 + 0.08 * Math.sin(time / 400);
+            ctx.fillStyle = `rgba(40,0,12,${pulse})`;
+            ctx.fillRect(0, 0, W, H);
+        }
 
         // 仲間とこおりくん
         drawParty(time, KOORI_BATTLE_X, hall.groundY, 1.5);
@@ -489,13 +503,14 @@ const Lcd = (() => {
         const logo = logoText();
         box(4, 4, textWidth(logo, 12) + 12, 17, 'rgba(0,0,0,0.75)', logoColor());
         text(logo, 10, 6, { color: logoColor(), outline: '#200000' });
-        if (battle.defeats > 0) {
+        // 内定の時ゾーンは敵の名前が長いので、左側の表示は出さない
+        if (battle.defeats > 0 && !naiteiZone) {
             text(`撃破 ${battle.defeats}`, 8, 24, { color: '#fff', size: 10 });
         }
-        if (nextBonusGames > 0) {
+        if (nextBonusGames > 0 && !naiteiZone) {
             text(`次のBATTLE +${nextBonusGames}G`, 8, battle.probUpGames > 0 ? 48 : 36, { color: '#ffd23a', size: 10 });
         }
-        if (battle.probUpGames > 0) {
+        if (battle.probUpGames > 0 && !naiteiZone) {
             const blink = Math.floor(time / 300) % 2;
             text(`確率UP ×${battle.probUpMultiplier} 残り${battle.probUpGames}G`, 8, 36, { color: blink ? '#7fffd4' : '#40e0b0', size: 10 });
         }
@@ -510,11 +525,11 @@ const Lcd = (() => {
             text(label, W - bw + 3, 6, { color, outline: null });
         }
 
-        // 敵の名前と HP
+        // 敵の名前と HP (左上の撃破数・確率UPなどと重ならないよう、右側の残りゲーム数の下に置く)
         if (battle.visible && battle.enemyId) {
             const enemy = Battle.findEnemy(config, battle.enemyId);
             const bw = Math.max(108, textWidth(enemy.name, 10) + textWidth('HP 000', 10) + 18);
-            const bx = Math.round(W / 2 - bw / 2) - 20, by = 24;
+            const bx = W - bw - 4, by = 24;
             box(bx, by, bw, 22, 'rgba(0,0,0,0.7)', battle.breakActive ? '#c080ff' : '#a0a0a0');
             if (battle.breakActive) {
                 const blink = Math.floor(time / 250) % 2;
@@ -611,6 +626,22 @@ const Lcd = (() => {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, half, H);
         ctx.fillRect(W - half, 0, half, H);
+    }
+
+    // 内定の時ゾーン突入: 暗転した画面に文字が浮かぶ (赤い文字は出た瞬間に震える)
+    function drawGateText(time) {
+        if (!gateText) return;
+        const fade = gateText.fadeStart ? Math.min(1, (time - gateText.fadeStart) / 500) : 0;
+        ctx.globalAlpha = Math.min(1, (time - gateText.start) / 300) * (1 - fade);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        gateText.lines.forEach(line => {
+            const age = time - line.born;
+            ctx.globalAlpha = Math.min(1, age / 250) * (1 - fade);
+            const jitter = line.shake && age < 600 ? () => Math.round((Math.random() * 2 - 1) * 2) : () => 0;
+            text(line.text, W / 2 + jitter(), line.y + jitter(), { color: line.color, size: line.size, align: 'center', outline: line.outline });
+        });
+        ctx.globalAlpha = 1;
     }
 
     function drawFlash(time) {
@@ -860,7 +891,8 @@ const Lcd = (() => {
 
     // フリーズ後の効果の告知
     async function freezeBonus(event) {
-        const sub = event.kind === 'treasure' ? `+${event.games}G!! SUPER突入 & ゴールド金面犬と対決!!`
+        const sub = event.kind === 'naitei' ? '内定確定!! 突破!!'
+            : event.kind === 'treasure' ? `+${event.games}G!! SUPER突入 & ゴールド金面犬と対決!!`
             : event.kind === 'super' ? '勝利確定!! 次はゴールド金面犬'
             : scene === 'rash' ? '完全撃破!!' : 'おにおにRASH 確定!! おにおにと対決';
         startShake(config.effects.intensity.shakeLarge, 600);
@@ -1047,6 +1079,7 @@ const Lcd = (() => {
             pendingScene = null;
             koori.visible = true;
             battle.visible = false;
+            naiteiZone = false;
         }
         displayMap = event.to;
         setNow(koori.x, KOORI_HOME_X);
@@ -1417,6 +1450,8 @@ const Lcd = (() => {
 
         if (event.freeze) {
             await playCutIn('koori', '完全撃破!!', '#8a2ab0');
+        } else if (event.finisher) {
+            await playCutIn('koori', 'とどめ!!', '#b01828');
         } else if (event.big && Math.random() < config.effects.cutInRate) {
             await playCutIn('koori', event.kill ? '必殺!!' : 'くらえ!!', event.kill ? '#b01828' : '#1a5ab0');
         }
@@ -1461,6 +1496,133 @@ const Lcd = (() => {
         } else if (event.kill) {
             showMessage('一撃必殺!!', '#ff4040', 800);
         }
+    }
+
+    // ----- 演出: 内定の時ゾーン -----
+    // 暗転 →「ここから先」(白) →「内定を持たぬものは / 通す事は出来ない」(赤・大) → ゾーンの場面 → 仲間抽選 → 敵の登場
+    async function naiteiStart(event) {
+        const timing = config.naitei.timing;
+        const intensity = config.effects.intensity;
+        clearMessage();
+        gateText = { start: performance.now(), lines: [], fadeStart: 0 };
+        Sound.miss();
+        await sleep(timing.black);
+        gateText.lines.push({ text: 'ここから先', color: '#ffffff', size: 14, y: 30, born: performance.now() });
+        Sound.stop(2);
+        await sleep(timing.text1);
+        const now = performance.now();
+        gateText.lines.push(
+            { text: '内定を持たぬものは', color: '#ff1a1a', size: 22, y: 60, born: now, shake: true, outline: '#3a0000' },
+            { text: '通す事は出来ない', color: '#ff1a1a', size: 22, y: 88, born: now, shake: true, outline: '#3a0000' }
+        );
+        Sound.bigHit();
+        await sleep(timing.text2);
+
+        // 暗転したまま ゾーンの場面に切り替える
+        naiteiZone = true;
+        battle.visible = false;
+        battle.enemyId = null;
+        battle.games = null;
+        battle.breakActive = false;
+        setNow(koori.x, KOORI_BATTLE_X);
+        koori.visible = true;
+        gateText.fadeStart = performance.now();
+        await sleep(500);
+        gateText = null;
+        startFlash(NAITEI_COLOR, 500);
+        startShake(intensity.shakeLarge, 500);
+        Sound.fanfare();
+        const logoStart = performance.now();
+        bigLogo = {
+            text: '内定の時', sub: `突破率${Math.round(event.winRate * 100)}%!!`, color: NAITEI_COLOR, outline: '#300010',
+            size: 24, start: logoStart, until: logoStart + 2200
+        };
+        await sleep(2200);
+        bigLogo = null;
+
+        // 仲間抽選 (まだ仲間でない人がいるときだけ)
+        if (event.companions.length) {
+            Sound.chance();
+            showTitle('仲間抽選!!', '内定の時に 駆けつけるのは…', '#7fffd4', 1200);
+            await sleep(1200);
+            const joined = event.companions.filter(c => c.success);
+            for (const c of joined) {
+                if (!party.includes(c.memberId)) party.push(c.memberId);
+                startFlash('#7fffd4', 300);
+                Sound.fanfare();
+                showTitle(`${c.name}が駆けつけた!!`, '仲間になった!!', '#7fffd4', 1300);
+                await animateTo(jumpOf(c.memberId), -12, 150);
+                await animateTo(jumpOf(c.memberId), 0, 150);
+                await sleep(1000);
+            }
+            if (!joined.length) {
+                Sound.miss();
+                showTitle('誰も来なかった…', null, '#9fb8d8', 1200);
+                await sleep(1200);
+            }
+        }
+
+        // シーシャ・ナイテイ・ナイナイの登場
+        battle.enemyId = event.enemyId;
+        battle.maxHp = event.hp;
+        battle.games = event.games;
+        setNow(battle.hp, event.hp);
+        setNow(battle.alpha, 1);
+        setNow(battle.drop, 0);
+        setNow(battle.x, W + 60);
+        battle.visible = true;
+        await animateTo(battle.x, ENEMY_X, 600);
+        startShake(intensity.shakeLarge, 400);
+        Sound.bigHit();
+        await playCutIn(event.enemyId, '内定は…?', '#5a0a1a', 1500);
+        showTitle(event.name, `${event.games}G以内に倒せば突破!!`, NAITEI_COLOR, config.effects.timing.battleIntro);
+        await sleep(config.effects.timing.battleIntro);
+    }
+
+    // ゾーンの結果。突破 → 撃破ボーナス (このあと SUPER 突入の演出が続くことがある)
+    // 失敗 → おにおにRASH なら RASH 終了で SE城へ (このあとマップ移動・城突入チャレンジが続く)、SUPER なら継続
+    async function naiteiResult(event) {
+        const intensity = config.effects.intensity;
+        if (event.win) {
+            battle.hurtUntil = performance.now() + 800;
+            Sound.defeat();
+            startFlash('#ffd700', 600);
+            startShake(intensity.shakeLarge, 500);
+            animateTo(battle.alpha, 0, 800);
+            animateTo(battle.drop, 20, 800);
+            battle.defeats = event.defeatCount;
+            showTitle('突破!!', '内定を勝ち取った!!', '#ffd700', config.effects.timing.defeatMovie);
+            await sleep(config.effects.timing.defeatMovie);
+            battle.visible = false;
+            battle.enemyId = null;
+            battle.games = null;
+            naiteiZone = false;
+            Sound.win();
+            showTitle('突破ボーナス', bonusText(event.bonus), '#7fffd4', 1600);
+            await sleep(1600);
+            return;
+        }
+
+        Sound.miss();
+        battle.games = null;
+        showTitle('突破失敗…', '内定は もらえなかった', '#9fb8d8', 2000);
+        await sleep(2000);
+        await animateTo(battle.x, W + 60, 600);
+        battle.visible = false;
+        battle.enemyId = null;
+        if (event.toCastle) {
+            showTitle('おにおにRASH 終了', `獲得 ${event.coinsWon}枚　撃破 ${event.defeatCount}体`, RASH_COLOR, 2500);
+            await sleep(2500);
+            showTitle('SE城突入ゾーンへ戻る', 'もう一度 城を目指せ!!', '#ff8080', 1600);
+            await sleep(1600);
+            pendingScene = 'field';   // 次のマップ移動 (SE城前) の暗転中に切り替える
+            return;
+        }
+        naiteiZone = false;
+        startFlash(SUPER_COLOR, 400);
+        Sound.fanfare();
+        showTitle('SUPER継続!!', '次の相手を決めるぞ', SUPER_COLOR, 1600);
+        await sleep(1600);
     }
 
     // ブレイク状態に (敵がガードできなくなる)
@@ -1637,6 +1799,12 @@ const Lcd = (() => {
                     break;
                 case 'break':
                     await breakStart();
+                    break;
+                case 'naiteiStart':
+                    await naiteiStart(event);
+                    break;
+                case 'naiteiResult':
+                    await naiteiResult(event);
                     break;
                 case 'revengeStart':
                     await revengeStart(event);

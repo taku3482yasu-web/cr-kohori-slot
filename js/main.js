@@ -185,6 +185,7 @@
         pointChance: debugAction(() => DebugState.forcePointChance(state, config)),
         companion: debugAction(() => DebugState.forceCompanion(state)),
         treasure: debugAction(() => DebugState.forceTreasure(state)),
+        naitei: debugAction(() => DebugState.forceNaitei(state)),
         revenge: debugAction(() => DebugState.startRevenge(state, config)),
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },

@@ -20,7 +20,8 @@ const RASH_PHASES = Object.freeze({
     SELECT: 'SELECT',     // 1ゲーム目: 対戦相手と残りゲーム数を決定
     BATTLE: 'BATTLE',     // BATTLE中
     QUESTION: 'QUESTION', // 残りゲーム数「？？」: 揃えば継続、揃わなければ終了
-    TREASURE: 'TREASURE'  // 宝物庫ゾーン: BATTLE を中断し、揃った柄で次の BATTLE のゲーム数を上乗せ
+    TREASURE: 'TREASURE', // 宝物庫ゾーン: BATTLE を中断し、揃った柄で次の BATTLE のゲーム数を上乗せ
+    NAITEI: 'NAITEI'      // 内定の時ゾーン: SELECT で 7揃い・7・7・BAR → シーシャ・ナイテイ・ナイナイと1対1
 });
 
 const MODE_LABELS = {
@@ -34,7 +35,7 @@ const MODE_LABELS = {
 const ALLOWED_TRANSITIONS = {
     NORMAL: ['CASTLE_CHALLENGE', 'RASH'],   // RASH へはロングフリーズで直行
     CASTLE_CHALLENGE: ['RASH', 'NORMAL'],
-    RASH: ['SUPER_RASH', 'NORMAL'],
+    RASH: ['SUPER_RASH', 'NORMAL', 'CASTLE_CHALLENGE'],   // 城突入チャレンジへは内定の時ゾーンの失敗で戻る
     SUPER_RASH: ['NORMAL']
 };
 
@@ -69,6 +70,18 @@ const Companions = {
         const success = rng() < cfg.successRate;
         if (success) state.companions.push(member.id);
         return [{ type: 'companionChallenge', memberId: member.id, name: member.name, success }];
+    },
+
+    // 内定の時ゾーン突入時の仲間抽選: まだ仲間でない人それぞれが companionRates の確率で加わる
+    naiteiDraw(state, config, rng) {
+        const rates = config.naitei.companionRates;
+        return config.companions.members
+            .filter(m => !state.companions.includes(m.id))
+            .map(m => {
+                const success = rng() < (rates[m.id] || 0);
+                if (success) state.companions.push(m.id);
+                return { memberId: m.id, name: m.name, success };
+            });
     },
 
     // 肩代わり: 一番強い仲間が saveRate で RASH の終了を防ぐ (成功するとその仲間は離脱)
@@ -333,6 +346,7 @@ const GameFlow = {
     handleRash(state, outcome, config, rng) {
         switch (state.rash.phase) {
             case RASH_PHASES.SELECT:
+                if (Battle.isNaiteiTrigger(state, outcome, config)) return Battle.startNaitei(state, config, rng);
                 return Battle.startBattle(state, config, rng);
             case RASH_PHASES.BATTLE:
                 return [...Battle.battleGame(state, outcome, config, rng), ...Battle.maybeStartTreasure(state, config, rng)];
@@ -340,8 +354,19 @@ const GameFlow = {
                 return Battle.questionGame(state, outcome, config, rng);
             case RASH_PHASES.TREASURE:
                 return Battle.treasureGame(state, outcome, config);
+            case RASH_PHASES.NAITEI:
+                return Battle.naiteiGame(state, outcome, config);
         }
         return [];
+    },
+
+    // 内定の時ゾーンの失敗 (おにおにRASH 中): RASH 終了 → SE城前の城突入チャレンジへ (仲間は残る)
+    returnToCastle(state, config) {
+        state.rash = createRashState();
+        state.normal.chancePoint = 0;
+        state.normal.castleWaitRemaining = 0;
+        state.normal.revengeGames = 0;
+        return [this.changeMap(state, config.map.castle), ...this.startCastleChallenge(state, config)];
     },
 
     // ロングフリーズの効果
@@ -452,6 +477,12 @@ const DebugState = {
     forceTreasure(state) {
         state.rash.debugForceTreasure = true;
         return [{ type: 'debugQuiet' }];
+    },
+    // 次の SELECT のゲームで内定の時ゾーンに入る (RASH 中でなければ RASH へ)
+    forceNaitei(state) {
+        const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
+        state.rash.debugForceNaitei = true;
+        return events;
     },
     // 次のゲームでお仲間チャレンジを発生させる (通常時)
     forceCompanion(state) {

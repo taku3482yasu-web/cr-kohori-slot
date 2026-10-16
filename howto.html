@@ -128,6 +128,7 @@
         <a href="#castle">城突入</a>
         <a href="#rash">おにおにRASH</a>
         <a href="#treasure">宝物庫ゾーン</a>
+        <a href="#naitei">内定の時</a>
         <a href="#revenge">リベンジ</a>
         <a href="#enemies">対戦相手</a>
         <a href="#super">SUPER</a>
@@ -228,6 +229,12 @@
         <div class="table-wrap"><table id="treasure-table"></table></div>
         <p class="note">ハズレではゲーム数は増えません。宝物庫ゾーン中は BATTLE が中断され、残りゲーム数は減りません。</p>
         <p id="treasure-freeze"></p>
+    </section>
+
+    <section id="naitei">
+        <h2>内定の時</h2>
+        <p id="naitei-text"></p>
+        <ul id="naitei-list"></ul>
     </section>
 
     <section id="revenge">
@@ -421,6 +428,19 @@
             `${roleView(role)} ${SYMBOL_NAMES[role]}`, odds(tz.lottery[role]), `<b>+${g}G</b>`
         ]));
 
+    // 内定の時
+    const nz = c.naitei;
+    const companionRateText = c.companions.members.map(m => `${m.name} ${pct(nz.companionRates[m.id] || 0)}`).join('・');
+    $('naitei-text').innerHTML = `おにおにRASH・SUPER で<b>対戦相手とゲーム数を決める1ゲーム</b>に ${nz.triggerRoles.map(r => roleView(r)).join(' / ')} が揃うと突入。` +
+        `画面が暗転し「ここから先」、<span class="red">「内定を持たぬものは通す事は出来ない」</span>の文字のあと、<b>${nz.enemy.name}</b> と <b>${nz.games}ゲーム</b>の1対1！`;
+    $('naitei-list').innerHTML = [
+        `突入時に<b>仲間抽選</b>（${companionRateText}。まだ仲間でない人が対象）`,
+        `突破率は <span class="red">${pct(nz.winRate)}</span>。BAR・7 が揃ってもガードを崩せず、仲間の肩代わりもありません`,
+        `<b>突破</b>: ${bonusText(nz.enemy.bonus)}。おにおにRASH なら <span class="gold">SUPERおにおにRASH</span> へ`,
+        `<b>失敗</b>: おにおにRASH は終了して <b>SE城の城突入チャレンジ</b>へ戻る（仲間は残る）。SUPER 中なら SUPER は継続`,
+        'ゾーン中にロングフリーズが発生すると突破確定'
+    ].map(t => `<li>${t}</li>`).join('');
+
     // 対戦相手 (ドット絵付き)
     const enemyCanvas = id => {
         const { w, h } = Characters.size(id);
@@ -462,7 +482,8 @@
         ['通常時・城突入チャレンジ', 'おにおにRASH に突入。最初の相手は <b>おにおに</b>'],
         ['おにおにRASH', `戦闘中の敵を<b>完全撃破</b> → ${pct(lf.superRate)} で <span class="gold">SUPER</span> 直行、${pct(1 - lf.superRate)} で次の相手がおにおに`],
         ['SUPERおにおにRASH', `戦闘中の敵に<b>勝利</b> → 次の相手は <span class="gold">${c.goldDog.name}</span>`],
-        ['宝物庫ゾーン', `戦闘中の敵を<b>完全撃破</b> → 次のBATTLE <b>+${c.treasure.freezeBonusGames}G</b>、<span class="gold">SUPER</span> 突入、次の相手は <span class="gold">${c.goldDog.name}</span>`]
+        ['宝物庫ゾーン', `戦闘中の敵を<b>完全撃破</b> → 次のBATTLE <b>+${c.treasure.freezeBonusGames}G</b>、<span class="gold">SUPER</span> 突入、次の相手は <span class="gold">${c.goldDog.name}</span>`],
+        ['内定の時', `${c.naitei.enemy.name}を<b>完全撃破</b> → <b>突破</b>（おにおにRASH なら <span class="gold">SUPER</span> へ）`]
     ]);
 
     // 役と確率
