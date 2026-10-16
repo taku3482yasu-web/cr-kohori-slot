@@ -56,7 +56,8 @@ body {
     font-size: 0.85rem;
 }
 
-#settings-button {
+#settings-button,
+#howto-button {
     padding: 8px 16px;
     background: #444;
     color: white;
@@ -64,6 +65,15 @@ body {
     border-radius: 20px;
     cursor: pointer;
     font-weight: bold;
+}
+
+/* 遊び方 (別ページへのリンクをボタンの見た目に) */
+#howto-button {
+    display: inline-block;
+    text-decoration: none;
+    font-size: 0.83rem;
+    line-height: 1.2;
+    border-color: var(--ice);
 }
 
 /* ステータス */
@@ -540,7 +550,8 @@ button {
         font-size: 0.75rem;
     }
 
-    #settings-button {
+    #settings-button,
+    #howto-button {
         padding: 5px 12px;
         font-size: 0.75rem;
     }

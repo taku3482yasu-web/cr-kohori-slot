@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0d1220">
+    <title>遊び方 - CRこおりくんの大冒険 ～おにおにの野望～</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+    <style>
+        :root {
+            --bg: #0d1220;
+            --panel: #161d30;
+            --line: #2c3a5a;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --ice: #9fe6ff;
+            --gold: #ffd700;
+            --red: #ff4a4a;
+            --pixel: "DotGothic16", "MS Gothic", "Osaka-Mono", monospace;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #23314f, var(--bg));
+            background-attachment: fixed;
+            color: var(--text);
+            font-family: system-ui, -apple-system, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+            line-height: 1.7;
+            padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+                     max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+        }
+        main { max-width: 760px; margin: 0 auto; }
+        a { color: var(--ice); }
+        .back {
+            display: inline-block; margin-bottom: 12px; padding: 8px 16px; border-radius: 20px;
+            background: #2c4a7a; color: #fff; text-decoration: none; font-weight: bold;
+            border: 2px solid var(--ice);
+        }
+        h1 {
+            font-family: var(--pixel); font-weight: normal; color: var(--ice);
+            font-size: clamp(1.2rem, 4.5vw, 1.8rem); margin: 4px 0 4px; text-shadow: 0 0 8px #3ab0ff;
+        }
+        .lead { color: var(--muted); margin: 0 0 16px; }
+        nav.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+        nav.toc a {
+            font-size: 0.85rem; padding: 4px 10px; border-radius: 14px; background: var(--panel);
+            border: 1px solid var(--line); text-decoration: none;
+        }
+        section {
+            background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+            padding: 16px; margin-bottom: 16px;
+        }
+        h2 {
+            font-family: var(--pixel); font-weight: normal; font-size: 1.3rem; margin: 0 0 10px;
+            color: #fff; border-left: 6px solid var(--ice); padding-left: 10px;
+        }
+        h3 { font-size: 1rem; margin: 16px 0 6px; color: var(--ice); }
+        p { margin: 6px 0; }
+        .note { color: var(--muted); font-size: 0.85rem; }
+        .red { color: var(--red); font-weight: bold; }
+        .gold { color: var(--gold); font-weight: bold; }
+        kbd {
+            display: inline-block; padding: 1px 7px; border-radius: 4px; background: #000;
+            border: 1px solid #555; font-family: monospace; font-size: 0.9em;
+        }
+        ul { margin: 6px 0; padding-left: 1.3em; }
+        li { margin: 3px 0; }
+
+        /* ゲームの流れ */
+        .flow { display: flex; flex-direction: column; gap: 0; }
+        .step {
+            background: #0f1626; border: 2px solid var(--line); border-radius: 10px; padding: 10px 12px;
+        }
+        .step h4 { margin: 0 0 4px; font-family: var(--pixel); font-weight: normal; font-size: 1.1rem; }
+        .step p { margin: 0; font-size: 0.92rem; }
+        .step.normal { border-color: #5ab8ff; }
+        .step.castle { border-color: #ff6a6a; }
+        .step.rash { border-color: var(--red); }
+        .step.rash h4 { color: var(--red); }
+        .step.super { border-color: var(--gold); }
+        .step.super h4 { color: var(--gold); }
+        .arrow { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 4px 0; }
+        .arrow::before { content: "▼ "; }
+
+        /* 表 */
+        .table-wrap { overflow-x: auto; margin: 8px 0; }
+        table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 320px; }
+        th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: center; vertical-align: middle; }
+        th { background: #1e2740; color: var(--ice); font-weight: bold; white-space: nowrap; }
+        td.left { text-align: left; }
+        .sym { width: 32px; height: 32px; image-rendering: pixelated; vertical-align: middle; }
+        .sym-row { display: inline-flex; gap: 2px; vertical-align: middle; }
+        .sym-row .sym { width: 26px; height: 26px; background: #fff; border-radius: 3px; }
+        canvas.enemy { image-rendering: pixelated; display: block; margin: 0 auto; }
+        .tag {
+            display: inline-block; font-size: 0.75rem; padding: 0 6px; border-radius: 8px;
+            background: #3a2a10; color: var(--gold); border: 1px solid #6a5010; white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <a class="back" href="index.html">← ゲームに戻る</a>
+    <h1>遊び方</h1>
+    <p class="lead" id="title"></p>
+
+    <nav class="toc">
+        <a href="#controls">操作</a>
+        <a href="#flow">ゲームの流れ</a>
+        <a href="#normal">通常時</a>
+        <a href="#castle">城突入</a>
+        <a href="#rash">おにおにRASH</a>
+        <a href="#enemies">対戦相手</a>
+        <a href="#super">SUPER</a>
+        <a href="#roles">役と確率</a>
+        <a href="#setting">設定</a>
+    </nav>
+
+    <section id="controls">
+        <h2>操作</h2>
+        <ul>
+            <li><b>LEVER ON</b> を押すとリールが回ります（1ゲーム <span id="spin-cost"></span> 枚）</li>
+            <li>左・中・右の <b>STOP</b> で1本ずつリールを止めます。止める順番は自由です</li>
+            <li>パソコンではキーボードでも遊べます: レバー <kbd>Space</kbd>、STOP <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd>（⚙ SETTINGS で変更できます）</li>
+            <li>コインがなくなったら <b>BUY COINS</b>（<span id="package"></span>）</li>
+            <li>データは1ゲームごとに自動で保存され、次に開いたときは続きから遊べます</li>
+        </ul>
+    </section>
+
+    <section id="flow">
+        <h2>ゲームの流れ</h2>
+        <p>主人公「こおりくん」が、ラスボス「おにおに」を倒すために <b>SE城</b> を目指します。</p>
+        <div class="flow">
+            <div class="step normal">
+                <h4>① 通常時（通学路 → 遠賀川 → 恵比寿町）</h4>
+                <p>1ゲームごとにチャンスポイント（CP）が貯まります。チャンス目や柄揃い、ポイントチャンスで一気に増えることも。</p>
+            </div>
+            <div class="arrow" id="flow-cp"></div>
+            <div class="step castle">
+                <h4>② SE城前</h4>
+                <p id="flow-wait"></p>
+            </div>
+            <div class="arrow">城突入チャレンジ発生</div>
+            <div class="step castle">
+                <h4>③ 城突入チャレンジ</h4>
+                <p id="flow-challenge"></p>
+            </div>
+            <div class="arrow">突入成功</div>
+            <div class="step rash">
+                <h4>④ おにおにRASH</h4>
+                <p id="flow-rash"></p>
+            </div>
+            <div class="arrow">おにおにを倒す</div>
+            <div class="step super">
+                <h4>⑤ SUPERおにおにRASH</h4>
+                <p id="flow-super"></p>
+            </div>
+        </div>
+    </section>
+
+    <section id="normal">
+        <h2>通常時</h2>
+        <h3>チャンスポイント（CP）</h3>
+        <ul id="cp-list"></ul>
+        <h3>ポイントチャンス</h3>
+        <p id="pc-text"></p>
+        <div class="table-wrap"><table id="pc-table"></table></div>
+        <p class="note">設定が高いほど「多いポイント」を選びやすくなります。</p>
+    </section>
+
+    <section id="castle">
+        <h2>城突入チャレンジ</h2>
+        <p id="castle-text"></p>
+        <div class="table-wrap"><table id="castle-table"></table></div>
+        <p class="note">設定が高いほど突入しやすくなります（表は設定1の値）。</p>
+    </section>
+
+    <section id="rash">
+        <h2>おにおにRASH</h2>
+        <ul id="rash-list"></ul>
+        <h3>BATTLE のダメージ</h3>
+        <div class="table-wrap"><table id="damage-table"></table></div>
+        <h3>ガードとブレイク</h3>
+        <ul id="guard-list"></ul>
+        <h3>BATTLE のゲーム数</h3>
+        <div class="table-wrap"><table id="games-table"></table></div>
+    </section>
+
+    <section id="enemies">
+        <h2>対戦相手</h2>
+        <p>倒すとボーナスがもらえます。強い相手ほど出にくく、ボーナスも大きくなります。</p>
+        <div class="table-wrap"><table id="enemy-table"></table></div>
+        <p class="note" id="enemy-note"></p>
+    </section>
+
+    <section id="super">
+        <h2>SUPERおにおにRASH</h2>
+        <ul id="super-list"></ul>
+    </section>
+
+    <section id="roles">
+        <h2>役と確率</h2>
+        <p class="note">確率は1ゲームあたりの当選確率（設定1の値）。チャンス目は揃いではない特別な出目です。</p>
+        <div class="table-wrap"><table id="role-table"></table></div>
+        <h3>チャンス目の出目</h3>
+        <p id="chance-patterns"></p>
+    </section>
+
+    <section id="setting">
+        <h2>設定（1〜6）</h2>
+        <p>台には設定1〜6があり、起動時に決まります（設定1が最も出やすい）。現在の設定は ⚙ SETTINGS の「台の設定」で確認できます。</p>
+        <div class="table-wrap"><table id="setting-table"></table></div>
+        <p class="note">RASH の継続率はどの設定でも同じです。</p>
+    </section>
+
+    <a class="back" href="index.html">← ゲームに戻る</a>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/characters.js"></script>
+<script>
+    // 表示する数値はすべて js/config.js から作る (数値を調整してもこのページは自動で追従する)
+    const c = window.GAME_CONFIG;
+    const $ = id => document.getElementById(id);
+    const SYMBOL_NAMES = {
+        cherry: 'チェリー', replay: 'リプレイ（レモン）', melon: 'スイカ', bell: 'ベル',
+        diamond: 'ダイヤ', seven: '7', bar: 'BAR', sevenBar: '7・7・BAR', chance: 'チャンス目', miss: 'ハズレ'
+    };
+    const odds = p => {
+        if (!p) return '-';
+        const d = 1 / p;
+        return '1/' + (d >= 10 ? Math.round(d) : Math.round(d * 10) / 10);
+    };
+    const pct = p => Math.round(p * 1000) / 10 + '%';
+    const symImg = id => `<img class="sym" src="${Symbols.url(id)}" alt="${SYMBOL_NAMES[id]}">`;
+    const pattern = ids => `<span class="sym-row">${ids.map(symImg).join('')}</span>`;
+    const roleView = role => {
+        if (c.reels.specialPatterns[role]) return pattern(c.reels.specialPatterns[role]);
+        if (c.reels.symbols.includes(role)) return pattern([role, role, role]);
+        return '';
+    };
+    const table = (id, head, rows) => {
+        $(id).innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead>` +
+            `<tbody>${rows.map(r => `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody>`;
+    };
+    const bonusText = b => b.type === 'coins' ? `+${b.value}枚`
+        : b.type === 'games' ? `次のBATTLE +${b.value}G`
+        : `柄揃い確率UP ×${b.value}（${b.games}G）`;
+
+    $('title').textContent = c.title;
+    $('spin-cost').textContent = c.coins.spinCost;
+    $('package').textContent = `${c.coins.packagePrice.toLocaleString()}円で${c.coins.packageAmount}枚`;
+
+    // ゲームの流れ
+    const cp = c.chancePoint;
+    $('flow-cp').textContent = `CP が ${cp.threshold} に到達`;
+    $('flow-wait').textContent = `SE城が見えてきた！ ${c.castle.waitGames}ゲーム後に城突入チャレンジが始まります。`;
+    $('flow-challenge').textContent = `${c.castle.challengeGames}ゲームの間にチャンス目などを引けば城に突入！ 失敗すると通常時に戻ります（CP は ${pct(c.castle.failKeepRate)} 持ち越し）。`;
+    $('flow-rash').textContent = `敵と BATTLE してコインを増やすモード。継続率 ${pct(c.rash.normal.continueRate)}。敵を倒すとボーナス、${c.rash.oniUnlockDefeats}体倒すとおにおにが現れるように。`;
+    $('flow-super').textContent = `継続率 ${pct(c.rash.super.continueRate)}！ ごくまれに「ゴールド金面犬」が現れ、倒すと ${c.goldDog.bonus.value}枚！`;
+
+    // 通常時
+    const alignedCp = Object.entries(cp.onAligned).filter(([, v]) => v > 0)
+        .map(([role, v]) => `${SYMBOL_NAMES[role]} +${v}`).join('、');
+    $('cp-list').innerHTML = [
+        `1ゲームごとに +${cp.perGame}`,
+        `チャンス目で +${cp.onChance}`,
+        `柄揃いで追加: ${alignedCp}（7揃いは SE城前へ直行）`,
+        `<b>${cp.threshold}</b> ポイントで SE城前へ`,
+        `マップは ${c.map.gamesPerMap}ゲームごとに ${c.map.loop.map(m => c.map.names[m]).join(' → ')} の順に移動`
+    ].map(t => `<li>${t}</li>`).join('');
+
+    const pc = c.pointChance;
+    $('pc-text').innerHTML = `通常時に <b>${odds(pc.rate)}</b> で発生。こおりくんが「少ないポイント」（${pc.small.map(v => '+' + v).join(' / ')}）と` +
+        `「多いポイント」（${pc.big.map(v => '+' + v).join(' / ')}）の吹き出しから1つを選びます。どちらを選ぶかは<b>そのゲームの出目</b>で決まります。`;
+    table('pc-table', ['出目', '「多い」を選ぶ確率（設定1）'],
+        Object.entries(pc.bigRate).map(([role, r]) => [`${roleView(role)} ${SYMBOL_NAMES[role]}`, pct(r)]));
+
+    // 城突入
+    $('castle-text').innerHTML = `${c.castle.challengeGames}ゲームの間、毎ゲーム出目に応じた確率で突入を判定します。チャレンジ中はチャンス目が <b>${odds(c.lottery.castleChallenge.chance)}</b> と出やすくなっています。`;
+    table('castle-table', ['出目', '突入率'],
+        Object.entries(c.castle.entryRate).sort((a, b) => b[1] - a[1])
+            .map(([role, r]) => [`${roleView(role)} ${SYMBOL_NAMES[role]}`, pct(r)]));
+
+    // RASH
+    $('rash-list').innerHTML = [
+        'RASH の1ゲーム目で <b>対戦相手</b> と <b>残りゲーム数</b> が決まり、BATTLE 開始',
+        '柄を揃えるとこおりくんが攻撃！ 相手の HP を 0 にすれば撃破してボーナス獲得 → 次の相手へ',
+        '残りゲーム数が 0 になると表示が <b>「？？」</b> に。ここで柄が揃えば継続、揃わなければ RASH 終了',
+        `継続率は <span class="red">${pct(c.rash.normal.continueRate)}</span>`,
+        `BATTLE 中はリプレイ（${odds(c.lottery.battle.replay)}）が出やすく、コインがあまり減りません`
+    ].map(t => `<li>${t}</li>`).join('');
+    table('damage-table', ['役', '確率', 'ダメージ'],
+        Object.entries(c.damage).map(([role, d]) => [
+            `${roleView(role)} ${SYMBOL_NAMES[role]}`,
+            odds(c.lottery.battle[role]),
+            d === 'kill' ? '<span class="red">確定撃破</span>' : d === 0 ? 'なし' : d
+        ]));
+    $('guard-list').innerHTML = [
+        '相手はガードすることがあり、ダメージを受けても倒れずに耐えます（「ガード!」）',
+        `<b>BAR揃い・7揃い・7・7・BAR</b> はガードを崩して確定撃破（「ガードブレイク!!」）`,
+        `<b>チェリー</b>が揃うと ${pct(c.breakState.rate)} で <b>ブレイク状態</b>。その相手を倒すまでガードできなくなります`
+    ].map(t => `<li>${t}</li>`).join('');
+    const totalW = list => list.reduce((s, g) => s + g.weight, 0);
+    table('games-table', ['ゲーム数', '開始時', '「？？」から継続時'],
+        c.rash.initialGames.map((g, i) => [
+            `${g.games}G`,
+            pct(g.weight / totalW(c.rash.initialGames)),
+            c.rash.continueGames[i] ? pct(c.rash.continueGames[i].weight / totalW(c.rash.continueGames)) : '-'
+        ]));
+
+    // 対戦相手 (ドット絵付き)
+    const enemyCanvas = id => {
+        const { w, h } = Characters.size(id);
+        const scale = 1.5;
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(w * scale);
+        cv.height = Math.round(h * scale);
+        cv.className = 'enemy';
+        cv.style.width = cv.width + 'px';
+        Characters.drawEnemy(cv.getContext('2d'), id, cv.width / 2, cv.height, { scale });
+        return cv;
+    };
+    const normalTotal = c.enemies.filter(e => !e.requiresUnlock).reduce((s, e) => s + e.weight, 0);
+    const rows = c.enemies.map(e => [
+        '', `<b>${e.name}</b>${e.requiresUnlock ? `<br><span class="tag">${c.rash.oniUnlockDefeats}体撃破後に出現</span>` : ''}`,
+        e.hp, bonusText(e.bonus), e.requiresUnlock ? '出にくい' : pct(e.weight / normalTotal)
+    ]);
+    rows.push(['', `<b class="gold">${c.goldDog.name}</b><br><span class="tag">SUPER限定</span>`, c.goldDog.hp,
+        `${bonusText(c.goldDog.bonus)}<br>次の相手はおにおに確定`, odds(c.goldDog.prob)]);
+    table('enemy-table', ['', '名前', 'HP', '撃破ボーナス', '出現率'], rows);
+    const ids = [...c.enemies.map(e => e.id), c.goldDog.id];
+    [...$('enemy-table').querySelectorAll('tbody tr')].forEach((tr, i) => tr.children[0].appendChild(enemyCanvas(ids[i])));
+    $('enemy-note').textContent = '出現率は通常の おにおにRASH で、おにおにが出現する前の値です。';
+
+    // SUPER
+    $('super-list').innerHTML = [
+        'おにおにを倒すと移行。背景とロゴが金色に！',
+        `継続率は <span class="gold">${pct(c.rash.super.continueRate)}</span>`,
+        'おにおにが常に対戦相手の候補に入ります',
+        `${odds(c.goldDog.prob)} で <span class="gold">${c.goldDog.name}</span> が出現。倒すと <b>${c.goldDog.bonus.value}枚</b>、次の相手はおにおに確定`,
+        '「？？」で揃わなければ終了'
+    ].map(t => `<li>${t}</li>`).join('');
+
+    // 役と確率
+    const roles = Object.keys(c.lottery.normal);
+    table('role-table', ['役', '払い出し', '通常時', '城突入チャレンジ', 'RASH'],
+        [...new Set([...roles, ...Object.keys(c.lottery.battle)])].map(role => [
+            `${roleView(role)} ${SYMBOL_NAMES[role]}`,
+            role === 'chance' ? '-' : (c.reels.payouts[role] ? `${c.reels.payouts[role]}枚` : '-'),
+            odds(c.lottery.normal[role]),
+            odds(c.lottery.castleChallenge[role]),
+            odds(c.lottery.battle[role])
+        ]));
+    $('chance-patterns').innerHTML = c.reels.chancePatterns.map(pattern).join('　');
+
+    // 設定
+    const m = c.machine.multipliers;
+    const settings = Object.keys(m);
+    table('setting-table', ['設定', '通常時のチャンス目', '城突入チャレンジのチャンス目', '城突入率', 'ポイントチャンス（多）'],
+        settings.map(s => [
+            s,
+            odds(c.lottery.normal.chance * m[s].chance),
+            odds(c.lottery.castleChallenge.chance * m[s].chance),
+            `×${m[s].castleEntry}`,
+            `×${m[s].pointBig}`
+        ]));
+</script>
+</body>
+</html>
