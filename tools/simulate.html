@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出玉シミュレーター</title>
+    <style>
+        body { font-family: sans-serif; background: #111827; color: #e5e7eb; padding: 16px; margin: 0; }
+        h1 { font-size: 1.2rem; margin: 0 0 8px; }
+        p { color: #9ca3af; font-size: 0.85rem; margin: 4px 0 12px; }
+        .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+        input { width: 120px; padding: 4px 6px; }
+        button { padding: 6px 14px; cursor: pointer; }
+        .table-wrap { overflow-x: auto; }
+        table { border-collapse: collapse; font-size: 0.85rem; min-width: 760px; }
+        th, td { border: 1px solid #374151; padding: 4px 8px; text-align: right; }
+        th { background: #1f2937; }
+        td:first-child, th:first-child { text-align: center; }
+        .status { margin: 8px 0; color: #fbbf24; }
+    </style>
+</head>
+<body>
+    <h1>出玉シミュレーター</h1>
+    <p>js/config.js の数値で、通常時・城突入・RASH を通しで自動プレイし、設定ごとの出玉率などを計測します（演出は省略）。<br>
+       出玉率 = 払い出し枚数の合計 ÷ 投入枚数の合計（RASH 中も1ゲーム3枚投入として計算）。</p>
+    <div class="controls">
+        <label>設定ごとのゲーム数 <input id="games" type="number" value="1000000" min="10000" step="100000"></label>
+        <button id="run">実行</button>
+    </div>
+    <div id="status" class="status"></div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>設定</th><th>出玉率</th><th>RASH 初当たり</th><th>城突入チャレンジ</th><th>突入成功率</th>
+                    <th>RASH 平均獲得</th><th>SUPER 到達率</th><th>ポイントチャンス</th><th>通常時の出玉率</th>
+                </tr>
+            </thead>
+            <tbody id="result"></tbody>
+        </table>
+    </div>
+    <pre id="json" hidden></pre>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/lottery.js"></script>
+    <script src="../js/battle.js"></script>
+    <script>
+        // 設定 setting で games ゲーム自動プレイした統計を返す
+        function simulate(setting, games, config = window.GAME_CONFIG) {
+            const state = createInitialState(config);
+            state.setting = setting;
+            const cost = config.coins.spinCost;
+            const stats = {
+                setting, games, coinIn: 0, coinOut: 0, normalIn: 0, normalOut: 0,
+                rash: 0, challenges: 0, entries: 0, super: 0, pointChances: 0, rashCoins: 0
+            };
+            for (let g = 0; g < games; g++) {
+                const mode = state.mode;
+                const before = state.totalCoinsWon;
+                const outcome = Lottery.draw(state, config);
+                const events = GameFlow.onGameEnd(state, outcome, config);
+                const won = state.totalCoinsWon - before;
+                stats.coinIn += cost;
+                stats.coinOut += won;
+                if (mode === MODES.NORMAL || mode === MODES.CASTLE_CHALLENGE) {
+                    stats.normalIn += cost;
+                    stats.normalOut += won;
+                }
+                for (const e of events) {
+                    if (e.type === 'challengeStart') stats.challenges++;
+                    if (e.type === 'castleEntry') stats.entries++;
+                    if (e.type === 'rashStart') stats.rash++;
+                    if (e.type === 'superStart') stats.super++;
+                    if (e.type === 'pointChance') stats.pointChances++;
+                    if (e.type === 'rashEnd') stats.rashCoins += e.coinsWon;
+                }
+            }
+            stats.rtp = stats.coinOut / stats.coinIn;
+            stats.normalRtp = stats.normalOut / stats.normalIn;
+            return stats;
+        }
+
+        const pct = v => (v * 100).toFixed(1) + '%';
+        const per = (games, n) => (n ? '1/' + Math.round(games / n) : '-');
+
+        function row(s) {
+            return `<tr><td>${s.setting}</td><td>${pct(s.rtp)}</td><td>${per(s.games, s.rash)}</td>` +
+                `<td>${per(s.games, s.challenges)}</td><td>${s.challenges ? pct(s.entries / s.challenges) : '-'}</td>` +
+                `<td>${s.rash ? Math.round(s.rashCoins / s.rash) + '枚' : '-'}</td><td>${s.rash ? pct(s.super / s.rash) : '-'}</td>` +
+                `<td>${per(s.games, s.pointChances)}</td><td>${pct(s.normalRtp)}</td></tr>`;
+        }
+
+        async function runAll(games) {
+            const tbody = document.getElementById('result');
+            const status = document.getElementById('status');
+            tbody.innerHTML = '';
+            const all = [];
+            for (let setting = 1; setting <= 6; setting++) {
+                status.textContent = `設定${setting} を計算中…`;
+                await new Promise(r => setTimeout(r, 0));
+                const s = simulate(setting, games);
+                all.push(s);
+                tbody.insertAdjacentHTML('beforeend', row(s));
+            }
+            status.textContent = '完了';
+            document.getElementById('json').textContent = JSON.stringify(all);
+            return all;
+        }
+
+        document.getElementById('run').addEventListener('click', () => {
+            runAll(Number(document.getElementById('games').value) || 1000000);
+        });
+
+        // ?auto=ゲーム数 で自動実行 (テスト用)
+        const auto = new URLSearchParams(location.search).get('auto');
+        if (auto) runAll(Number(auto));
+    </script>
+</body>
+</html>

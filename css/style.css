@@ -1,0 +1,493 @@
+:root {
+    --gold: #ffd700;
+    --dark-gold: #b8860b;
+    --ice: #9fe6ff;
+    --reel-bg: #fff;
+    --status-bg: #1a1f2e;
+    --status-text: #7fffd4;
+    --symbol-height: 90px;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background: radial-gradient(circle at top, #23314f, #0d1220);
+    min-height: 100vh;
+    margin: 0;
+    padding: 16px;
+    font-family: 'Arial Black', sans-serif;
+    color: #ddd;
+}
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.game-title {
+    margin: 0;
+    font-size: 1.2rem;
+    text-align: center;
+    color: var(--ice);
+    text-shadow: 0 0 8px #3ab0ff;
+}
+
+.top-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.mode-display {
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: #000;
+    color: var(--gold);
+    font-size: 0.85rem;
+}
+
+#settings-button {
+    padding: 8px 16px;
+    background: #444;
+    color: white;
+    border: 2px solid var(--dark-gold);
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* ステータス */
+.status-panel {
+    background-color: var(--status-bg);
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: 3px solid #3a6ea5;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 20px;
+    align-items: center;
+}
+
+.status-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.status-label {
+    color: #aaa;
+    font-size: 0.8rem;
+}
+
+.status-label.clickable {
+    cursor: pointer;
+    user-select: none;
+    text-decoration: underline dotted #666;
+}
+
+.status-value {
+    color: var(--status-text);
+    font-size: 1.3rem;
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: bold;
+}
+
+.currency-unit {
+    color: var(--status-text);
+}
+
+#buy-coins-button {
+    padding: 6px 12px;
+    background: linear-gradient(to bottom, #666, #444);
+    color: white;
+    border: 1px solid #888;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.75rem;
+}
+
+#buy-coins-button.attention {
+    border-color: var(--gold);
+    animation: attention-blink 0.6s infinite alternate;
+}
+
+@keyframes attention-blink {
+    from { box-shadow: 0 0 0 var(--gold); }
+    to { box-shadow: 0 0 15px var(--gold); }
+}
+
+/* 筐体 */
+.slot-machine {
+    background: linear-gradient(160deg, #2c4a7a, #121c33);
+    padding: 16px;
+    border-radius: 20px;
+    border: 6px solid var(--ice);
+    box-shadow: 0 0 40px rgba(80, 180, 255, 0.35);
+    width: 100%;
+    text-align: center;
+}
+
+/* 液晶 */
+.lcd-frame {
+    background: #000;
+    padding: 6px;
+    border-radius: 8px;
+    border: 4px solid #555;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: center;
+}
+
+.lcd {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* リール */
+.reels-container {
+    display: flex;
+    justify-content: space-around;
+    background-color: #0a0f1c;
+    padding: 10px;
+    border-radius: 10px;
+}
+
+.reel-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.reel {
+    width: 80px;
+    height: var(--symbol-height);
+    background-color: var(--reel-bg);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 12px 12px rgba(0, 0, 0, 0.35), inset 0 -12px 12px rgba(0, 0, 0, 0.35);
+}
+
+.reel-strip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.symbol {
+    height: var(--symbol-height);
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2.6rem;
+    border-bottom: 1px solid #ddd;
+}
+
+.symbol-img {
+    width: 64px;
+    height: 64px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+@keyframes reel-spin {
+    from { transform: translateY(0); }
+    to { transform: translateY(var(--cycle)); }
+}
+
+.stop-button {
+    padding: 4px 14px;
+    font-size: 0.85rem;
+    background: linear-gradient(to bottom, #888, #555);
+    color: white;
+    border: 1px solid #333;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.stop-button:disabled {
+    background: #222;
+    color: #555;
+    cursor: not-allowed;
+}
+
+/* リーチ中: 残りの STOP が赤く光る */
+.stop-button.reach:not(:disabled) {
+    background: linear-gradient(to bottom, #ff6a6a, #c01818);
+    animation: stop-glow-red 0.35s infinite alternate;
+}
+
+/* 押せ!!: 残りの STOP が金色に光る */
+.stop-button.push:not(:disabled) {
+    background: linear-gradient(to bottom, #fff07a, #d4a017);
+    color: #3a2a00;
+    animation: stop-glow-gold 0.25s infinite alternate;
+}
+
+@keyframes stop-glow-red {
+    from { box-shadow: 0 0 4px #ff3030; }
+    to { box-shadow: 0 0 18px #ff3030; }
+}
+
+@keyframes stop-glow-gold {
+    from { box-shadow: 0 0 4px #ffd700; transform: scale(1); }
+    to { box-shadow: 0 0 22px #ffd700; transform: scale(1.08); }
+}
+
+/* 筐体の枠: RASH 中は赤、SUPER 中は金 */
+.slot-machine {
+    transition: border-color 0.5s, box-shadow 0.5s;
+}
+
+body[data-mode="RASH"] .slot-machine {
+    border-color: #ff3030;
+    box-shadow: 0 0 40px rgba(255, 48, 48, 0.45);
+}
+
+body[data-mode="SUPER_RASH"] .slot-machine {
+    border-color: #ffd700;
+    box-shadow: 0 0 50px rgba(255, 215, 0, 0.55);
+}
+
+/* 「？？」のゲームはレバーが金色に光る */
+body[data-phase="QUESTION"] #spin-button:not(:disabled) {
+    background: linear-gradient(to bottom, #fff07a, #d4a017);
+    animation: lever-glow-gold 0.4s infinite alternate;
+}
+
+@keyframes lever-glow-gold {
+    from { box-shadow: 0 5px 0 #6a5000, 0 0 6px #ffd700; }
+    to { box-shadow: 0 5px 0 #6a5000, 0 0 24px #ffd700; }
+}
+
+.controls {
+    margin-top: 14px;
+}
+
+#spin-button {
+    padding: 12px 30px;
+    font-size: 1.4rem;
+    background: linear-gradient(to bottom, var(--ice), #3a9ad9);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 5px 0 #1d4f7a;
+}
+
+#spin-button:active {
+    transform: translateY(3px);
+    box-shadow: 0 2px 0 #1d4f7a;
+}
+
+#spin-button:disabled {
+    background: #777;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* 城突入チャレンジ中はレバーが赤く光る */
+body[data-mode="CASTLE_CHALLENGE"] #spin-button:not(:disabled) {
+    background: linear-gradient(to bottom, #ff8a8a, #d03030);
+    animation: lever-glow 0.5s infinite alternate;
+}
+
+@keyframes lever-glow {
+    from { box-shadow: 0 5px 0 #6a1a1a, 0 0 6px #ff4a4a; }
+    to { box-shadow: 0 5px 0 #6a1a1a, 0 0 22px #ff4a4a; }
+}
+
+.key-hint {
+    display: block;
+    font-size: 0.65rem;
+    font-family: 'Courier New', Courier, monospace;
+    opacity: 0.75;
+    margin-top: 2px;
+}
+
+/* デバッグパネル */
+.debug-panel {
+    width: 100%;
+    background: #111;
+    border: 1px dashed #666;
+    border-radius: 6px;
+    padding: 8px;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+}
+
+.debug-panel summary {
+    cursor: pointer;
+    color: #f90;
+}
+
+.debug-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.debug-buttons button {
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.debug-state {
+    max-height: 240px;
+    overflow: auto;
+    color: #7fffd4;
+    font-size: 0.7rem;
+    margin: 0;
+}
+
+/* 設定画面 */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    padding: 16px;
+}
+
+.modal-content {
+    background: linear-gradient(145deg, #3a3a3a, #1e1e1e);
+    border: 4px solid var(--ice);
+    border-radius: 15px;
+    padding: 20px 25px;
+    width: 100%;
+    max-width: 380px;
+    max-height: 90vh;
+    overflow-y: auto;
+    color: #ddd;
+    font-family: sans-serif;
+}
+
+.modal-content h2 {
+    margin: 0 0 15px;
+    text-align: center;
+    color: var(--ice);
+    font-family: 'Arial Black', sans-serif;
+}
+
+.modal-section {
+    border-top: 1px solid #555;
+    padding: 12px 0;
+}
+
+.modal-section h3 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    color: #fff;
+}
+
+.modal-note {
+    font-size: 0.8rem;
+    color: #aaa;
+    margin: 8px 0;
+}
+
+.modal-button {
+    padding: 6px 14px;
+    background: linear-gradient(to bottom, #666, #444);
+    color: white;
+    border: 1px solid #888;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.modal-close {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 10px;
+}
+
+.setting-reveal {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.current-setting {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--status-text);
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.sound-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 0.9rem;
+}
+
+.sound-row input[type="range"] {
+    flex: 1;
+}
+
+.modal-button.danger {
+    background: linear-gradient(to bottom, #d04040, #902020);
+    border-color: #ff8080;
+}
+
+.key-binding-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.key-binding-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.key-button {
+    min-width: 110px;
+    padding: 6px 10px;
+    background: #111;
+    color: var(--status-text);
+    border: 2px solid #555;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: bold;
+}
+
+.key-button.capturing {
+    border-color: var(--gold);
+    color: var(--gold);
+    animation: attention-blink 0.6s infinite alternate;
+}

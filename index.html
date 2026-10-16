@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRこおりくんの大冒険 ～おにおにの野望～</title>
+    <!-- 液晶用のドットフォント (オフライン時は MS ゴシックなどで代替) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <h1 id="game-title" class="game-title"></h1>
+
+        <div class="top-bar">
+            <span id="mode-display" class="mode-display"></span>
+            <button id="settings-button">⚙ SETTINGS</button>
+        </div>
+
+        <!-- ステータスパネル -->
+        <div class="status-panel">
+            <div class="status-item">
+                <span class="status-label">GAMES:</span>
+                <span id="game-display" class="status-value">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">COINS:</span>
+                <span id="coin-display" class="status-value">0</span>
+            </div>
+            <div class="status-item">
+                <span id="status-label-spent" class="status-label clickable">TOTAL SPENT:</span>
+                <span class="currency-unit">¥</span><span id="spending-display" class="status-value">0</span>
+            </div>
+            <button id="buy-coins-button">BUY COINS</button>
+        </div>
+
+        <div class="slot-machine">
+            <!-- 液晶 (ドット絵を canvas に描画) -->
+            <div class="lcd-frame">
+                <canvas id="lcd" class="lcd"></canvas>
+            </div>
+
+            <!-- リール -->
+            <div class="reels-container">
+                <div class="reel-column">
+                    <div class="reel" id="reel1"><div class="reel-strip"></div></div>
+                    <button class="stop-button" id="stop-button-1">STOP<span class="key-hint" data-action="stop1"></span></button>
+                </div>
+                <div class="reel-column">
+                    <div class="reel" id="reel2"><div class="reel-strip"></div></div>
+                    <button class="stop-button" id="stop-button-2">STOP<span class="key-hint" data-action="stop2"></span></button>
+                </div>
+                <div class="reel-column">
+                    <div class="reel" id="reel3"><div class="reel-strip"></div></div>
+                    <button class="stop-button" id="stop-button-3">STOP<span class="key-hint" data-action="stop3"></span></button>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="spin-button">LEVER ON<span class="key-hint" data-action="lever"></span></button>
+            </div>
+        </div>
+
+        <!-- デバッグパネル (config.debug が true のときだけ表示) -->
+        <details id="debug-panel" class="debug-panel" hidden>
+            <summary>DEBUG</summary>
+            <div class="debug-buttons">
+                <button data-debug="normal">通常時へ</button>
+                <button data-debug="nextMap">次のマップへ</button>
+                <button data-debug="fillCp">CP満タン</button>
+                <button data-debug="challenge">城突入チャレンジへ</button>
+                <button data-debug="rash">RASHへ</button>
+                <button data-debug="superRash">SUPERへ</button>
+                <button data-debug="lastGame">BATTLE残り1Gへ</button>
+                <button data-debug="setBreak">ブレイク状態に</button>
+                <button data-debug="forceOni">次の相手:おにおに</button>
+                <button data-debug="forceGold">次の相手:金面犬</button>
+                <button data-debug="coins">コイン+1000</button>
+                <button data-debug="pointChance">次:ポイントチャンス</button>
+            </div>
+            <div class="debug-buttons">
+                <span>台の設定:</span>
+                <button data-setting="1">1</button>
+                <button data-setting="2">2</button>
+                <button data-setting="3">3</button>
+                <button data-setting="4">4</button>
+                <button data-setting="5">5</button>
+                <button data-setting="6">6</button>
+            </div>
+            <div class="debug-buttons">
+                <span>次の出目:</span>
+                <button data-next-role="chance">チャンス目</button>
+                <button data-next-role="seven">7揃い</button>
+                <button data-next-role="sevenBar">77BAR</button>
+                <button data-next-role="bar">BAR揃い</button>
+                <button data-next-role="cherry">チェリー</button>
+                <button data-next-role="replay">リプレイ</button>
+                <button data-next-role="bell">ベル</button>
+                <button data-next-role="miss">ハズレ</button>
+            </div>
+            <pre id="debug-state" class="debug-state"></pre>
+        </details>
+    </div>
+
+    <!-- 設定画面 -->
+    <div id="settings-modal" class="modal" hidden>
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+            <h2 id="settings-title">SETTINGS</h2>
+            <section class="modal-section">
+                <h3>台の設定</h3>
+                <div class="setting-reveal">
+                    <span id="current-setting" class="current-setting">？</span>
+                    <button id="reveal-setting-button" class="modal-button">表示する</button>
+                </div>
+                <p id="setting-detail" class="modal-note" hidden></p>
+            </section>
+            <section class="modal-section">
+                <h3>サウンド</h3>
+                <label class="sound-row">
+                    <input id="bgm-enabled" type="checkbox" checked> BGM
+                </label>
+                <label class="sound-row">
+                    音量 <input id="bgm-volume" type="range" min="0" max="100" value="50">
+                </label>
+            </section>
+            <section class="modal-section">
+                <h3>データ</h3>
+                <p id="save-info" class="modal-note"></p>
+                <button id="reset-data-button" class="modal-button">データを消去</button>
+            </section>
+            <section class="modal-section">
+                <h3>キー割り当て</h3>
+                <p class="modal-note">キーのボタンを押してから、割り当てたいキーを押してください（Escでキャンセル）</p>
+                <div id="key-binding-list" class="key-binding-list"></div>
+                <button id="reset-keys-button" class="modal-button">初期設定に戻す</button>
+            </section>
+            <button id="close-settings-button" class="modal-button modal-close">閉じる</button>
+        </div>
+    </div>
+
+    <!-- 読み込み順: 設定 → データ → 各機能 → 起動 -->
+    <script src="js/config.js"></script>
+    <script src="js/sprites.js"></script>
+    <script src="js/backgrounds.js"></script>
+    <script src="js/characters.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/lottery.js"></script>
+    <script src="js/battle.js"></script>
+    <script src="js/save.js"></script>
+    <script src="js/bgm.js"></script>
+    <script src="js/reels.js"></script>
+    <script src="js/lcd.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
