@@ -826,7 +826,8 @@ const Lcd = (() => {
 
     // フリーズ後の効果の告知
     async function freezeBonus(event) {
-        const sub = event.kind === 'super' ? '勝利確定!! 次はゴールド金面犬'
+        const sub = event.kind === 'treasure' ? `+${event.games}G!! SUPER突入 & ゴールド金面犬と対決!!`
+            : event.kind === 'super' ? '勝利確定!! 次はゴールド金面犬'
             : scene === 'rash' ? '完全撃破!!' : 'おにおにRASH 確定!! おにおにと対決';
         startShake(config.effects.intensity.shakeLarge, 600);
         Sound.fanfare();
@@ -1476,6 +1477,9 @@ const Lcd = (() => {
                     break;
                 case 'treasureEnd':
                     await treasureEnd(event);
+                    break;
+                case 'bonusGames':
+                    nextBonusGames = event.bonusGames;
                     break;
                 case 'companionChallenge':
                     await companionChallenge(event);

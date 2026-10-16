@@ -231,7 +231,8 @@ window.GAME_CONFIG = {
 
     // ----- 宝物庫ゾーン (RASH / SUPER 中のゲーム数上乗せ特化ゾーン) -----
     // BATTLE 中の1ゲームごとに rate の確率で突入 (「？？」のときは突入しない)。games ゲームの間 BATTLE は中断し、
-    // lottery の確率で抽選して、揃った柄に応じて gamesByRole のゲーム数を「次の BATTLE」に上乗せする
+    // lottery の確率で抽選して、揃った柄・チャンス目に応じて gamesByRole のゲーム数を「次の BATTLE」に上乗せする
+    // ゾーン中にロングフリーズが当たると、freezeBonusGames を上乗せして SUPER 突入、次の相手はゴールド金面犬
     treasure: {
         rate: 1 / 100,
         games: 5,
@@ -243,7 +244,8 @@ window.GAME_CONFIG = {
             melon: 1 / 20,
             bar: 1 / 40,
             sevenBar: 1 / 100,
-            seven: 1 / 80
+            seven: 1 / 80,
+            chance: 1 / 15
         },
         gamesByRole: {
             replay: 1,
@@ -253,8 +255,10 @@ window.GAME_CONFIG = {
             melon: 5,
             bar: 10,
             sevenBar: 10,
+            chance: 15,
             seven: 20
-        }
+        },
+        freezeBonusGames: 50
     },
 
     // ----- BATTLE のダメージ -----

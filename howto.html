@@ -224,7 +224,8 @@
         <h2>宝物庫ゾーン</h2>
         <p id="treasure-text"></p>
         <div class="table-wrap"><table id="treasure-table"></table></div>
-        <p class="note">チャンス目・ハズレではゲーム数は増えません。宝物庫ゾーン中は BATTLE が中断され、残りゲーム数は減りません。</p>
+        <p class="note">ハズレではゲーム数は増えません。宝物庫ゾーン中は BATTLE が中断され、残りゲーム数は減りません。</p>
+        <p id="treasure-freeze"></p>
     </section>
 
     <section id="enemies">
@@ -403,6 +404,7 @@
     const tz = c.treasure;
     $('treasure-text').innerHTML = `おにおにRASH・SUPER の BATTLE 中に <b>${odds(tz.rate)}</b> で突入する、ゲーム数上乗せ特化ゾーン（「？？」のときは突入しません）。` +
         `<b>${tz.games}ゲーム</b>の間、柄が揃うたびに宝箱が開き、揃った柄に応じて<b>次の BATTLE のゲーム数</b>が増えます。`;
+    $('treasure-freeze').innerHTML = `宝物庫ゾーン中に<b>ロングフリーズ</b>が発生すると、戦闘中の敵を完全撃破して <span class="gold">次のBATTLE +${tz.freezeBonusGames}G</span>、<span class="gold">SUPER 突入</span>、次の相手は <span class="gold">${c.goldDog.name}</span> 確定！`;
     table('treasure-table', ['柄', '確率', '次のBATTLE'],
         Object.entries(tz.gamesByRole).sort((a, b) => a[1] - b[1]).map(([role, g]) => [
             `${roleView(role)} ${SYMBOL_NAMES[role]}`, odds(tz.lottery[role]), `<b>+${g}G</b>`
@@ -448,7 +450,8 @@
     table('freeze-table', ['発生したとき', '効果'], [
         ['通常時・城突入チャレンジ', 'おにおにRASH に突入。最初の相手は <b>おにおに</b>'],
         ['おにおにRASH', `戦闘中の敵を<b>完全撃破</b> → ${pct(lf.superRate)} で <span class="gold">SUPER</span> 直行、${pct(1 - lf.superRate)} で次の相手がおにおに`],
-        ['SUPERおにおにRASH', `戦闘中の敵に<b>勝利</b> → 次の相手は <span class="gold">${c.goldDog.name}</span>`]
+        ['SUPERおにおにRASH', `戦闘中の敵に<b>勝利</b> → 次の相手は <span class="gold">${c.goldDog.name}</span>`],
+        ['宝物庫ゾーン', `戦闘中の敵を<b>完全撃破</b> → 次のBATTLE <b>+${c.treasure.freezeBonusGames}G</b>、<span class="gold">SUPER</span> 突入、次の相手は <span class="gold">${c.goldDog.name}</span>`]
     ]);
 
     // 役と確率

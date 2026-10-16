@@ -239,7 +239,8 @@ const Battle = {
     // 宝物庫ゾーンの1ゲーム: 揃った柄に応じて次の BATTLE のゲーム数を上乗せ
     treasureGame(state, outcome, config) {
         const rash = state.rash;
-        const added = outcome.aligned ? (config.treasure.gamesByRole[outcome.role] || 0) : 0;
+        // 揃った柄・チャンス目に応じて上乗せ (ハズレは0)
+        const added = config.treasure.gamesByRole[outcome.role] || 0;
         rash.bonusGames += added;
         rash.treasureTotal += added;
         rash.treasureGames--;
@@ -259,11 +260,17 @@ const Battle = {
     // ロングフリーズ (RASH / SUPER 中)
     //   RASH:  戦闘中の敵を完全撃破 → superRate で SUPER 直行、それ以外は次の相手がおにおに
     //   SUPER: 戦闘中の敵に勝利 → 次の相手がゴールド金面犬
+    //   宝物庫ゾーン中: 戦闘中の敵を完全撃破 → 次の BATTLE +freezeBonusGames、SUPER 突入、次の相手がゴールド金面犬
     longFreeze(state, config, rng) {
         const rash = state.rash;
         const wasSuper = this.isSuper(state);
-        const events = [{ type: 'freezeBonus', kind: wasSuper ? 'super' : 'rash' }];
-        if (rash.phase === RASH_PHASES.TREASURE) events.push(...this.endTreasure(state));
+        const inTreasure = rash.phase === RASH_PHASES.TREASURE;
+        const events = [{
+            type: 'freezeBonus',
+            kind: inTreasure ? 'treasure' : wasSuper ? 'super' : 'rash',
+            games: inTreasure ? config.treasure.freezeBonusGames : 0
+        }];
+        if (inTreasure) events.push(...this.endTreasure(state));
 
         // 戦闘中なら完全撃破
         let defeat = null;
@@ -288,7 +295,16 @@ const Battle = {
             else events.push({ type: 'nextForced', name });
         };
 
-        if (wasSuper) {
+        if (inTreasure) {
+            rash.bonusGames += config.treasure.freezeBonusGames;
+            events.push({ type: 'bonusGames', bonusGames: rash.bonusGames });
+            if (state.mode === MODES.RASH) {
+                events.push(StateMachine.transition(state, MODES.SUPER_RASH));
+                state.superCount++;
+                events.push({ type: 'superStart' });
+            }
+            forceNext(config.goldDog.id);
+        } else if (wasSuper) {
             forceNext(config.goldDog.id);
         } else if (state.mode === MODES.RASH) {
             // おにおにを撃破して SUPER に移っていなければ、SUPER 直行の抽選
