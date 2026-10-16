@@ -83,10 +83,11 @@ const Battle = {
         rash.gamesRemaining = baseGames + bonusGames;
         rash.goldDogFlag = enemy.id === config.goldDog.id;
         rash.breakActive = false;
-        rash.setWillWin = rng() < this.presetRate(state, config);
+        rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
         rash.phase = RASH_PHASES.BATTLE;
         return [{
             type: 'battleStart',
+            winGuaranteed: rash.winGuaranteed,
             enemyId: enemy.id,
             name: enemy.name,
             hp: enemy.hp,
@@ -205,6 +206,7 @@ const Battle = {
         rash.enemyId = null;
         rash.goldDogFlag = false;
         rash.breakActive = false;
+        rash.winGuaranteed = false;
 
         const bonus = this.applyBonus(state, enemy.bonus);
         if (enemy.nextForcedEnemy) rash.nextForcedEnemy = enemy.nextForcedEnemy;
@@ -380,8 +382,12 @@ const Battle = {
 
         if (win) {
             rash.defeatCount++;
+            rash.winGuaranteed = config.naitei.winNextBattle;
             const bonus = this.applyBonus(state, enemy.bonus);
-            const events = [{ type: 'naiteiResult', win: true, name: enemy.name, bonus, defeatCount: rash.defeatCount }];
+            const events = [{
+                type: 'naiteiResult', win: true, name: enemy.name, bonus, defeatCount: rash.defeatCount,
+                winNextBattle: rash.winGuaranteed
+            }];
             events.push(...this.checkOniUnlock(state, config));
             if (state.mode === MODES.RASH) {
                 events.push(StateMachine.transition(state, MODES.SUPER_RASH));
@@ -482,7 +488,7 @@ const Battle = {
         if (outcome.aligned) {
             const games = Lottery.weightedPick(config.rash.continueGames, g => g.weight, rng).games;
             rash.gamesRemaining = games;
-            rash.setWillWin = rng() < this.presetRate(state, config);
+            rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
             rash.phase = RASH_PHASES.BATTLE;
             return [{ type: 'questionResult', continued: true, games }];
         }
@@ -491,7 +497,7 @@ const Battle = {
         if (saver) {
             const games = Lottery.weightedPick(config.rash.continueGames, g => g.weight, rng).games;
             rash.gamesRemaining = games;
-            rash.setWillWin = rng() < this.presetRate(state, config);
+            rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
             rash.phase = RASH_PHASES.BATTLE;
             return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games }];
         }

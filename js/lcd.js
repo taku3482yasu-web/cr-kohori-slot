@@ -1689,11 +1689,18 @@ const Lcd = (() => {
             Sound.fanfare();
             showTitle('ゴールド金面犬 降臨!!', `倒せば2000枚!!　${sub}`, SUPER_COLOR, timing.battleIntro * 1.5);
             await sleep(timing.battleIntro * 1.5);
-            return;
+        } else {
+            startShake(config.effects.intensity.shakeSmall, 200);
+            showTitle(`VS ${event.name}`, sub, logoColor(), timing.battleIntro);
+            await sleep(timing.battleIntro);
         }
-        startShake(config.effects.intensity.shakeSmall, 200);
-        showTitle(`VS ${event.name}`, sub, logoColor(), timing.battleIntro);
-        await sleep(timing.battleIntro);
+        // 内定の時ゾーン突破の特典
+        if (event.winGuaranteed) {
+            startFlash(SUPER_COLOR, 400);
+            Sound.fanfare();
+            showTitle('勝利確定!!', `${event.name}を必ず倒せる!!`, SUPER_COLOR, 1600);
+            await sleep(1600);
+        }
     }
 
     // こおりくんの攻撃 → ヒット (白く光る・揺れ・ダメージの数字・HPバーが減る)
@@ -1861,6 +1868,12 @@ const Lcd = (() => {
             Sound.win();
             showTitle('突破ボーナス', bonusText(event.bonus), '#7fffd4', 1600);
             await sleep(1600);
+            if (event.winNextBattle) {
+                startFlash(SUPER_COLOR, 400);
+                Sound.fanfare();
+                showTitle('次のBATTLE', '勝利確定!!', SUPER_COLOR, 1800);
+                await sleep(1800);
+            }
             return;
         }
 

@@ -217,7 +217,7 @@
         <p id="castle-text"></p>
         <div class="table-wrap"><table id="castle-table"></table></div>
         <p id="castle-oni"></p>
-        <p class="note">設定が高いほど突入しやすくなります（表は設定1の値）。</p>
+        <p class="note">設定が高いほど突入しやすくなります（表は基準の値。設定ごとの倍率は「台の設定」の表を参照）。</p>
     </section>
 
     <section id="rash">
@@ -272,7 +272,7 @@
 
     <section id="roles">
         <h2>役と確率</h2>
-        <p class="note">確率は1ゲームあたりの当選確率（設定1の値）。チャンス目は揃いではない特別な出目です。</p>
+        <p class="note">確率は1ゲームあたりの当選確率（基準の値。チャンス目には設定ごとの倍率がかかります）。チャンス目は揃いではない特別な出目です。</p>
         <div class="table-wrap"><table id="role-table"></table></div>
         <h3>チャンス目</h3>
         <p>揃いではない特別な出目。CP が増えたり、城に突入しやすかったり、BATTLE で大ダメージになったり、RASH 終了後のリベンジチャンスで再突入できたりします。チャンス目の図柄はピンクに光り、種類ごとに専用の演出が出ます（スイカ崩れ: 果汁が飛び散る / BAR崩れ: BAR が落ちてくる / 7崩れ: 赤い光と大きな7で激アツ）。</p>
@@ -368,7 +368,7 @@
     const pc = c.pointChance;
     $('pc-text').innerHTML = `通常時に <b>${odds(pc.rate)}</b> で発生。こおりくんが「少ないポイント」（${pc.small.map(v => '+' + v).join(' / ')}）と` +
         `「多いポイント」（${pc.big.map(v => '+' + v).join(' / ')}）の吹き出しから1つを選びます。どちらを選ぶかは<b>そのゲームの出目</b>で決まります。`;
-    table('pc-table', ['出目', '「多い」を選ぶ確率（設定1）'],
+    table('pc-table', ['出目', '「多い」を選ぶ確率（基準）'],
         Object.entries(pc.bigRate).map(([role, r]) => [`${roleView(role)} ${SYMBOL_NAMES[role]}`, pct(r)]));
 
     // お仲間チャレンジ (ドット絵付き)
@@ -458,7 +458,7 @@
         `突入時に<b>仲間抽選</b>（${companionRateText}。まだ仲間でない人が対象）`,
         `1ゲームごとに<b>出目で突破を抽選</b>（下の表）。当たると HP が残っていても こおりくんの<b>「とどめだ!!」</b>カットインで決着！`,
         `${nz.games}ゲームでの突破率は <span class="red">約${pct(Battle.naiteiWinRate(c))}</span>。ふつうのダメージでは倒しきれず、仲間の肩代わりもありません`,
-        `<b>突破</b>: 暗転 →「内定は」→ 虹色の <span class="gold">「こおりがいただいた！」</span>。${bonusText(nz.enemy.bonus)}、おにおにRASH なら <span class="gold">SUPERおにおにRASH</span> へ`,
+        `<b>突破</b>: 暗転 →「内定は」→ 虹色の <span class="gold">「こおりがいただいた！」</span>。${bonusText(nz.enemy.bonus)}、おにおにRASH なら <span class="gold">SUPERおにおにRASH</span> へ。さらに <span class="gold">次の BATTLE は勝利確定!!</span>`,
         `<b>失敗</b>: おにおにRASH は終了して <b>SE城の城突入チャレンジ</b>へ戻る（仲間は残る）。SUPER 中なら SUPER は継続`,
         'ゾーン中にロングフリーズが発生すると突破確定'
     ].map(t => `<li>${t}</li>`).join('');

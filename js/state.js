@@ -149,6 +149,7 @@ function createRashState() {
         enemyMaxHp: 0,
         gamesRemaining: 0,
         setWillWin: false,       // このセット (BATTLE開始〜？？) を勝ちにするか (先決め)
+        winGuaranteed: false,    // 次の BATTLE (撃破まで) を勝利確定にするか (内定の時ゾーン突破の特典)
         defeatCount: 0,          // 1回のRASH内の撃破数
         oniUnlocked: false,      // おにおに出現フラグ
         nextForcedEnemy: null,   // 次の対戦相手の確定 (ゴールド金面犬撃破後など)

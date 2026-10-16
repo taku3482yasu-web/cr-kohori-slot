@@ -21,10 +21,10 @@ window.GAME_CONFIG = {
     machine: {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
-            1: { chance: 1.00, castleEntry: 1.00, pointBig: 1.00 },
-            2: { chance: 1.12, castleEntry: 1.08, pointBig: 1.10 },
-            3: { chance: 1.30, castleEntry: 1.20, pointBig: 1.25 },
-            4: { chance: 1.70, castleEntry: 1.55, pointBig: 1.50 },
+            1: { chance: 0.91, castleEntry: 0.94, pointBig: 0.93 },
+            2: { chance: 0.96, castleEntry: 0.97, pointBig: 0.97 },
+            3: { chance: 1.00, castleEntry: 1.00, pointBig: 1.00 },
+            4: { chance: 1.34, castleEntry: 1.25, pointBig: 1.28 },
             5: { chance: 2.20, castleEntry: 2.10, pointBig: 1.85 },
             6: { chance: 3.00, castleEntry: 3.00, pointBig: 2.25 }
         }
@@ -306,9 +306,11 @@ window.GAME_CONFIG = {
     //   SUPER:        突破で撃破ボーナス / 失敗しても SUPER は継続 (次の相手を決め直す)
     // 突破すると: 暗転 →「内定は」→ 虹色の「こおりがいただいた！」と、虹色に光るこおりくんのドアップ
     // ゾーン中にロングフリーズが当たると突破
+    //   winNextBattle: 突破後 (SUPER) の次の BATTLE を勝利確定にする (撃破するまで敵はガードせず、「？？」も必ず揃う)
     naitei: {
         triggerRoles: ['seven', 'sevenBar'],
         games: 10,
+        winNextBattle: true,
         winRates: {
             seven: 1.0,
             sevenBar: 1.0,
