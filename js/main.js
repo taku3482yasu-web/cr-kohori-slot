@@ -153,7 +153,16 @@
 
     spinButton.addEventListener('click', playGame);
     buyCoinsButton.addEventListener('click', buyCoins);
-    stopButtons.forEach((btn, i) => btn.addEventListener('click', () => Reels.stop(i)));
+    // STOP は指・マウスが触れた瞬間に止める (離したときの click を待たない)。
+    // キーボード・支援技術からの click でも止められるよう両方受け付ける (2回目は無視される)
+    stopButtons.forEach((btn, i) => {
+        btn.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0 || btn.disabled) return;
+            e.preventDefault();
+            Reels.stop(i);
+        });
+        btn.addEventListener('click', () => Reels.stop(i));
+    });
 
     // デバッグ用の強制遷移
     const debugAction = (fn) => () => {

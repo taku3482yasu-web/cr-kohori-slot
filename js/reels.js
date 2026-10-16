@@ -17,6 +17,7 @@ const Reels = (() => {
     let onStopCallback = null;
     let resolveSpin = null;
     let litCells = [];
+    let startTimers = [];      // リールを少しずつずらして回し始めるタイマー
 
     // 1コマの高さ (リールの窓は3コマ分)
     function symbolHeight() {
@@ -73,7 +74,9 @@ const Reels = (() => {
             strip.style.setProperty('--cycle', `-${strips[i].length * symbolHeight()}px`);
             strip.style.transition = 'none';
             strip.style.transform = 'translateY(0)';
-            setTimeout(() => {
+            // 回り始める前に STOP されたリールは回さない
+            startTimers[i] = setTimeout(() => {
+                if (stopped[i]) return;
                 strip.style.animation = 'reel-spin 0.25s linear infinite';
             }, i * staggerMs);
         });
@@ -86,6 +89,7 @@ const Reels = (() => {
         stopped[i] = true;
         stopButtons[i].disabled = true;
 
+        clearTimeout(startTimers[i]);
         const strip = reelEls[i].querySelector('.reel-strip');
         strip.style.animation = 'none';
         strip.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)';

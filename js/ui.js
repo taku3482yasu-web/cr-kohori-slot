@@ -162,6 +162,8 @@ const UI = (() => {
     }
 
     function onKeyDown(e) {
+        // スライダーなどの入力欄を操作しているときはゲームのキーとして扱わない
+        if (!capturingAction && e.target instanceof HTMLElement && e.target.matches('input, select, textarea')) return;
         if (capturingAction) {
             e.preventDefault();
             if (e.code !== 'Escape') assignKey(capturingAction, e.code);

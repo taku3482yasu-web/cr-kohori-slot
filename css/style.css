@@ -335,6 +335,29 @@ body.long-freeze .slot-machine {
     cursor: not-allowed;
 }
 
+/* 止められる STOP は赤く光らせる */
+.stop-button:not(:disabled) {
+    background: linear-gradient(to bottom, #ff7a5a, #c8321e);
+    border-color: #ffb09a;
+    box-shadow: 0 3px 0 #6a1a10, 0 0 8px rgba(255, 90, 60, 0.6);
+}
+
+/* 押した瞬間に沈む */
+.stop-button:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 #6a1a10, 0 0 4px rgba(255, 90, 60, 0.6);
+}
+
+/* 押せるレバーはゆっくり光る */
+#spin-button:not(:disabled) {
+    animation: lever-ready 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes lever-ready {
+    from { filter: brightness(1); }
+    to { filter: brightness(1.15); }
+}
+
 /* リーチ中: 残りの STOP が赤く光る */
 .stop-button.reach:not(:disabled) {
     background: linear-gradient(to bottom, #ff6a6a, #c01818);
