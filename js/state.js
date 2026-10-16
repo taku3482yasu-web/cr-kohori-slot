@@ -355,7 +355,7 @@ const GameFlow = {
             case RASH_PHASES.TREASURE:
                 return Battle.treasureGame(state, outcome, config);
             case RASH_PHASES.NAITEI:
-                return Battle.naiteiGame(state, outcome, config);
+                return Battle.naiteiGame(state, outcome, config, rng);
         }
         return [];
     },

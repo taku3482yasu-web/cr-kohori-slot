@@ -235,6 +235,7 @@
         <h2>内定の時</h2>
         <p id="naitei-text"></p>
         <ul id="naitei-list"></ul>
+        <div class="table-wrap"><table id="naitei-table"></table></div>
     </section>
 
     <section id="revenge">
@@ -435,11 +436,16 @@
         `画面が暗転し「ここから先」、<span class="red">「内定を持たぬものは通す事は出来ない」</span>の文字のあと、<b>${nz.enemy.name}</b> と <b>${nz.games}ゲーム</b>の1対1！`;
     $('naitei-list').innerHTML = [
         `突入時に<b>仲間抽選</b>（${companionRateText}。まだ仲間でない人が対象）`,
-        `突破率は <span class="red">${pct(nz.winRate)}</span>。BAR・7 が揃ってもガードを崩せず、仲間の肩代わりもありません`,
-        `<b>突破</b>: ${bonusText(nz.enemy.bonus)}。おにおにRASH なら <span class="gold">SUPERおにおにRASH</span> へ`,
+        `1ゲームごとに<b>出目で突破を抽選</b>（下の表）。当たると HP が残っていても こおりくんの<b>「とどめだ!!」</b>カットインで決着！`,
+        `${nz.games}ゲームでの突破率は <span class="red">約${pct(Battle.naiteiWinRate(c))}</span>。ふつうのダメージでは倒しきれず、仲間の肩代わりもありません`,
+        `<b>突破</b>: 暗転 →「内定は」→ 虹色の <span class="gold">「こおりがいただいた！」</span>。${bonusText(nz.enemy.bonus)}、おにおにRASH なら <span class="gold">SUPERおにおにRASH</span> へ`,
         `<b>失敗</b>: おにおにRASH は終了して <b>SE城の城突入チャレンジ</b>へ戻る（仲間は残る）。SUPER 中なら SUPER は継続`,
         'ゾーン中にロングフリーズが発生すると突破確定'
     ].map(t => `<li>${t}</li>`).join('');
+    table('naitei-table', ['出目', '突破の当選率'],
+        Object.entries(nz.winRates).sort((a, b) => b[1] - a[1]).map(([role, rate]) => [
+            `${roleView(role)} ${SYMBOL_NAMES[role]}`, rate >= 1 ? '<b class="red">確定</b>' : pct(rate)
+        ]));
 
     // 対戦相手 (ドット絵付き)
     const enemyCanvas = id => {

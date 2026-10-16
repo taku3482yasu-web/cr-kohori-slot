@@ -286,7 +286,20 @@ const Battle = {
         return forced || config.naitei.triggerRoles.includes(outcome.role);
     },
 
-    // 突入: 仲間抽選 → シーシャ・ナイテイ・ナイナイと games ゲームの1対1。突破するかは先決め (winRate)
+    // 1ゲームあたりの突破の当選確率 (RASH 中の確率表 × 役ごとの winRates)
+    naiteiGameWinRate(config) {
+        const table = config.lottery.battle;
+        const rates = config.naitei.winRates;
+        const missProb = 1 - Object.values(table).reduce((a, b) => a + b, 0);
+        return Object.entries(table).reduce((sum, [role, p]) => sum + p * (rates[role] || 0), missProb * (rates.miss || 0));
+    },
+
+    // ゾーン全体の突破率 (games ゲームのどこかで突破が当たる確率)
+    naiteiWinRate(config) {
+        return 1 - Math.pow(1 - this.naiteiGameWinRate(config), config.naitei.games);
+    },
+
+    // 突入: 仲間抽選 → シーシャ・ナイテイ・ナイナイと games ゲームの1対1。突破は1ゲームごとに出目で抽選 (winRates)
     startNaitei(state, config, rng) {
         const cfg = config.naitei;
         const rash = state.rash;
@@ -298,44 +311,34 @@ const Battle = {
         rash.gamesRemaining = cfg.games;
         rash.goldDogFlag = false;
         rash.breakActive = false;
-        rash.setWillWin = rng() < cfg.winRate;
         return [{
             type: 'naiteiStart',
             enemyId: cfg.enemy.id,
             name: cfg.enemy.name,
             hp: cfg.enemy.hp,
             games: cfg.games,
-            winRate: cfg.winRate,
+            winRate: this.naiteiWinRate(config),
             companions,
             isSuper: this.isSuper(state)
         }];
     },
 
-    // ゾーンの1ゲーム。負けのときは撃破役でもガードされ、勝ちのときは最後のゲームで必ず倒しきる
-    naiteiGame(state, outcome, config) {
+    // ゾーンの1ゲーム: 出目に応じて突破を抽選。当たれば HP に関係なく「とどめ」で撃破、
+    // 外れればふつうのダメージ (倒しきれる量でも HP1 でガードされる)
+    naiteiGame(state, outcome, config, rng) {
         const rash = state.rash;
         rash.gamesRemaining--;
+        const finisher = rng() < (config.naitei.winRates[outcome.role] || 0);
         const damage = this.damageFor(outcome.role, config);
-        let kill = damage === 'kill';
-        let companionHits = !kill && damage > 0 ? Companions.extraDamage(state, config) : [];
-        const extra = companionHits.reduce((sum, h) => sum + h.amount, 0);
-        let amount = kill ? rash.enemyHp : damage + extra;
+        const kill = finisher;
+        let companionHits = !finisher && damage !== 'kill' && damage > 0 ? Companions.extraDamage(state, config) : [];
+        let amount = finisher ? rash.enemyHp
+            : damage === 'kill' ? rash.enemyHp : damage + companionHits.reduce((sum, h) => sum + h.amount, 0);
         let guarded = false;
-        let finisher = false;
-        if (!rash.setWillWin && amount >= rash.enemyHp) {
+        if (!finisher && amount >= rash.enemyHp) {
             amount = rash.enemyHp - 1;
-            kill = false;
             companionHits = [];
             guarded = true;
-        } else if (rash.setWillWin && rash.gamesRemaining <= 0 && amount < rash.enemyHp) {
-            // 最後のゲーム: ハズレでもとどめの一撃
-            amount = rash.enemyHp;
-            kill = true;
-            companionHits = [];
-            finisher = true;
-        } else if (!kill && amount > rash.enemyHp) {
-            companionHits = this.trimFinishingHits(companionHits, damage, rash.enemyHp);
-            amount = rash.enemyHp;
         }
         rash.enemyHp = Math.max(0, rash.enemyHp - amount);
         const events = [{

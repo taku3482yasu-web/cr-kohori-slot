@@ -56,6 +56,7 @@ const Lcd = (() => {
     let chanceFx = null;       // チャンス目の演出 { name, start, duration, particles }
     let naiteiZone = false;    // 内定の時ゾーンの場面か
     let gateText = null;       // ゾーン突入の暗転と文字 { start, lines: [{ text, color, size, y, born, shake }], fadeStart }
+    let naiteiGet = null;      // ゾーン突破の演出 { phase: 'black' | 'text' | 'rainbow', start }
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
     const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true };
@@ -178,6 +179,11 @@ const Lcd = (() => {
     function draw(time) {
         if (freeze) {
             drawFreeze(time);
+            return;
+        }
+        if (naiteiGet) {
+            drawNaiteiGet(time);
+            drawFlash(time);
             return;
         }
         ctx.save();
@@ -804,9 +810,18 @@ const Lcd = (() => {
         // 虹色の表示
         const t = time - freeze.start;
         const hue = (t / 6) % 360;
-        // 背景の光の筋
+        drawRainbowRays(W / 2, 92, hue);
+        drawRainbowGlow(W / 2, 92, 52, hue);
+        drawRainbowKoori(W / 2 - 32, 60, 4, hue);
+        drawRainbowText(config.longFreeze.text, 14, 18, t, hue);
+        drawSparkles(t, hue);
+    }
+
+    // ----- 虹色の表示の部品 (ロングフリーズ・内定の時の突破) -----
+    // (cx, cy) から放射状に伸びる虹色の光の筋
+    function drawRainbowRays(cx, cy, hue) {
         ctx.save();
-        ctx.translate(W / 2, 92);
+        ctx.translate(cx, cy);
         for (let i = 0; i < 12; i++) {
             ctx.rotate(Math.PI / 6);
             ctx.fillStyle = `hsla(${(hue + i * 30) % 360}, 90%, 55%, 0.18)`;
@@ -818,25 +833,29 @@ const Lcd = (() => {
             ctx.fill();
         }
         ctx.restore();
-        // こおりくん (虹色に光る)
-        const glow = ctx.createRadialGradient(W / 2, 92, 4, W / 2, 92, 52);
+    }
+
+    function drawRainbowGlow(cx, cy, radius, hue) {
+        const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, radius);
         glow.addColorStop(0, `hsla(${hue}, 100%, 70%, 0.9)`);
         glow.addColorStop(1, `hsla(${(hue + 120) % 360}, 100%, 50%, 0)`);
         ctx.fillStyle = glow;
-        ctx.fillRect(W / 2 - 60, 32, 120, 120);
-        drawRainbowKoori(W / 2 - 32, 60, 4, hue);
-        // 文字 (1文字ずつ色を変えて揺らす)
-        const message = config.longFreeze.text;
-        const size = 18;
+        ctx.fillRect(cx - radius - 8, cy - radius - 8, radius * 2 + 16, radius * 2 + 16);
+    }
+
+    // 1文字ずつ色を変えて揺らす虹色の文字 (中央寄せ)
+    function drawRainbowText(message, y, size, t, hue) {
         ctx.font = `${size}px ${FONT}`;
         const widths = [...message].map(ch => ctx.measureText(ch).width);
         let x = W / 2 - widths.reduce((a, b) => a + b, 0) / 2;
         [...message].forEach((ch, i) => {
-            const y = 14 + Math.round(Math.sin(t / 150 + i * 0.7) * 3);
-            text(ch, x, y, { color: `hsl(${(hue + i * 28) % 360}, 95%, 62%)`, size, outline: '#000' });
+            const cy = y + Math.round(Math.sin(t / 150 + i * 0.7) * 3);
+            text(ch, x, cy, { color: `hsl(${(hue + i * 28) % 360}, 95%, 62%)`, size, outline: '#000' });
             x += widths[i];
         });
-        // きらきら
+    }
+
+    function drawSparkles(t, hue) {
         for (let i = 0; i < 24; i++) {
             const sx = (i * 97 + t * 0.03) % W;
             const sy = (i * 53 + t * 0.02 * (1 + (i % 3))) % H;
@@ -845,9 +864,9 @@ const Lcd = (() => {
         }
     }
 
-    // こおりくんを虹色に塗る (ドット絵の上に色を重ねる)
+    // こおりくんを虹色に塗る (ドット絵の上に色を重ねる)。white (0〜1) で白く光らせる
     const rainbowCanvas = document.createElement('canvas');
-    function drawRainbowKoori(x, y, scale, hue) {
+    function drawRainbowKoori(x, y, scale, hue, white = 0) {
         const size = 16 * scale;
         rainbowCanvas.width = size;
         rainbowCanvas.height = size;
@@ -860,7 +879,57 @@ const Lcd = (() => {
         g.globalAlpha = 0.6;
         g.fillStyle = grad;
         g.fillRect(0, 0, size, size);
+        if (white > 0) {
+            g.globalAlpha = white;
+            g.fillStyle = '#ffffff';
+            g.fillRect(0, 0, size, size);
+        }
         ctx.drawImage(rainbowCanvas, x, y);
+    }
+
+    // ----- 内定の時の突破 -----
+    // 暗転 →「内定は」→ 虹色の「こおりがいただいた！」と、虹色のこおりくんのドアップ (寄りながら白く点滅)
+    function drawNaiteiGet(time) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        const t = time - naiteiGet.start;
+        if (naiteiGet.phase === 'black') return;
+        if (naiteiGet.phase === 'text') {
+            ctx.globalAlpha = Math.min(1, t / 300);
+            text('内定は', W / 2, H / 2 - 14, { size: 24, align: 'center', color: '#ffffff' });
+            ctx.globalAlpha = 1;
+            return;
+        }
+        const hue = (t / 6) % 360;
+        const cx = W / 2, cy = 84;
+        drawRainbowRays(cx, cy, hue);
+        drawRainbowGlow(cx, cy, 60, hue);
+        // ドアップ: 3倍から7倍まで一気に寄る
+        const scale = Math.round(3 + 4 * Math.min(1, t / 350));
+        const size = 16 * scale;
+        const white = t % 400 < 110 ? 0.85 : 0;
+        drawRainbowKoori(Math.round(cx - size / 2), Math.round(cy - size / 2), scale, hue, white);
+        drawRainbowText('こおりがいただいた！', 8, 18, t, hue);
+        drawSparkles(t, hue);
+    }
+
+    async function playNaiteiGet() {
+        const timing = config.naitei.timing;
+        clearMessage();
+        titleCard = null;
+        naiteiGet = { phase: 'black', start: performance.now() };
+        Sound.miss();
+        await sleep(timing.getBlack);
+        naiteiGet = { phase: 'text', start: performance.now() };
+        Sound.stop(2);
+        await sleep(timing.getText);
+        naiteiGet = { phase: 'rainbow', start: performance.now() };
+        startFlash('#ffffff', 500);
+        Sound.rainbow();
+        setTimeout(Sound.fanfare, 600);
+        await sleep(timing.getRainbow);
+        naiteiGet = null;
+        startFlash('#ffffff', 600);
     }
 
     async function longFreeze() {
@@ -1451,7 +1520,10 @@ const Lcd = (() => {
         if (event.freeze) {
             await playCutIn('koori', '完全撃破!!', '#8a2ab0');
         } else if (event.finisher) {
-            await playCutIn('koori', 'とどめ!!', '#b01828');
+            // 内定の時: HP が残っていても、このカットインで決着
+            startFlash('#ffffff', 300);
+            Sound.chance();
+            await playCutIn('koori', 'とどめだ!!', '#b01828', 1400);
         } else if (event.big && Math.random() < config.effects.cutInRate) {
             await playCutIn('koori', event.kill ? '必殺!!' : 'くらえ!!', event.kill ? '#b01828' : '#1a5ab0');
         }
@@ -1534,7 +1606,7 @@ const Lcd = (() => {
         Sound.fanfare();
         const logoStart = performance.now();
         bigLogo = {
-            text: '内定の時', sub: `突破率${Math.round(event.winRate * 100)}%!!`, color: NAITEI_COLOR, outline: '#300010',
+            text: '内定の時', sub: `突破率 約${Math.round(event.winRate * 100)}%!! チャンス目で突破を狙え`, color: NAITEI_COLOR, outline: '#300010',
             size: 24, start: logoStart, until: logoStart + 2200
         };
         await sleep(2200);
@@ -1591,12 +1663,14 @@ const Lcd = (() => {
             animateTo(battle.alpha, 0, 800);
             animateTo(battle.drop, 20, 800);
             battle.defeats = event.defeatCount;
-            showTitle('突破!!', '内定を勝ち取った!!', '#ffd700', config.effects.timing.defeatMovie);
-            await sleep(config.effects.timing.defeatMovie);
+            await sleep(900);
             battle.visible = false;
             battle.enemyId = null;
             battle.games = null;
+            await playNaiteiGet();
             naiteiZone = false;
+            showTitle('突破!!', '内定を勝ち取った!!', '#ffd700', 1800);
+            await sleep(1800);
             Sound.win();
             showTitle('突破ボーナス', bonusText(event.bonus), '#7fffd4', 1600);
             await sleep(1600);

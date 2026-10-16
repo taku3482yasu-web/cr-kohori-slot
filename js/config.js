@@ -273,15 +273,29 @@ window.GAME_CONFIG = {
     // 対戦相手とゲーム数を決める1ゲーム (SELECT) で triggerRoles が揃うと突入。
     // 暗転 →「ここから先」「内定を持たぬものは通す事は出来ない」→ 仲間抽選 → enemy と games ゲームの1対1
     //   companionRates: 突入時の仲間抽選。まだ仲間でない人それぞれが、この確率で加わる
-    //   winRate:        突破率 (先決め)。撃破役でもガードは崩せず、肩代わりもない
-    //                   突破するときは最後のゲームまでに必ず倒しきる
+    //   winRates:       突破の抽選。ゾーン中の1ゲームごとに、出目 (役) に応じたこの確率で突破が当たる
+    //                   当たると HP に関係なく「とどめだ!!」で撃破。games ゲームで当たらなければ失敗
+    //                   ふつうのダメージでは倒しきれない (HP1 でガード)。肩代わりもない
+    //                   突破率は lottery.battle と winRates から計算される (約50%、Battle.naiteiWinRate)
     //   おにおにRASH: 突破で SUPER へ / 失敗で RASH 終了 → SE城の城突入チャレンジへ (仲間は残る)
     //   SUPER:        突破で撃破ボーナス / 失敗しても SUPER は継続 (次の相手を決め直す)
+    // 突破すると: 暗転 →「内定は」→ 虹色の「こおりがいただいた！」と、虹色に光るこおりくんのドアップ
     // ゾーン中にロングフリーズが当たると突破
     naitei: {
         triggerRoles: ['seven', 'sevenBar'],
         games: 10,
-        winRate: 0.5,
+        winRates: {
+            seven: 1.0,
+            sevenBar: 1.0,
+            chance: 0.55,
+            bar: 0.5,
+            melon: 0.25,
+            cherry: 0.15,
+            diamond: 0.05,
+            bell: 0.02,
+            replay: 0.01,
+            miss: 0.01
+        },
         companionRates: { yasu: 0.5, tamu: 0.35, dake: 0.2 },
         enemy: {
             id: 'naitei', name: 'シーシャ・ナイテイ・ナイナイ',
@@ -291,7 +305,10 @@ window.GAME_CONFIG = {
         timing: {             // ミリ秒
             black: 800,       // 暗転
             text1: 1400,      // 「ここから先」
-            text2: 2800       // 「内定を持たぬものは通す事は出来ない」
+            text2: 2800,      // 「内定を持たぬものは通す事は出来ない」
+            getBlack: 700,    // 突破: 暗転
+            getText: 1600,    // 突破:「内定は」
+            getRainbow: 3600  // 突破: 虹色の「こおりがいただいた！」とこおりくんのドアップ
         }
     },
 
