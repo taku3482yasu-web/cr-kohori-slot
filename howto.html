@@ -320,12 +320,12 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js"></script>
-<script src="js/sprites.js"></script>
-<script src="js/characters.js"></script>
-<script src="js/state.js"></script>
-<script src="js/lottery.js"></script>
-<script src="js/battle.js"></script>
+<script src="js/config.js?v=11ee6995"></script>
+<script src="js/sprites.js?v=056d5554"></script>
+<script src="js/characters.js?v=8d314eb2"></script>
+<script src="js/state.js?v=a367a3ca"></script>
+<script src="js/lottery.js?v=ef41b4a7"></script>
+<script src="js/battle.js?v=cefcf8c5"></script>
 <script>
     // 表示する数値はすべて js/config.js から作る (数値を調整してもこのページは自動で追従する)
     const c = window.GAME_CONFIG;
@@ -534,6 +534,7 @@
     // SUPER
     $('super-list').innerHTML = [
         'おにおにを倒すと移行。背景とロゴが金色に！ こおりくんのお母さん・ともいしも出てきます',
+        'SUPER 中におにおにを倒すと、<span class="gold">ともいし救出のエンディング</span>！（液晶かレバーでスキップ）',
         `継続率は <span class="gold">${pct(c.rash.super.continueRate)}</span>`,
         'おにおにが常に対戦相手の候補に入ります',
         `${odds(c.goldDog.prob)} で <span class="gold">${c.goldDog.name}</span> が出現。倒すと <b>${c.goldDog.bonus.value}枚</b>、次の相手はおにおに確定`,

@@ -347,6 +347,11 @@ const UI = (() => {
         if (!actionId) return;
         e.preventDefault();
         if (e.repeat) return;
+        // オープニング・エンディング中のレバーはスキップ (演出中でレバーが押せなくても)
+        if (actionId === 'lever' && Lcd.storyActive()) {
+            Lcd.skipStory();
+            return;
+        }
         if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
         const button = keyActions[actionId];
         if (button && !button.disabled) button.click();
@@ -530,6 +535,7 @@ const UI = (() => {
             ['ロングフリーズ', `${r.freeze || 0}回`],
             ['台移動', `${r.moves || 0}回`],
             ['復活', `${r.revival || 0}回`],
+            ['エンディング', `${r.ending || 0}回`],
             ['1回の RASH の最高獲得', `${(r.bestCoins || 0).toLocaleString()}枚`],
             ['1回の RASH の最多撃破', `${r.bestDefeats || 0}体`]
         ];

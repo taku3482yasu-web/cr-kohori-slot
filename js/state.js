@@ -137,7 +137,7 @@ function createInitialState(config, rng = Math.random) {
             defeats: {},       // 敵ごとの撃破数 { 敵の id: 回数 }
             specials: {},      // 見た必殺技ごとの回数 { 敵・仲間の id / こおりくんは koori・kooriKill: 回数 }
             trophies: {},      // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
-            records: { games: 0, rash: 0, super: 0, naitei: 0, freeze: 0, moves: 0, revival: 0, bestCoins: 0, bestDefeats: 0 },
+            records: { games: 0, rash: 0, super: 0, naitei: 0, freeze: 0, moves: 0, revival: 0, ending: 0, bestCoins: 0, bestDefeats: 0 },
             achievements: {},  // 解除した実績 { 実績の id: 解除したときの合計ゲーム数 }
             met: {}            // 会ったキャラクター (図鑑の説明の解禁) { id: 1 }
         },
@@ -188,6 +188,7 @@ function createRashState() {
         treasureGames: 0,        // 宝物庫ゾーンの残りゲーム数
         treasureTotal: 0,        // 宝物庫ゾーンで上乗せしたゲーム数の合計
         treasureReturnPhase: null, // 宝物庫ゾーンが終わったら戻るフェーズ
+        endingShown: false,      // このRASHでエンディングを流したか (SUPER 中におにおにを撃破すると流れる)
         coinsWon: 0              // このRASHでの獲得枚数
     };
 }
@@ -300,6 +301,7 @@ const Collection = {
                     if (e.success) this.meet(state, e.memberId);
                     break;
                 case 'revival': r.revival = (r.revival || 0) + 1; break;
+                case 'ending': r.ending = (r.ending || 0) + 1; break;
                 case 'defeat': add(c.defeats, e.enemyId); break;
                 case 'damage':
                     // とどめの必殺技 (液晶でカットインが出るのと同じ条件)

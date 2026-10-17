@@ -234,6 +234,12 @@ const Battle = {
 
         events.push(...this.checkOniUnlock(state, config));
 
+        // SUPER 中におにおにを撃破: ともいし救出のエンディング (SUPER 1回につき1回)
+        if (enemy.id === 'onioni' && state.mode === MODES.SUPER_RASH && !rash.endingShown) {
+            rash.endingShown = true;
+            events.push({ type: 'ending' });
+        }
+
         if (enemy.id === 'onioni' && state.mode === MODES.RASH) {
             events.push(StateMachine.transition(state, MODES.SUPER_RASH));
             state.superCount++;

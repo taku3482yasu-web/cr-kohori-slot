@@ -111,12 +111,14 @@ function play(setting, games, seed) {
         enemyIdMissing: 0,       // 「？？」の失敗・肩代わりに敵の id がない
         questionFails: 0,
         revenge: { success: 0, toSuper: 0, fromSuper: 0, carried: 0, wrong: 0 },
-        oniUnlockInSuper: 0,     // SUPER 中に「おにおにが現れる…!?」が出た回数 (出てはいけない)
+        oniUnlockInSuper: 0,
+        ending: { count: 0, notSuperOni: 0, twiceInSet: 0, supers: 0 },   // エンディング (SUPER 中のおにおに撃破で、SUPER 1回につき1回)     // SUPER 中に「おにおにが現れる…!?」が出た回数 (出てはいけない)
         joined: new Set(),       // 仲間になった仲間の id
         revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0, notSeven: 0, paid: 0 },
         furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0 }
     };
     let pendingGuaranteed = false;
+    let endingInSet = false;   // この RASH でエンディングが出たか
     for (let g = 0; g < games; g++) {
         const mode = state.mode;
         if (mode === MODES.NORMAL || mode === MODES.CASTLE_CHALLENGE) log.normalGames++;
@@ -171,6 +173,14 @@ function play(setting, games, seed) {
             }
             if (e.type === 'companionChallenge' && e.success) log.joined.add(e.memberId);
             if (e.type === 'oniUnlocked' && mode === MODES.SUPER_RASH) log.oniUnlockInSuper++;
+            if (e.type === 'superStart') log.ending.supers++;
+            if (e.type === 'ending') {
+                log.ending.count++;
+                if (mode !== MODES.SUPER_RASH || !events.some(d => d.type === 'defeat' && d.enemyId === 'onioni')) log.ending.notSuperOni++;
+                if (endingInSet) log.ending.twiceInSet++;
+                endingInSet = true;
+            }
+            if (e.type === 'rashStart' || e.type === 'rashEnd') endingInSet = false;
             if (e.type === 'revival') {
                 log.revival.revived++;
                 if (outcome.role !== 'seven' || !outcome.aligned) log.revival.notSeven++;
@@ -489,6 +499,16 @@ test('おにおに出現: SUPER 中は常に候補に入っているので「お
     for (const { setting, log } of runs) assertEqual(log.oniUnlockInSuper, 0, `設定${setting} の SUPER 中のおにおに出現`);
 });
 
+test('エンディング: SUPER 中におにおにを撃破したときだけ、SUPER 1回につき1回流れ、図鑑の回数が合う', () => {
+    for (const { setting, state, log } of runs) {
+        const e = log.ending;
+        assert(e.count > 0, `設定${setting} でエンディングが一度もない`);
+        assertEqual(e.notSuperOni, 0, `設定${setting} で SUPER 中のおにおに撃破以外のエンディング`);
+        assertEqual(e.twiceInSet, 0, `設定${setting} で1回の RASH にエンディングが2回`);
+        assertEqual(state.collection.records.ending, e.count, `設定${setting} の図鑑のエンディングの回数`);
+    }
+});
+
 test('リベンジチャンス: 成功すると前の RASH の撃破数を引き継ぎ、SUPER だったら SUPER に戻る', () => {
     for (const { setting, log } of runs) {
         const r = log.revenge;
@@ -559,7 +579,7 @@ test('保存データ: 以前の形式 (履歴・台番号なし) も読み込�
 // ----- 結果 -----
 for (const r of results) console.log(`${r.ok ? '  ✔' : '  ✘'} ${r.name}${r.ok ? '' : `\n      → ${r.message}`}`);
 const failed = results.filter(r => !r.ok).length;
-const summary = runs.map(r => `設定${r.setting}: RASH ${r.state.rashCount}回 / トロフィー ${pct(r.log.trophies.shown / r.log.trophies.total)}`).join('  ');
+const summary = runs.map(r => `設定${r.setting}: RASH ${r.state.rashCount}回 / トロフィー ${pct(r.log.trophies.shown / r.log.trophies.total)} / SUPER ${r.log.ending.supers}回・エンディング ${r.log.ending.count}回`).join('  ');
 console.log(`\n${summary}`);
 console.log(`\n${results.length - failed} / ${results.length} 成功 (${((Date.now() - started) / 1000).toFixed(1)} 秒)`);
 process.exit(failed ? 1 : 0);

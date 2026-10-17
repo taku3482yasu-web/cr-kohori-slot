@@ -644,7 +644,7 @@ window.GAME_CONFIG = {
     // ----- 図鑑・実績 -----
     // 図鑑 (撃破した敵・見た必殺技・トロフィーの色・記録) と実績は台移動しても残る (リセットすると消える)。
     // 実績は stat の値が value 以上になると解除:
-    //   rash / super / naitei / freeze / moves / games: 合計の回数 (RASH・SUPER 突入、内定の時突破、ロングフリーズ、台移動、ゲーム数)
+    //   rash / super / naitei / freeze / moves / games / ending: 合計の回数 (RASH・SUPER 突入、内定の時突破、ロングフリーズ、台移動、ゲーム数、エンディング)
     //   bestCoins / bestDefeats: 1回の RASH での最高 (獲得枚数・撃破数)
     //   defeat:<敵の id>: その敵の撃破数 / trophy:<色>: その色のトロフィーが出た回数
     //   enemyKinds / specialKinds / trophyKinds: 図鑑の埋まった数 (value: 'all' は全部)
@@ -666,7 +666,8 @@ window.GAME_CONFIG = {
             { id: 'allSpecials', name: '必殺技マスター', desc: 'すべての必殺技を見る', stat: 'specialKinds', value: 'all' },
             { id: 'moves5', name: '台選び上手', desc: '台移動を合計5回する', stat: 'moves', value: 5 },
             { id: 'games10000', name: '打ち込み1万G', desc: '合計10,000ゲーム回す', stat: 'games', value: 10000 },
-            { id: 'revival', name: 'こおりまだまえる', desc: '復活して敵を撃破する', stat: 'revival', value: 1 }
+            { id: 'revival', name: 'こおりまだまえる', desc: '復活して敵を撃破する', stat: 'revival', value: 1 },
+            { id: 'ending', name: 'ともいし救出', desc: 'SUPER中におにおにを倒して、エンディングを見る', stat: 'ending', value: 1 }
         ]
     },
 

@@ -185,8 +185,8 @@ const Lcd = (() => {
     }
 
     function draw(time) {
-        if (OpeningView.active()) {
-            OpeningView.draw(time);
+        if (StoryView.active()) {
+            StoryView.draw(time);
             return;
         }
         if (freeze) {
@@ -2214,6 +2214,13 @@ const Lcd = (() => {
         drawSprite(ctx, SPRITES.koori, 'walk1', x, hall.groundY - size, KOORI_SCALE);
     }
 
+    // エンディング (SUPER 中におにおにを撃破。js/lcd/ending-view.js)
+    async function ending() {
+        clearMessage();
+        titleCard = null;
+        await StoryView.play('ending');
+    }
+
     async function rashEnd(event) {
         const name = event.wasSuper ? 'SUPERおにおにRASH' : 'おにおにRASH';
         TrophyView.show(event.trophy);
@@ -2351,6 +2358,9 @@ const Lcd = (() => {
                 case 'superStart':
                     await superStart();
                     break;
+                case 'ending':
+                    await ending();
+                    break;
                 case 'debug':
                     syncWithState();
                     break;
@@ -2366,9 +2376,9 @@ const Lcd = (() => {
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
         reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout,
-        playOpening: () => OpeningView.play(),
-        skipOpening: () => OpeningView.skip(),
-        openingActive: () => OpeningView.active(),
+        playOpening: () => StoryView.play('opening'),
+        skipStory: () => StoryView.skip(),
+        storyActive: () => StoryView.active(),
         hideTrophy: () => TrophyView.hide(),
         showFurukawa: talk => FurukawaView.show(talk),
         hideFurukawa: () => FurukawaView.hide()

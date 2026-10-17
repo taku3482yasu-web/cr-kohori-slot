@@ -1,0 +1,8 @@
+#!/bin/sh
+# コミットのたびに、HTML が読み込む js / css の版番号 (?v=) を付け直してコミットに含める
+# (ブラウザに古いファイルを使わせないため。tools/bump-version.js)
+# 有効にするには、このフォルダで一度だけ: git config core.hooksPath .githooks
+changed=$(node tools/bump-version.js) || exit 1
+for file in $changed; do
+    git add "$file"
+done

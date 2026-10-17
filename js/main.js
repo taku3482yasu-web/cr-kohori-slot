@@ -50,8 +50,8 @@
     async function playGame() {
         startAudio();
         // オープニング中のレバーはスキップ
-        if (Lcd.openingActive()) {
-            Lcd.skipOpening();
+        if (Lcd.storyActive()) {
+            Lcd.skipStory();
             return;
         }
         const cost = config.coins.spinCost;
@@ -216,6 +216,7 @@
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),
         revival: debugAction(() => DebugState.toRevival(state, config)),
         opening: () => { if (!Reels.isSpinning() && !spinButton.disabled) Lcd.playOpening(); },
+        ending: debugAction(() => [{ type: 'ending' }]),
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },
         forceGold: debugAction(() => DebugState.forceEnemy(state, config.goldDog.id)),
         coins: debugAction(() => { state.coins += 1000; })
@@ -225,7 +226,7 @@
     });
 
     // オープニング: はじめて遊ぶとき (保存データがないとき)・リセットしたあと・台移動したあとに流す。液晶かレバーを押すとスキップ
-    document.getElementById('lcd').addEventListener('click', () => Lcd.skipOpening());
+    document.getElementById('lcd').addEventListener('click', () => Lcd.skipStory());   // オープニング・エンディング
     const openingRequested = SaveData.takeOpeningRequest();
     const opening = !savedState || openingRequested ? Lcd.playOpening() : Promise.resolve();
 
