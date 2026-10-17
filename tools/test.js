@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -270,6 +270,68 @@ test('必殺技: 「？？」で継続できなかったとき (肩代わりも�
     for (const { setting, log } of runs) assertEqual(log.enemyIdMissing, 0, `設定${setting} の敵の id がないイベント`);
 });
 
+test('設定推測: 通常時のチャンス目の出現率が計算値と合う', () => {
+    for (const { setting, state, game } of runs) {
+        const e = state.estimate;
+        const p = game.SettingEstimate.chanceRate(game.config, setting);
+        const sd = Math.sqrt(p * (1 - p) / e.normalGames);
+        assertBetween(e.normalChance / e.normalGames, p - 4 * sd, p + 4 * sd, `設定${setting} のチャンス目の出現率`);
+    }
+});
+
+test('設定推測: 城突入チャレンジの成功率が計算値と合う', () => {
+    for (const { setting, state, game } of runs) {
+        const challenges = Object.entries(state.estimate.challenges);
+        assert(challenges.length > 0, `設定${setting} で城突入チャレンジがない`);
+        for (const [boost, c] of challenges) {
+            if (c.tries < 200) continue;
+            const p = game.SettingEstimate.challengeRate(game.config, setting, Number(boost));
+            const sd = Math.sqrt(p * (1 - p) / c.tries);
+            assertBetween(c.wins / c.tries, p - 4 * sd, p + 4 * sd, `設定${setting} (仲間の倍率 ${boost}) の成功率`);
+        }
+    }
+});
+
+test('設定推測: 何も見ていないときは台の設定の抽選の重みどおり、長く打つと台の設定がいちばん高い', () => {
+    const { SettingEstimate, createInitialState, config } = base;
+    const weights = config.machine.weights;
+    const total = Object.values(weights).reduce((a, b) => a + b, 0);
+    const first = SettingEstimate.probabilities(createInitialState(config), config);
+    for (const s of Object.keys(weights)) assertBetween(first[s], weights[s] / total - 1e-9, weights[s] / total + 1e-9, `設定${s} の最初の可能性`);
+    for (const { setting, state, game } of runs) {
+        const probs = game.SettingEstimate.probabilities(state, game.config);
+        const sum = Object.values(probs).reduce((a, b) => a + b, 0);
+        assertBetween(sum, 1 - 1e-9, 1 + 1e-9, `設定${setting} の可能性の合計`);
+        const best = Object.keys(probs).reduce((a, b) => (probs[b] > probs[a] ? b : a));
+        assertEqual(Number(best), setting, `設定${setting} の台で可能性がいちばん高い設定`);
+    }
+});
+
+test('図鑑・実績: 記録・トロフィーが数えられ、解除した実績は条件を満たしている', () => {
+    for (const { setting, state, log, game } of runs) {
+        const c = state.collection;
+        const { Collection, config } = game;
+        assertEqual(c.records.games, GAMES, `設定${setting} の合計ゲーム数`);
+        assertEqual(c.records.rash, state.rashCount, `設定${setting} の RASH 突入`);
+        assertEqual(c.records.super, state.superCount, `設定${setting} の SUPER 突入`);
+        const trophies = Object.values(c.trophies).reduce((a, b) => a + b, 0);
+        assertEqual(trophies, log.trophies.shown, `設定${setting} のトロフィーの回数`);
+        const best = Math.max(...log.rashEnds.map(e => e.coinsWon));
+        assertEqual(c.records.bestCoins, best, `設定${setting} の最高獲得枚数`);
+        const ids = Collection.entries(config);
+        for (const id of Object.keys(c.defeats)) assert(ids.enemies.some(e => e.id === id), `設定${setting}: 図鑑にない敵 ${id}`);
+        for (const id of Object.keys(c.specials)) assert(ids.specials.some(s => s.id === id), `設定${setting}: 図鑑にない必殺技 ${id}`);
+        for (const a of config.collection.achievements) {
+            const done = c.achievements[a.id] != null;
+            assertEqual(done, Collection.stat(c, a.stat) >= Collection.target(config, a), `設定${setting} の実績「${a.name}」`);
+        }
+    }
+    const all = base.Collection.entries(base.config);
+    const six = runs[5].state.collection;
+    assertEqual(Object.keys(six.defeats).length, all.enemies.length, '設定6で全員撃破');
+    assertEqual(Object.keys(six.specials).length, all.specials.length, '設定6ですべての必殺技');
+});
+
 test('台移動: コイン・投資額・獲得枚数は持ち越し、台の設定・進行状況・データカウンターは新しい台', () => {
     const { state } = runs[5];
     const { MachineMove, MODES, config } = runs[5].game;
@@ -283,6 +345,8 @@ test('台移動: コイン・投資額・獲得枚数は持ち越し、台の設
     assertEqual(next.rashCount, 0, 'RASH 回数');
     assertEqual(next.hitHistory.length, 0, '大当たり履歴');
     assertEqual(next.companions.length, 0, '仲間');
+    assertEqual(next.estimate.normalGames, 0, '設定推測の材料');
+    assertEqual(next.collection, state.collection, '図鑑・実績は引き継ぐ');
     assert(config.machine.multipliers[next.setting], `台の設定が不正: ${next.setting}`);
     // 設定は抽選し直し (同じ設定になることもあるが、何度か移れば変わる)
     const settings = new Set(Array.from({ length: 50 }, () => MachineMove.next(state, config).setting));
@@ -304,6 +368,8 @@ test('保存データ: 保存して読み込むと、コイン・履歴・台番
     const loadedMoved = SaveData.load(config);
     assertEqual(loadedMoved.machineNo, moved.machineNo, '台番号');
     assertEqual(loadedMoved.justMoved, true, '台移動の印');
+    assertEqual(JSON.stringify(loadedMoved.collection), JSON.stringify(moved.collection), '図鑑・実績');
+    assertEqual(JSON.stringify(loadedMoved.estimate), JSON.stringify(moved.estimate), '設定推測の材料');
 });
 
 test('保存データ: 以前の形式 (履歴・台番号なし) も読み込める', () => {
@@ -312,11 +378,15 @@ test('保存データ: 以前の形式 (履歴・台番号なし) も読み込�
     delete old.hitHistory;
     delete old.gamesSinceHit;
     delete old.machineNo;
+    delete old.estimate;
+    delete old.collection;
     SaveData.save(old);
     const loaded = SaveData.load(config);
     assert(loaded, '読み込めない');
     assert(Array.isArray(loaded.hitHistory) && loaded.hitHistory.length === 0, '履歴が空の配列になっていない');
     assertEqual(loaded.machineNo, 1, '台番号');
+    assertEqual(loaded.collection.records.games, 0, '図鑑・実績が初期値');
+    assertEqual(loaded.estimate.normalGames, 0, '設定推測の材料が初期値');
 });
 
 // ----- 結果 -----

@@ -58,6 +58,7 @@ body {
 
 #settings-button,
 #howto-button,
+#collection-button,
 #move-button,
 #reset-button {
     padding: 8px 16px;
@@ -84,6 +85,10 @@ body {
 
 #move-button {
     border-color: #6ac8a0;
+}
+
+#collection-button {
+    border-color: #ff9a3c;
 }
 
 .move-warning {
@@ -642,6 +647,76 @@ body[data-mode="CASTLE_CHALLENGE"] #spin-button:not(:disabled) {
     background: linear-gradient(90deg, #ff4040, #ffd040, #40e060, #40a0ff, #c060ff);
 }
 
+.dc-note {
+    margin-left: 6px;
+    color: #8a93a8;
+    font-size: 0.75rem;
+}
+
+.dc-estimate-bars {
+    margin-top: 6px;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.dc-est-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+}
+
+.dc-est-name {
+    width: 3.5em;
+    color: #8a93a8;
+}
+
+.dc-est-track {
+    flex: 1;
+    height: 10px;
+    background: #222838;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.dc-est-track i {
+    display: block;
+    height: 100%;
+    background: #3a8fd8;
+}
+
+.dc-est-value {
+    width: 5.5em;
+    text-align: right;
+}
+
+.dc-est-best .dc-est-name,
+.dc-est-best .dc-est-value {
+    color: #ff9a3c;
+}
+
+.dc-est-best .dc-est-track i {
+    background: #ff9a3c;
+}
+
+.dc-estimate-facts {
+    margin: 8px 0 0;
+    padding-left: 1.2em;
+    font-size: 0.8rem;
+    line-height: 1.6;
+}
+
+.dc-estimate-facts b {
+    color: #ddd;
+    font-weight: normal;
+    margin-right: 4px;
+}
+
+.dc-estimate-facts .dc-note {
+    display: block;
+    margin-left: 0;
+}
+
 .dc-empty {
     margin: 6px 0 0;
     color: #667;
@@ -748,6 +823,219 @@ body[data-mode="CASTLE_CHALLENGE"] #spin-button:not(:disabled) {
     width: 100%;
     margin-top: 10px;
     padding: 10px;
+}
+
+/* 図鑑・実績 */
+.collection-content {
+    max-width: 520px;
+}
+
+.col-count {
+    margin-left: 6px;
+    color: #ff9a3c;
+    font-size: 0.85rem;
+    font-weight: normal;
+}
+
+.col-achievements,
+.col-specials {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.85rem;
+}
+
+.col-achievements li {
+    display: grid;
+    grid-template-columns: 1.4em 1fr auto;
+    column-gap: 4px;
+    padding: 4px 0;
+    border-bottom: 1px solid #333;
+    color: #888;
+}
+
+.col-achievements .col-star {
+    grid-row: span 2;
+    color: #666;
+}
+
+.col-achievements .col-name {
+    font-weight: bold;
+}
+
+.col-achievements .col-desc {
+    grid-column: 2;
+    font-size: 0.75rem;
+}
+
+.col-achievements .col-progress {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.col-achievements li.col-done {
+    color: #ddd;
+}
+
+.col-achievements li.col-done .col-star,
+.col-achievements li.col-done .col-name {
+    color: var(--gold);
+}
+
+.col-enemies {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 8px;
+}
+
+.col-enemy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    background: #14161f;
+    border: 1px solid #333;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+.col-enemy canvas {
+    height: 84px;
+    max-width: 96px;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.col-unknown {
+    color: #666;
+}
+
+.col-specials li {
+    display: flex;
+    gap: 8px;
+    padding: 3px 0;
+    border-bottom: 1px solid #333;
+}
+
+.col-specials .col-who {
+    width: 9em;
+    flex-shrink: 0;
+    color: #aaa;
+    font-size: 0.75rem;
+    align-self: center;
+}
+
+.col-specials .col-name {
+    flex: 1;
+}
+
+.col-specials .col-times {
+    color: #aaa;
+    font-variant-numeric: tabular-nums;
+}
+
+.col-trophies {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    font-size: 0.85rem;
+}
+
+.col-trophy {
+    display: flex;
+    align-items: center;
+}
+
+.col-trophy .dc-trophy {
+    width: 14px;
+    height: 14px;
+    background: #222;
+}
+
+.col-trophy .dc-trophy-rainbow {
+    background: linear-gradient(90deg, #ff4040, #ffd040, #40e060, #40a0ff, #c060ff);
+}
+
+.col-records {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.col-records div {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    border-bottom: 1px solid #333;
+    padding: 2px 0;
+}
+
+.col-records dt {
+    color: #aaa;
+}
+
+.col-records dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+    .col-records {
+        grid-template-columns: 1fr;
+    }
+
+    .col-specials .col-who {
+        width: 7em;
+    }
+}
+
+/* 実績解除の通知 */
+.achievement-toast {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100;
+    max-width: calc(100% - 32px);
+    padding: 10px 18px;
+    background: linear-gradient(145deg, #3a2a00, #1e1600);
+    border: 2px solid var(--gold);
+    border-radius: 10px;
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.5);
+    color: #fff;
+    font-family: 'DotGothic16', sans-serif;
+    font-size: 0.95rem;
+    pointer-events: none;
+}
+
+.achievement-toast .toast-label {
+    display: block;
+    color: var(--gold);
+    font-size: 0.75rem;
+}
+
+.achievement-toast.show {
+    animation: toast-in 2.8s ease forwards;
+}
+
+@keyframes toast-in {
+    0% { opacity: 0; transform: translate(-50%, -20px); }
+    10% { opacity: 1; transform: translate(-50%, 0); }
+    85% { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -10px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .achievement-toast.show {
+        animation: none;
+    }
 }
 
 .setting-reveal {
@@ -863,6 +1151,7 @@ button {
 
     #settings-button,
     #howto-button,
+    #collection-button,
     #move-button,
     #reset-button {
         padding: 5px 10px;

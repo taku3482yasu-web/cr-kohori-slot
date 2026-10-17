@@ -18,6 +18,7 @@
         <div class="top-bar">
             <span id="mode-display" class="mode-display"></span>
             <a id="howto-button" href="howto.html">？ 遊び方</a>
+            <button id="collection-button">★ 図鑑</button>
             <button id="move-button">⇄ 台移動</button>
             <button id="reset-button">↺ リセット</button>
             <button id="settings-button">⚙ SETTINGS</button>
@@ -89,6 +90,12 @@
                     </table>
                 </div>
                 <p id="dc-empty" class="dc-empty">まだ大当たりはありません</p>
+            </details>
+            <details id="dc-estimate" class="dc-history dc-estimate">
+                <summary>設定推測 <span class="dc-note">（開くとネタばらし）</span></summary>
+                <div id="dc-estimate-bars" class="dc-estimate-bars"></div>
+                <ul id="dc-estimate-facts" class="dc-estimate-facts"></ul>
+                <p class="dc-empty">この台で見たチャンス目・城突入・トロフィーから計算しています。打ち始めは、台の設定の出やすさ（設定1がいちばん多い）に近い値です。</p>
             </details>
         </section>
 
@@ -184,6 +191,7 @@
             <ul class="reset-list">
                 <li>コイン・統計・進行状況（マップ・CP・RASH など）が最初に戻ります</li>
                 <li>台の設定も抽選し直します</li>
+                <li>図鑑・実績も消えます</li>
                 <li>キー割り当てとサウンドの設定はそのまま残ります</li>
             </ul>
             <div class="modal-actions">
@@ -192,6 +200,38 @@
             </div>
         </div>
     </div>
+
+    <!-- 図鑑・実績 -->
+    <div id="collection-modal" class="modal" hidden>
+        <div class="modal-content collection-content" role="dialog" aria-modal="true" aria-labelledby="collection-title">
+            <h2 id="collection-title">図鑑・実績</h2>
+            <section class="modal-section">
+                <h3>実績 <span id="col-achievement-count" class="col-count"></span></h3>
+                <ul id="col-achievements" class="col-achievements"></ul>
+            </section>
+            <section class="modal-section">
+                <h3>撃破した敵 <span id="col-enemy-count" class="col-count"></span></h3>
+                <div id="col-enemies" class="col-enemies"></div>
+            </section>
+            <section class="modal-section">
+                <h3>見た必殺技 <span id="col-special-count" class="col-count"></span></h3>
+                <ul id="col-specials" class="col-specials"></ul>
+            </section>
+            <section class="modal-section">
+                <h3>トロフィー <span id="col-trophy-count" class="col-count"></span></h3>
+                <div id="col-trophies" class="col-trophies"></div>
+            </section>
+            <section class="modal-section">
+                <h3>記録</h3>
+                <dl id="col-records" class="col-records"></dl>
+            </section>
+            <p class="modal-note">図鑑・実績は台移動しても残ります（リセットすると消えます）</p>
+            <button id="close-collection-button" class="modal-button modal-close">閉じる</button>
+        </div>
+    </div>
+
+    <!-- 実績解除の通知 -->
+    <div id="achievement-toast" class="achievement-toast" role="status" aria-live="polite" hidden></div>
 
     <!-- 台移動の確認 -->
     <div id="move-modal" class="modal" hidden>

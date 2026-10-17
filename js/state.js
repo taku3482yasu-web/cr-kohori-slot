@@ -122,6 +122,23 @@ function createInitialState(config, rng = Math.random) {
         gamesSinceHit: 0,      // 前回の RASH から (通常時・城突入チャレンジの) ゲーム数
         hitHistory: [],        // 大当たり履歴 (新しい順) { no, games, trigger, totalGames, coins, defeats, super, active }
 
+        // 設定推測の材料 (この台で見たもの。SettingEstimate で使う)
+        estimate: {
+            normalGames: 0,    // 通常時のゲーム数 (ロングフリーズを除く)
+            normalChance: 0,   // そのうちチャンス目が出た回数
+            challenges: {},    // 城突入チャレンジの結果 { 仲間による突入率の倍率: { tries, wins } }
+            trophies: {}       // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
+        },
+
+        // 図鑑・実績 (台移動しても引き継ぐ。Collection で集める)
+        collection: {
+            defeats: {},       // 敵ごとの撃破数 { 敵の id: 回数 }
+            specials: {},      // 見た必殺技ごとの回数 { 敵・仲間の id / こおりくんは koori・kooriKill: 回数 }
+            trophies: {},      // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
+            records: { games: 0, rash: 0, super: 0, naitei: 0, freeze: 0, moves: 0, bestCoins: 0, bestDefeats: 0 },
+            achievements: {}   // 解除した実績 { 実績の id: 解除したときの合計ゲーム数 }
+        },
+
         // 仲間 (加わった順の id。members の並びが弱い順)
         companions: [],
 
@@ -170,6 +187,170 @@ function createRashState() {
     };
 }
 
+// 設定推測: この台で見た「通常時のチャンス目の出現率」「城突入チャレンジの成功率」「トロフィーの色」から、
+// 設定1〜6それぞれの可能性を計算する (ベイズ推定。最初の可能性は台の設定の抽選の重み machine.weights)。
+// 初当たり確率はこの3つから決まる結果なので、二重に数えないよう材料には入れない
+const SettingEstimate = {
+    countNormalGame(state, outcome) {
+        state.estimate.normalGames++;
+        if (outcome.isChance) state.estimate.normalChance++;
+    },
+
+    countChallenge(state, config, entered) {
+        const key = String(Companions.castleEntryMultiplier(state, config));
+        const c = state.estimate.challenges[key] || (state.estimate.challenges[key] = { tries: 0, wins: 0 });
+        c.tries++;
+        if (entered) c.wins++;
+    },
+
+    countTrophy(state, level) {
+        state.estimate.trophies[level] = (state.estimate.trophies[level] || 0) + 1;
+    },
+
+    // 設定ごとの、通常時のチャンス目の確率
+    chanceRate(config, setting) {
+        return config.lottery.normal.chance * config.machine.multipliers[setting].chance;
+    },
+
+    // 設定ごとの、城突入チャレンジ1回の成功率 (boost: 仲間による突入率の倍率)
+    // ロングフリーズで終わったチャレンジは数えていないので、ここでも除いて計算する
+    challengeRate(config, setting, boost) {
+        const mult = config.machine.multipliers[setting];
+        const table = Lottery.tableFor({ mode: MODES.CASTLE_CHALLENGE, setting }, config);
+        const entry = role => Math.min(1, (config.castle.entryRate[role] || 0) * mult.castleEntry * boost);
+        let perGame = 0;
+        let rest = 1;
+        for (const [role, prob] of Object.entries(table)) {
+            perGame += prob * entry(role);
+            rest -= prob;
+        }
+        perGame += rest * entry('miss');
+        return 1 - Math.pow(1 - perGame, config.castle.challengeGames);
+    },
+
+    // 設定ごとの、出たトロフィーがその色 (level) になる確率
+    trophyRate(config, setting, level) {
+        const weights = config.trophy.weights[setting];
+        const total = Object.values(weights).reduce((a, b) => a + b, 0);
+        return (weights[level] || 0) / total;
+    },
+
+    // 設定1〜6の可能性 { 設定: 確率 } (合計 1)
+    probabilities(state, config) {
+        const e = state.estimate;
+        // n 回起きた確率 p の対数 (0 回なら p = 0 でも 0)
+        const logOf = (n, p) => (n ? n * Math.log(p) : 0);
+        const logs = {};
+        for (const setting of Object.keys(config.machine.weights).map(Number)) {
+            const chance = this.chanceRate(config, setting);
+            let log = Math.log(config.machine.weights[setting])
+                + logOf(e.normalChance, chance) + logOf(e.normalGames - e.normalChance, 1 - chance);
+            for (const [boost, c] of Object.entries(e.challenges)) {
+                const rate = this.challengeRate(config, setting, Number(boost));
+                log += logOf(c.wins, rate) + logOf(c.tries - c.wins, 1 - rate);
+            }
+            for (const [level, n] of Object.entries(e.trophies)) log += logOf(n, this.trophyRate(config, setting, Number(level)));
+            logs[setting] = log;
+        }
+        const max = Math.max(...Object.values(logs));
+        let total = 0;
+        for (const s of Object.keys(logs)) total += (logs[s] = Math.exp(logs[s] - max));
+        for (const s of Object.keys(logs)) logs[s] /= total;
+        return logs;
+    }
+};
+
+// 図鑑・実績: 1ゲームのイベントから、撃破した敵・見た必殺技・トロフィー・記録を集める。
+// 新しく解除した実績は { type: 'achievement' } のイベントとして返す
+const Collection = {
+    record(state, outcome, events, config) {
+        const c = state.collection;
+        const r = c.records;
+        const add = (map, key) => { map[key] = (map[key] || 0) + 1; };
+        const naiteiId = config.naitei.enemy.id;
+        r.games++;
+        if (outcome.isFreeze) r.freeze++;
+        for (const e of events) {
+            switch (e.type) {
+                case 'rashStart': r.rash++; break;
+                case 'superStart': r.super++; break;
+                case 'defeat': add(c.defeats, e.enemyId); break;
+                case 'damage':
+                    // とどめの必殺技 (液晶でカットインが出るのと同じ条件)
+                    if (e.finishBy && !e.freeze) add(c.specials, e.finishBy !== 'koori' ? e.finishBy : e.finishKill ? 'kooriKill' : 'koori');
+                    break;
+                case 'questionResult':
+                    if (!e.continued && e.enemyId) add(c.specials, e.enemyId);
+                    break;
+                case 'companionSave':
+                    if (e.enemyId) add(c.specials, e.enemyId);
+                    break;
+                case 'naiteiResult':
+                    if (e.win) {
+                        r.naitei++;
+                        add(c.defeats, naiteiId);
+                    } else {
+                        add(c.specials, naiteiId);
+                    }
+                    break;
+            }
+            if (e.type === 'rashEnd' || (e.type === 'naiteiResult' && e.toCastle)) {
+                if (e.trophy) add(c.trophies, e.trophy);
+                r.bestCoins = Math.max(r.bestCoins || 0, e.coinsWon);
+                r.bestDefeats = Math.max(r.bestDefeats || 0, e.defeatCount);
+            }
+        }
+        return this.unlock(state, config);
+    },
+
+    unlock(state, config) {
+        const c = state.collection;
+        const events = [];
+        for (const a of config.collection.achievements) {
+            if (c.achievements[a.id] != null || this.stat(c, a.stat) < this.target(config, a)) continue;
+            c.achievements[a.id] = c.records.games;
+            events.push({ type: 'achievement', id: a.id, name: a.name });
+        }
+        return events;
+    },
+
+    // 図鑑の項目: 敵・必殺技・トロフィーの色
+    entries(config) {
+        const enemies = [...config.enemies, config.goldDog, config.naitei.enemy];
+        return {
+            enemies: enemies.map(e => ({ id: e.id, name: e.name })),
+            specials: [
+                { id: 'koori', who: 'こおりくん', name: config.specials.koori },
+                { id: 'kooriKill', who: 'こおりくん', name: config.specials.kooriKill },
+                ...config.companions.members.map(m => ({ id: m.id, who: m.name, name: m.special })),
+                ...enemies.map(e => ({ id: e.id, who: e.name, name: e.special }))
+            ],
+            trophies: Object.keys(config.trophy.colors).map(Number)
+        };
+    },
+
+    // 実績の stat の値 (config.collection の説明を参照)
+    stat(c, key) {
+        const [kind, id] = key.split(':');
+        const kinds = map => Object.values(map).filter(n => n > 0).length;
+        switch (kind) {
+            case 'defeat': return c.defeats[id] || 0;
+            case 'trophy': return c.trophies[id] || 0;
+            case 'enemyKinds': return kinds(c.defeats);
+            case 'specialKinds': return kinds(c.specials);
+            case 'trophyKinds': return kinds(c.trophies);
+            default: return c.records[kind] || 0;
+        }
+    },
+
+    // 実績の目標の値 ('all' は図鑑の項目の数)
+    target(config, a) {
+        if (a.value !== 'all') return a.value;
+        const e = this.entries(config);
+        return { enemyKinds: e.enemies.length, specialKinds: e.specials.length, trophyKinds: e.trophies.length }[a.stat];
+    }
+};
+
 // 台移動: コイン・投資額・獲得枚数はそのままに、新しい台へ移る。
 // 台の設定は抽選し直し、進行状況 (マップ・CP・RASH・仲間など) とデータカウンター・大当たり履歴は新しい台のものになる
 const MachineMove = {
@@ -179,6 +360,8 @@ const MachineMove = {
         next.totalSpent = state.totalSpent;
         next.totalCoinsWon = state.totalCoinsWon;
         next.machineNo = (state.machineNo || 1) + 1;
+        next.collection = state.collection;
+        next.collection.records.moves++;
         return next;
     }
 };
@@ -206,6 +389,12 @@ const StateMachine = {
 // 1ゲーム終了時の状態更新。モードごとの処理に振り分ける
 const GameFlow = {
     onGameEnd(state, outcome, config, rng = Math.random) {
+        const events = this.playGame(state, outcome, config, rng);
+        events.push(...Collection.record(state, outcome, events, config));
+        return events;
+    },
+
+    playGame(state, outcome, config, rng) {
         state.totalGames++;
         if (!StateMachine.isRashMode(state)) state.gamesSinceHit++;
         const events = [this.applyPayout(state, outcome, config)];
@@ -213,6 +402,7 @@ const GameFlow = {
             events.push(...this.longFreeze(state, config, rng));
             return events;
         }
+        if (state.mode === MODES.NORMAL) SettingEstimate.countNormalGame(state, outcome);
         switch (state.mode) {
             case MODES.NORMAL:
                 events.push(...this.handleNormal(state, outcome, config, rng));
@@ -393,6 +583,8 @@ const GameFlow = {
         const success = rng() < rate;
         const events = [{ type: 'challengeGame', remaining: challenge.gamesRemaining, role: outcome.role, success }];
 
+        if (success || challenge.gamesRemaining <= 0) SettingEstimate.countChallenge(state, config, success);
+
         if (success) {
             // 7・7・BAR で突入したら最初の相手はおにおに
             const oniEntry = outcome.role === 'sevenBar';
@@ -506,6 +698,7 @@ const GameFlow = {
 
     // RASH 終了: 獲得枚数・撃破数・SUPER 到達・出たトロフィーを記録
     finishHit(state, reachedSuper, trophy) {
+        if (trophy) SettingEstimate.countTrophy(state, trophy);
         const hit = state.hitHistory[0];
         if (!hit || !hit.active) return;
         hit.coins = state.rash.coinsWon;

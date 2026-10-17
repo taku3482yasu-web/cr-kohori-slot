@@ -4,7 +4,7 @@
 // ゲームバランス・演出に関わる数値はすべてここで管理する。
 // 中身は JSON と同じ形式のデータのみ (index.html を直接開いても読み込めるよう .js にしている)。
 // 確率は「1ゲームあたりの当選確率」(例: 1/10 = 0.1)。
-// 出玉率は設定1 約97% 〜 設定6 約112% に調整済み。数値を変えたら tools/simulate.html で確認する。
+// 出玉率は設定1 約97% 〜 設定6 約128% に調整済み。数値を変えたら tools/simulate.html で確認する。
 // =====================================================================
 window.GAME_CONFIG = {
     title: 'CRこおりくんの大冒険 ～おにおにの野望～',
@@ -25,7 +25,7 @@ window.GAME_CONFIG = {
             2: { chance: 0.96, castleEntry: 0.97, pointBig: 0.97 },
             3: { chance: 1.00, castleEntry: 1.00, pointBig: 1.00 },
             4: { chance: 1.34, castleEntry: 1.25, pointBig: 1.28 },
-            5: { chance: 2.20, castleEntry: 2.10, pointBig: 1.85 },
+            5: { chance: 1.90, castleEntry: 1.80, pointBig: 1.65 },
             6: { chance: 3.00, castleEntry: 3.00, pointBig: 2.25 }
         }
     },
@@ -517,6 +517,34 @@ window.GAME_CONFIG = {
     dataCounter: {
         historySize: 50,
         historyShown: 10
+    },
+
+    // ----- 図鑑・実績 -----
+    // 図鑑 (撃破した敵・見た必殺技・トロフィーの色・記録) と実績は台移動しても残る (リセットすると消える)。
+    // 実績は stat の値が value 以上になると解除:
+    //   rash / super / naitei / freeze / moves / games: 合計の回数 (RASH・SUPER 突入、内定の時突破、ロングフリーズ、台移動、ゲーム数)
+    //   bestCoins / bestDefeats: 1回の RASH での最高 (獲得枚数・撃破数)
+    //   defeat:<敵の id>: その敵の撃破数 / trophy:<色>: その色のトロフィーが出た回数
+    //   enemyKinds / specialKinds / trophyKinds: 図鑑の埋まった数 (value: 'all' は全部)
+    collection: {
+        achievements: [
+            { id: 'firstRash', name: 'はじめてのRASH', desc: 'おにおにRASHに突入する', stat: 'rash', value: 1 },
+            { id: 'firstSuper', name: 'SUPER到達', desc: 'SUPERおにおにRASHに突入する', stat: 'super', value: 1 },
+            { id: 'onioni', name: '鬼退治', desc: 'おにおにを撃破する', stat: 'defeat:onioni', value: 1 },
+            { id: 'naitei', name: '内定ゲット', desc: '内定の時ゾーンを突破する', stat: 'naitei', value: 1 },
+            { id: 'goldDog', name: '黄金の勝利', desc: 'ゴールド金面犬を撃破する', stat: 'defeat:goldDog', value: 1 },
+            { id: 'freeze', name: 'フリーズ!!', desc: 'ロングフリーズを引く', stat: 'freeze', value: 1 },
+            { id: 'defeats10', name: '10人抜き', desc: '1回のRASHで10体撃破する', stat: 'bestDefeats', value: 10 },
+            { id: 'coins1000', name: '千枚突破', desc: '1回のRASHで1,000枚獲得する', stat: 'bestCoins', value: 1000 },
+            { id: 'coins3000', name: '大量獲得', desc: '1回のRASHで3,000枚獲得する', stat: 'bestCoins', value: 3000 },
+            { id: 'rash10', name: 'RASH常連', desc: 'おにおにRASHに合計10回突入する', stat: 'rash', value: 10 },
+            { id: 'rainbow', name: '虹の向こう', desc: '虹のトロフィーを出す', stat: 'trophy:6', value: 1 },
+            { id: 'allTrophies', name: 'トロフィーコレクター', desc: 'トロフィーを全色出す', stat: 'trophyKinds', value: 'all' },
+            { id: 'allEnemies', name: '全員撃破', desc: 'すべての敵を撃破する', stat: 'enemyKinds', value: 'all' },
+            { id: 'allSpecials', name: '必殺技マスター', desc: 'すべての必殺技を見る', stat: 'specialKinds', value: 'all' },
+            { id: 'moves5', name: '台選び上手', desc: '台移動を合計5回する', stat: 'moves', value: 5 },
+            { id: 'games10000', name: '打ち込み1万G', desc: '合計10,000ゲーム回す', stat: 'games', value: 10000 }
+        ]
     },
 
     // ----- キー割り当ての初期値 -----

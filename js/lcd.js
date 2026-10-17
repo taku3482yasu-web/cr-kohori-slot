@@ -75,6 +75,7 @@ const Lcd = (() => {
         games: null,           // 残りゲーム数 (数値 or '？？')
         defeats: 0,            // 表示中の撃破数
         breakActive: false,    // ブレイク状態 (表示用)
+        winGuaranteed: false,  // 勝利確定の BATTLE (内定の時ゾーン突破の特典、表示用)
         probUpGames: 0,        // 柄揃い確率アップの残りゲーム数 (表示用)
         probUpMultiplier: 1,
         hurtUntil: 0
@@ -155,6 +156,7 @@ const Lcd = (() => {
             battle.probUpGames = rash.probUpGames;
             battle.probUpMultiplier = rash.probUpMultiplier;
             battle.breakActive = rash.breakActive;
+            battle.winGuaranteed = Boolean(rash.winGuaranteed && rash.enemyId);
             battle.games = rash.phase === RASH_PHASES.QUESTION ? '？？' : (rash.enemyId ? rash.gamesRemaining : null);
         } else if (state.mode === MODES.CASTLE_CHALLENGE) {
             scene = 'challenge';
@@ -633,6 +635,7 @@ const Lcd = (() => {
             });
         }
 
+        drawSpecialFx(time, hall.groundY);
         drawRashHud(time);
         drawDamageNumbers(time);
     }
@@ -683,6 +686,11 @@ const Lcd = (() => {
                 const blink = Math.floor(time / 250) % 2;
                 box(bx + bw - 34, by + 22, 34, 12, 'rgba(60,0,90,0.9)', '#c080ff');
                 text('BREAK', bx + bw - 17, by + 23, { color: blink ? '#ffffff' : '#e0b0ff', size: 10, align: 'center', outline: null });
+            }
+            if (battle.winGuaranteed) {
+                const blink = Math.floor(time / 350) % 2;
+                box(bx, by + 22, 52, 12, 'rgba(90,60,0,0.9)', SUPER_COLOR);
+                text('勝利確定', bx + 26, by + 23, { color: blink ? '#ffffff' : SUPER_COLOR, size: 10, align: 'center', outline: null });
             }
             text(enemy.name, bx + 5, by + 2, { size: 10, outline: null });
             const hp = Math.max(0, valueAt(battle.hp, time));
@@ -799,7 +807,7 @@ const Lcd = (() => {
             flash = null;
             return;
         }
-        ctx.globalAlpha = 1 - t;
+        ctx.globalAlpha = (1 - t) * flash.strength;
         ctx.fillStyle = flash.color;
         ctx.fillRect(0, 0, W, H);
         ctx.globalAlpha = 1;
@@ -936,45 +944,374 @@ const Lcd = (() => {
     }
 
     // ----- 必殺技 -----
-    // こおりくんがとどめ: 大腸炎アタック / 一撃必殺の役は 7つの内定フラッシュ
+    // 必殺技ごとのエフェクトの種類 (名前は config.js の specials / enemies[].special など)
+    const SPECIAL_FX = {
+        koori: 'iceBurst',          // 大腸炎アタック
+        kooriKill: 'sevenFlash',    // 7つの内定フラッシュ
+        yasu: 'punch',              // やすパンチ
+        tamu: 'kick',               // たむキック
+        dake: 'chop',               // だけチョップ
+        okagappa: 'beam',           // おかピポっと光線
+        hibikimakuri: 'soundwave',  // 大音響4DX
+        shibata: 'driver',          // シバタードライバー
+        sasaki: 'slash',            // ASAスラッシュ
+        onioni: 'club',             // 鬼鬼の金棒
+        goldDog: 'goldbite',        // ゴールドかみまっくす
+        naitei: 'judge'             // 不採用の裁き
+    };
+    const FX_DURATION = {
+        iceBurst: 600, sevenFlash: 1000, punch: 500, kick: 500, chop: 500,
+        beam: 800, soundwave: 1000, driver: 500, slash: 750, club: 900, goldbite: 900, judge: 1100
+    };
+
+    // こおりくんがとどめ: 大腸炎アタック / 一撃必殺の役は 7つの内定フラッシュ。エフェクトの種類を返す (攻撃が当たる瞬間に出す)
     async function kooriSpecial(kill) {
         startFlash(kill ? '#ffd700' : '#ffffff', 300);
         Sound.chance();
         await playCutIn('koori', kill ? config.specials.kooriKill : config.specials.koori,
             kill ? '#8a6a00' : '#b01828', 1500, '必殺技!!');
+        return kill ? SPECIAL_FX.kooriKill : SPECIAL_FX.koori;
     }
 
-    // 仲間がとどめ: 仲間ごとの必殺技
+    // 仲間がとどめ: 仲間ごとの必殺技。エフェクトの種類を返す
     async function companionSpecial(id) {
         const member = config.companions.members.find(m => m.id === id);
-        if (!member || !member.special) return;
+        if (!member || !member.special) return null;
         startFlash('#7fffd4', 300);
         Sound.chance();
         await playCutIn(id, member.special, '#1a6a50', 1400, `${member.name}の必殺技!!`);
+        return SPECIAL_FX[id] || null;
     }
 
-    // 敵の必殺技 (「？？」で継続できなかったとき・内定の時ゾーンの失敗): カットイン → こおりくんへ突進
-    //   hitKoori: false のときは当たる手前で止まる (仲間がかばう)
+    // とどめの攻撃が当たった瞬間のエフェクト
+    function hitFx(kind) {
+        if (!kind) return;
+        Sound.special(kind);
+        startFx(kind);
+        if (kind === 'sevenFlash') startFlash('#ffffff', 300);
+    }
+
+    // 敵の必殺技 (「？？」で継続できなかったとき・内定の時ゾーンの失敗): カットイン → 技ごとのエフェクト
+    //   hitKoori: false のときはこおりくんに当たらない (仲間がかばう)
     async function enemySpecial(enemyId, { hitKoori = true } = {}) {
         const enemy = enemyId && Battle.findEnemy(config, enemyId);
         if (!enemy || !enemy.special) return;
         const intensity = config.effects.intensity;
+        const kind = SPECIAL_FX[enemyId] || 'beam';
         startFlash('#ff2020', 300);
         Sound.bigHit();
         await playCutIn(enemyId, enemy.special, '#5a0a0a', 1600, `${enemy.name}の必殺技!!`);
         battle.games = null;
-        await animateTo(battle.x, KOORI_BATTLE_X + (hitKoori ? 40 : 70), 180);
-        startFlash('#ff0000', 400);
+        Sound.special(kind);
+        if (kind === 'driver') {
+            // シバタードライバー: 跳び上がってこおりくんの目の前に叩きつける
+            animateTo(battle.x, KOORI_BATTLE_X + 46, 380);
+            await animateTo(battle.drop, -60, 380);
+            await animateTo(battle.drop, 0, 120);
+        }
+        // 技が当たるまでの時間 (エフェクトの途中で当てる)
+        const impact = { beam: 300, soundwave: 250, driver: 0, slash: 250, club: 360, goldbite: 400, judge: 300 }[kind] ?? 300;
+        const fxDone = startFx(kind);
+        await sleep(impact);
+        // 技のエフェクトが透けて見えるように、フラッシュは薄め
+        startFlash(kind === 'goldbite' ? '#ffd700' : '#ff0000', 400, 0.6);
         startShake(intensity.shakeLarge, 500);
-        Sound.bigHit();
         if (hitKoori) {
             koori.hurtUntil = performance.now() + 700;
             animateTo(koori.x, KOORI_BATTLE_X - 20, 200);
         }
-        await sleep(450);
-        await animateTo(battle.x, ENEMY_X, 300);
+        await fxDone;
+        if (kind === 'driver') await animateTo(battle.x, ENEMY_X, 300);
         if (hitKoori) await animateTo(koori.x, KOORI_BATTLE_X, 300);
     }
+
+    // ----- 必殺技のエフェクト (RASH の場面に重ねて描く) -----
+    let specialFx = [];        // { kind, start, duration }
+
+    function startFx(kind) {
+        const duration = FX_DURATION[kind] || 600;
+        specialFx.push({ kind, start: performance.now(), duration });
+        return sleep(duration);
+    }
+
+    function drawSpecialFx(time, groundY) {
+        specialFx = specialFx.filter(f => time - f.start < f.duration);
+        const pos = {
+            kx: valueAt(koori.x, time) + 16, ky: groundY - 16,           // こおりくんの中心
+            ex: valueAt(battle.x, time), ey: groundY - 44                 // 敵の中心あたり
+        };
+        for (const f of specialFx) {
+            const t = Math.min(1, Math.max(0, (time - f.start) / f.duration));
+            const draw = FX_DRAW[f.kind];
+            if (!draw) continue;
+            ctx.save();
+            draw(t, time, pos, groundY);
+            ctx.restore();
+        }
+    }
+
+    const ease = t => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+    const fadeOut = (t, from = 0.75) => (t < from ? 1 : Math.max(0, (1 - t) / (1 - from)));
+
+    function line(x0, y0, x1, y1, color, width) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+    }
+
+    function burst(x, y, radius, rays, color, width = 2) {
+        for (let i = 0; i < rays; i++) {
+            const a = (i / rays) * Math.PI * 2;
+            line(x + Math.cos(a) * radius * 0.4, y + Math.sin(a) * radius * 0.4,
+                x + Math.cos(a) * radius, y + Math.sin(a) * radius, color, width);
+        }
+    }
+
+    const FX_DRAW = {
+        // おかピポっと光線: 口から緑の光線がのびて、こおりくんに当たる
+        beam(t, time, { kx, ky, ex }, groundY) {
+            const sx = ex - 22, sy = groundY - 62;
+            const grow = ease(t / 0.35);
+            const x1 = sx + (kx - sx) * grow, y1 = sy + (ky - sy) * grow;
+            const w = (5 + 2 * Math.sin(time / 25)) * fadeOut(t);
+            line(sx, sy, x1, y1, 'rgba(60,255,120,0.55)', w + 8);
+            line(sx, sy, x1, y1, '#f0fff0', w);
+            ctx.fillStyle = 'rgba(160,255,190,0.9)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, 4 + 2 * Math.sin(time / 30), 0, Math.PI * 2);
+            ctx.fill();
+            if (grow >= 1) {
+                ctx.globalAlpha = fadeOut(t);
+                burst(kx, ky, 14 + 4 * Math.sin(time / 20), 10, '#b0ffc8', 2);
+            }
+        },
+        // 大音響4DX: 音の輪が何重にも広がり、音符が飛ぶ
+        soundwave(t, time, { ex }, groundY) {
+            const cx = ex - 10, cy = groundY - 50;
+            for (let i = 0; i < 5; i++) {
+                const p = (t * 1.8 + i * 0.22) % 1;
+                ctx.globalAlpha = (1 - p) * fadeOut(t, 0.8);
+                ctx.strokeStyle = `hsl(${(280 + i * 40 + time / 5) % 360}, 100%, 65%)`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 10 + p * 150, Math.PI * 0.72, Math.PI * 1.28);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = fadeOut(t, 0.8);
+            for (let i = 0; i < 4; i++) {
+                const p = (t * 1.4 + i * 0.25) % 1;
+                text(i % 2 ? '♪' : '♫', cx - p * 150, cy - 20 + Math.sin(p * 8 + i) * 14,
+                    { color: `hsl(${i * 80}, 100%, 70%)`, size: 14, align: 'center' });
+            }
+            if (t < 0.6) text('4DX', cx - 40 - t * 30, cy - 46, { color: '#ffe45a', size: 16, align: 'center' });
+        },
+        // シバタードライバー: 叩きつけた地面から衝撃波と破片
+        driver(t, time, { kx }, groundY) {
+            const x = kx + 30;
+            ctx.globalAlpha = fadeOut(t, 0.5);
+            ctx.strokeStyle = '#ffd27a';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(x, groundY - 2, 10 + t * 70, 3 + t * 8, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = '#8a6a4a';
+            for (let i = 0; i < 10; i++) {
+                const a = Math.PI + (i / 9) * Math.PI;
+                const d = t * 50;
+                ctx.fillRect(x + Math.cos(a) * d, groundY - 4 + Math.sin(a) * d * 0.8 + t * t * 40, 3, 3);
+            }
+        },
+        // ASAスラッシュ: 青白い斬撃が3本、斜めに走る
+        slash(t, time, { kx, ky }) {
+            for (let i = 0; i < 3; i++) {
+                const p = (t - i * 0.15) / 0.35;
+                if (p <= 0) continue;
+                const g = ease(p);
+                const x0 = kx - 34 + i * 10, y0 = ky - 36 + i * 4;
+                const x1 = x0 + 64 * g, y1 = y0 + 58 * g;
+                ctx.globalAlpha = fadeOut(t, 0.6);
+                line(x0, y0, x1, y1, 'rgba(90,170,255,0.6)', 7);
+                line(x0, y0, x1, y1, '#ffffff', 2);
+            }
+            if (t > 0.3) {
+                ctx.globalAlpha = fadeOut(t, 0.6);
+                text('ASA', kx, ky - 50, { color: '#9fd0ff', size: 14, align: 'center' });
+            }
+        },
+        // 鬼鬼の金棒: 巨大な金棒が上から振り下ろされる
+        club(t, time, { kx, ky }, groundY) {
+            const swing = ease(t / 0.4);
+            const angle = -1.9 + swing * 2.05;
+            const px = kx + 46, py = 6;
+            ctx.globalAlpha = fadeOut(t, 0.8);
+            ctx.translate(px, py);
+            ctx.rotate(angle);
+            // 柄 → 太い棒 → 金の鋲
+            ctx.fillStyle = '#5a3a1a';
+            ctx.fillRect(-4, -4, 8, 22);
+            ctx.fillStyle = '#2a2a34';
+            ctx.fillRect(-9, 18, 18, 86);
+            ctx.fillStyle = '#4a4a5a';
+            ctx.fillRect(-9, 18, 5, 86);
+            ctx.fillStyle = '#ffd23a';
+            for (let r = 0; r < 6; r++) {
+                for (let c = 0; c < 2; c++) ctx.fillRect(-6 + c * 8 + (r % 2) * 2, 24 + r * 13, 3, 3);
+            }
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            if (t > 0.4) {
+                const p = (t - 0.4) / 0.6;
+                ctx.globalAlpha = 1 - p;
+                ctx.fillStyle = '#ffe0a0';
+                ctx.beginPath();
+                ctx.ellipse(kx, groundY - 2, 20 + p * 50, 4 + p * 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                burst(kx, ky, 22 + p * 20, 12, '#ffd23a', 2);
+            }
+        },
+        // ゴールドかみまっくす: 金色の牙が上下から噛みつき、金貨が飛び散る
+        goldbite(t, time, { kx, ky }) {
+            const close = ease(t / 0.45);
+            const top = ky - 44 + close * 34, bottom = ky + 34 - close * 34;
+            const w = 64;
+            ctx.globalAlpha = fadeOut(t, 0.75);
+            ctx.fillStyle = '#ffd23a';
+            ctx.strokeStyle = '#8a6a00';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 6; i++) {
+                const x = kx - w / 2 + i * (w / 6);
+                ctx.beginPath();
+                ctx.moveTo(x, top - 10);
+                ctx.lineTo(x + w / 6, top - 10);
+                ctx.lineTo(x + w / 12, top + 6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x, bottom + 10);
+                ctx.lineTo(x + w / 6, bottom + 10);
+                ctx.lineTo(x + w / 12, bottom - 6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+            ctx.fillRect(kx - w / 2, top - 16, w, 6);
+            ctx.fillRect(kx - w / 2, bottom + 10, w, 6);
+            if (t > 0.45) {
+                const p = (t - 0.45) / 0.55;
+                for (let i = 0; i < 12; i++) {
+                    const a = (i / 12) * Math.PI * 2 + 0.3;
+                    const d = p * 60;
+                    const x = kx + Math.cos(a) * d, y = ky + Math.sin(a) * d * 0.7 + p * p * 30;
+                    ctx.fillStyle = i % 2 ? '#ffe45a' : '#ffb000';
+                    ctx.fillRect(x - 2, y - 2, 4, 4);
+                }
+            }
+        },
+        // 不採用の裁き: 赤い「不採用」のハンコが画面に叩きつけられる
+        judge(t) {
+            const s = t < 0.27 ? 3 - 2 * ease(t / 0.27) : 1;
+            const alpha = fadeOut(t, 0.85);
+            ctx.globalAlpha = alpha * 0.45;
+            ctx.fillStyle = '#200008';
+            ctx.fillRect(0, 0, W, H);
+            ctx.globalAlpha = alpha * (t < 0.27 ? t / 0.27 : 1);
+            ctx.translate(W / 2, H / 2);
+            ctx.rotate(-0.18);
+            ctx.scale(s, s);
+            ctx.strokeStyle = '#ff1a1a';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(-62, -24, 124, 48);
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-56, -18, 112, 36);
+            text('不採用', 0, -14, { color: '#ff1a1a', size: 26, align: 'center', outline: null });
+        },
+        // 大腸炎アタック: 敵に当たった瞬間、氷のかけらが飛び散る
+        iceBurst(t, time, { ex, ey }) {
+            ctx.globalAlpha = fadeOut(t, 0.5);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(ex, ey, 8 + t * 40, 0, Math.PI * 2);
+            ctx.stroke();
+            for (let i = 0; i < 10; i++) {
+                const a = (i / 10) * Math.PI * 2;
+                const d = 10 + ease(t) * 46;
+                const x = ex + Math.cos(a) * d, y = ey + Math.sin(a) * d;
+                ctx.fillStyle = i % 2 ? '#9fe6ff' : '#e8fbff';
+                ctx.beginPath();
+                ctx.moveTo(x, y - 4);
+                ctx.lineTo(x + 3, y);
+                ctx.lineTo(x, y + 4);
+                ctx.lineTo(x - 3, y);
+                ctx.closePath();
+                ctx.fill();
+            }
+        },
+        // 7つの内定フラッシュ: 虹色の光の柱が7本、順に敵を撃ち抜く
+        sevenFlash(t, time, { ex, ey }) {
+            for (let i = 0; i < 7; i++) {
+                const p = t * 9 - i;
+                if (p <= 0 || p > 2) continue;
+                const a = p < 1 ? 1 : 2 - p;
+                const x = ex + (i - 3) * 7;
+                ctx.globalAlpha = a;
+                ctx.fillStyle = `hsl(${i * 51}, 100%, 60%)`;
+                ctx.fillRect(x - 5, 0, 10, H);
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.fillRect(x - 1, 0, 2, H);
+            }
+            if (t > 0.75) {
+                const p = (t - 0.75) / 0.25;
+                ctx.globalAlpha = 1 - p;
+                text('内定', ex, ey - 30 - p * 10, { color: '#ffffff', size: 18, align: 'center', outline: '#b8860b' });
+            }
+        },
+        // やすパンチ: 大きな拳が飛んでいって、当たると星がはじける
+        punch(t, time, { ex, ey }) {
+            const p = ease(t / 0.4);
+            const x = ex - 60 + p * 50, y = ey + 4;
+            ctx.globalAlpha = fadeOut(t, 0.7);
+            ctx.fillStyle = '#f0c090';
+            ctx.strokeStyle = '#5a3a1a';
+            ctx.lineWidth = 1;
+            ctx.fillRect(x - 9, y - 8, 18, 16);
+            ctx.strokeRect(x - 9, y - 8, 18, 16);
+            for (let i = 1; i < 4; i++) line(x + 9, y - 8 + i * 4, x + 3, y - 8 + i * 4, '#5a3a1a', 1);
+            ctx.fillStyle = '#3a6ad0';
+            ctx.fillRect(x - 17, y - 6, 8, 12);
+            if (t > 0.4) burst(ex - 6, ey + 4, 10 + (t - 0.4) * 40, 8, '#ffe45a', 2);
+        },
+        // たむキック: 弧を描く蹴りの軌跡
+        kick(t, time, { ex, ey }) {
+            const sweepTo = Math.PI * 0.9 + ease(t / 0.45) * Math.PI * 1.1;
+            ctx.globalAlpha = fadeOut(t, 0.6);
+            ctx.strokeStyle = 'rgba(255,150,40,0.85)';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(ex - 14, ey, 26, Math.PI * 0.9, sweepTo);
+            ctx.stroke();
+            ctx.strokeStyle = '#fff4d0';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            if (t > 0.45) burst(ex, ey - 6, 10 + (t - 0.45) * 40, 6, '#ff9a3c', 2);
+        },
+        // だけチョップ: 上から一直線に振り下ろす手刀の光
+        chop(t, time, { ex }, groundY) {
+            const g = ease(t / 0.3);
+            const y1 = groundY * g;
+            ctx.globalAlpha = fadeOut(t, 0.55);
+            line(ex, 0, ex, y1, 'rgba(255,140,40,0.6)', 10);
+            line(ex, 0, ex, y1, '#ffffff', 3);
+            if (t > 0.3) {
+                const p = (t - 0.3) / 0.7;
+                line(ex - 10 - p * 40, groundY - 44, ex + 10 + p * 40, groundY - 44, '#ffe45a', 2);
+            }
+        }
+    };
 
     // ----- ロングフリーズ -----
     // 画面が止まる → ノイズ → 暗転 → 虹色の「こおりいきていける！」と虹色に光るこおりくん
@@ -1389,8 +1726,8 @@ const Lcd = (() => {
         titleCard = { text: textStr, sub, color, until: performance.now() + duration };
     }
 
-    function startFlash(color, duration = 400) {
-        flash = { color, start: performance.now(), duration };
+    function startFlash(color, duration = 400, strength = 1) {
+        flash = { color, start: performance.now(), duration, strength };
     }
 
     function startShake(amp, duration) {
@@ -1752,6 +2089,7 @@ const Lcd = (() => {
         battle.maxHp = event.hp;
         battle.games = event.games;
         battle.breakActive = false;
+        battle.winGuaranteed = Boolean(event.winGuaranteed);
         setNow(battle.hp, event.hp);
         setNow(battle.alpha, 1);
         setNow(battle.drop, 0);
@@ -1792,17 +2130,19 @@ const Lcd = (() => {
         battle.probUpGames = event.probUpGames;
         if (event.amount <= 0 && !event.guarded) return;   // ベル・ハズレは攻撃なし
 
+        let kooriFx = null;   // こおりくんがとどめを刺すときの必殺技のエフェクト
         if (event.freeze) {
             await playCutIn('koori', '完全撃破!!', '#8a2ab0');
         } else if (event.finishBy === 'koori') {
             // こおりくんがとどめ: 必殺技 (内定の時は HP が残っていても、このカットインで決着)
-            await kooriSpecial(event.finishKill);
+            kooriFx = await kooriSpecial(event.finishKill);
         } else if (event.big && Math.random() < config.effects.cutInRate) {
             await playCutIn('koori', event.kill ? '必殺!!' : 'くらえ!!', event.kill ? '#b01828' : '#1a5ab0');
         }
         koori.moving = true;
         await animateTo(koori.x, ENEMY_X - 56, 150);
         battle.hurtUntil = performance.now() + 300;
+        hitFx(kooriFx);
         startShake(event.big ? intensity.shakeLarge : intensity.shakeSmall, event.big ? 400 : 150);
         if (event.big) startFlash('#ffffff', 300);
         if (event.big) Sound.bigHit(); else Sound.hit();
@@ -1822,11 +2162,16 @@ const Lcd = (() => {
         await animateTo(koori.x, KOORI_BATTLE_X, 250);
         koori.moving = false;
         for (const hit of hits) {
-            if (hit.id === event.finishBy) await companionSpecial(hit.id);   // 仲間がとどめ: 必殺技
-            if (!party.includes(hit.id)) continue;
+            // 仲間がとどめ: 必殺技のカットイン → 追撃が当たった瞬間にエフェクト
+            const companionFx = hit.id === event.finishBy ? await companionSpecial(hit.id) : null;
+            if (!party.includes(hit.id)) {
+                hitFx(companionFx);
+                continue;
+            }
             animateTo(jumpOf(hit.id), -12, 120).then(() => animateTo(jumpOf(hit.id), 0, 140));
             await sleep(120);
             battle.hurtUntil = performance.now() + 150;
+            hitFx(companionFx);
             Sound.hit();
             damageNumbers.push({ text: `+${hit.amount}`, color: '#7fffd4', size: 10, born: performance.now() });
             await sleep(160);
@@ -2007,6 +2352,7 @@ const Lcd = (() => {
         battle.enemyId = null;
         battle.games = null;
         battle.breakActive = false;
+        battle.winGuaranteed = false;
 
         const bonus = event.bonus;
         if (bonus.type === 'probUp') {

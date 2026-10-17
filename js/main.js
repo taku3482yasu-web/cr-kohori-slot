@@ -126,6 +126,7 @@
         refresh();
         await Lcd.playEvents(events);
         refresh();
+        UI.showAchievements(events);
         SaveData.save(state);
 
         setTimeout(() => { spinButton.disabled = false; }, 300);

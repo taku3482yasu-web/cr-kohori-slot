@@ -67,11 +67,31 @@ const UI = (() => {
             dcOdds: $('dc-odds'),
             dcGraph: $('dc-graph'),
             dcHistory: $('dc-history'),
-            dcEmpty: $('dc-empty')
+            dcEmpty: $('dc-empty'),
+            collectionButton: $('collection-button'),
+            collectionModal: $('collection-modal'),
+            collectionClose: $('close-collection-button'),
+            colAchievementCount: $('col-achievement-count'),
+            colAchievements: $('col-achievements'),
+            colEnemyCount: $('col-enemy-count'),
+            colEnemies: $('col-enemies'),
+            colSpecialCount: $('col-special-count'),
+            colSpecials: $('col-specials'),
+            colTrophyCount: $('col-trophy-count'),
+            colTrophies: $('col-trophies'),
+            colRecords: $('col-records'),
+            achievementToast: $('achievement-toast'),
+            dcEstimate: $('dc-estimate'),
+            dcEstimateBars: $('dc-estimate-bars'),
+            dcEstimateFacts: $('dc-estimate-facts')
         };
         initAudioSettings();
         initDataReset();
         initMachineMove();
+        initCollection();
+        els.dcEstimate.addEventListener('toggle', () => {
+            if (gameState) renderEstimate(gameState);
+        });
         els.revealSetting.addEventListener('click', () => {
             settingRevealed = !settingRevealed;
             renderSetting();
@@ -122,6 +142,7 @@ const UI = (() => {
             els.spent.textContent = state.totalSpent.toLocaleString();
         }
         renderDataCounter(state);
+        renderEstimate(state);
         if (config.debug) els.debugState.textContent = JSON.stringify(state, null, 2);
     }
 
@@ -170,13 +191,57 @@ const UI = (() => {
         }).join('');
     }
 
+    // ----- 設定推測 (開いているときだけ計算する) -----
+    let estimateKey = '';
+
+    function renderEstimate(state) {
+        if (!els.dcEstimate.open) return;
+        const e = state.estimate;
+        const key = JSON.stringify([state.machineNo, e]);
+        if (key === estimateKey) return;
+        estimateKey = key;
+
+        const probs = SettingEstimate.probabilities(state, config);
+        const best = Math.max(...Object.values(probs));
+        els.dcEstimateBars.innerHTML = Object.entries(probs).map(([s, p]) => {
+            const width = Math.max(p > 0 ? 1 : 0, p * 100);
+            const label = p >= 0.999 ? '99.9%+' : p < 0.001 ? '0.1%未満' : `${(p * 100).toFixed(1)}%`;
+            return `<div class="dc-est-row${p === best ? ' dc-est-best' : ''}"><span class="dc-est-name">設定${s}</span>` +
+                `<span class="dc-est-track"><i style="width:${width}%"></i></span><span class="dc-est-value">${label}</span></div>`;
+        }).join('');
+
+        // 材料: 見た数と、設定1・設定6の目安
+        const settings = Object.keys(config.machine.multipliers).map(Number);
+        const low = settings[0];
+        const high = settings[settings.length - 1];
+        const odds = p => `1/${(1 / p).toFixed(1)}`;
+        const chanceSeen = e.normalChance ? odds(e.normalChance / e.normalGames) : '-';
+        const tries = Object.values(e.challenges).reduce((a, c) => a + c.tries, 0);
+        const wins = Object.values(e.challenges).reduce((a, c) => a + c.wins, 0);
+        const challengeRate = s => `${Math.round(SettingEstimate.challengeRate(config, s, 1) * 100)}%`;
+        const trophies = Object.keys(config.trophy.colors).filter(level => e.trophies[level])
+            .map(level => `${trophySwatch(Number(level))}${config.trophy.colors[level].name}×${e.trophies[level]}`).join(' ');
+        els.dcEstimateFacts.innerHTML = [
+            `<li><b>チャンス目（通常時）</b> ${e.normalChance}回 / ${e.normalGames.toLocaleString()}G（${chanceSeen}）` +
+                `<span class="dc-note">目安 設定${low} ${odds(SettingEstimate.chanceRate(config, low))} 〜 設定${high} ${odds(SettingEstimate.chanceRate(config, high))}</span></li>`,
+            `<li><b>城突入チャレンジ</b> ${wins} / ${tries}回成功${tries ? `（${Math.round(wins / tries * 100)}%）` : ''}` +
+                `<span class="dc-note">目安 設定${low} ${challengeRate(low)} 〜 設定${high} ${challengeRate(high)}（仲間なし）</span></li>`,
+            `<li><b>トロフィー</b> ${trophies || 'まだ出ていません'}</li>`
+        ].join('');
+    }
+
+    function trophySwatch(level) {
+        const color = config.trophy.colors[level];
+        const style = color.rainbow ? '' : ` style="background:${color.main}"`;
+        return `<span class="dc-trophy${color.rainbow ? ' dc-trophy-rainbow' : ''}"${style}></span>`;
+    }
+
     // 履歴のトロフィー欄: 色の見本と「○以上」(出なかったときは -)
     function trophyCell(hit) {
         const color = hit.trophy && config.trophy.colors[hit.trophy];
         if (!color) return '-';
-        const style = color.rainbow ? '' : ` style="background:${color.main}"`;
         const label = hit.trophy === 1 ? color.name : hit.trophy === 6 ? `${color.name} 6確定` : `${color.name} ${hit.trophy}以上`;
-        return `<span class="dc-trophy${color.rainbow ? ' dc-trophy-rainbow' : ''}"${style}></span>${label}`;
+        return trophySwatch(hit.trophy) + label;
     }
 
     // ----- キー割り当て -----
@@ -251,6 +316,10 @@ const UI = (() => {
             if (e.code === 'Escape') closeMoveDialog();
             return;
         }
+        if (!els.collectionModal.hidden) {
+            if (e.code === 'Escape') closeCollection();
+            return;
+        }
         if (!els.modal.hidden) {
             if (e.code === 'Escape') closeSettings();
             return;
@@ -322,7 +391,7 @@ const UI = (() => {
 
     // ----- リセット (確認ダイアログで「リセットする」を押したときだけ) -----
     function isDialogOpen() {
-        return !els.modal.hidden || !els.resetModal.hidden || !els.moveModal.hidden;
+        return !els.modal.hidden || !els.resetModal.hidden || !els.moveModal.hidden || !els.collectionModal.hidden;
     }
 
     function openResetDialog() {
@@ -350,6 +419,123 @@ const UI = (() => {
             SaveData.clear();
             location.reload();
         });
+    }
+
+    // ----- 図鑑・実績 -----
+    function initCollection() {
+        els.collectionButton.addEventListener('click', openCollection);
+        els.collectionClose.addEventListener('click', closeCollection);
+        els.collectionModal.addEventListener('click', (e) => {
+            if (e.target === els.collectionModal) closeCollection();
+        });
+    }
+
+    function openCollection() {
+        if (!gameState) return;
+        if (!els.modal.hidden) closeSettings();
+        renderCollection(gameState.collection);
+        els.collectionModal.hidden = false;
+        els.collectionClose.focus();
+    }
+
+    function closeCollection() {
+        els.collectionModal.hidden = true;
+        els.collectionButton.blur();
+    }
+
+    function renderCollection(c) {
+        const entries = Collection.entries(config);
+        const count = (seen, total) => `${seen} / ${total}`;
+
+        // 実績: 解除したものは ★、まだのものは ☆ と進み具合
+        const achievements = config.collection.achievements;
+        const unlocked = achievements.filter(a => c.achievements[a.id] != null);
+        els.colAchievementCount.textContent = count(unlocked.length, achievements.length);
+        els.colAchievements.innerHTML = achievements.map(a => {
+            const done = c.achievements[a.id] != null;
+            const target = Collection.target(config, a);
+            const progress = done || target === 1 ? '' : `<span class="col-progress">${Math.min(Collection.stat(c, a.stat), target).toLocaleString()} / ${target.toLocaleString()}</span>`;
+            return `<li class="${done ? 'col-done' : ''}"><span class="col-star">${done ? '★' : '☆'}</span>` +
+                `<span class="col-name">${a.name}</span><span class="col-desc">${a.desc}</span>${progress}</li>`;
+        }).join('');
+
+        // 敵: 撃破した敵はドット絵と撃破数、まだの敵はシルエット
+        const defeated = entries.enemies.filter(e => c.defeats[e.id]);
+        els.colEnemyCount.textContent = count(defeated.length, entries.enemies.length);
+        els.colEnemies.innerHTML = '';
+        for (const enemy of entries.enemies) {
+            const n = c.defeats[enemy.id] || 0;
+            const card = document.createElement('div');
+            card.className = 'col-enemy' + (n ? '' : ' col-unknown');
+            const canvas = document.createElement('canvas');
+            // 2倍で描いて、CSS で枠に収まる大きさに縮める
+            const size = Characters.size(enemy.id);
+            canvas.width = size.w * 2;
+            canvas.height = size.h * 2;
+            Characters.drawEnemy(canvas.getContext('2d'), enemy.id, size.w, size.h * 2, { silhouette: !n });
+            const label = document.createElement('span');
+            label.textContent = n ? `${enemy.name} ×${n.toLocaleString()}` : '？？？';
+            card.append(canvas, label);
+            els.colEnemies.append(card);
+        }
+
+        // 必殺技: 見た技は名前と回数、まだの技は ？？？ (誰の技かは出す)
+        const seenSpecials = entries.specials.filter(s => c.specials[s.id]);
+        els.colSpecialCount.textContent = count(seenSpecials.length, entries.specials.length);
+        els.colSpecials.innerHTML = entries.specials.map(s => {
+            const n = c.specials[s.id] || 0;
+            return `<li class="${n ? '' : 'col-unknown'}"><span class="col-who">${s.who}</span>` +
+                `<span class="col-name">${n ? s.name : '？？？'}</span><span class="col-times">${n ? `×${n.toLocaleString()}` : ''}</span></li>`;
+        }).join('');
+
+        // トロフィー: 出た色と回数
+        const seenTrophies = entries.trophies.filter(level => c.trophies[level]);
+        els.colTrophyCount.textContent = count(seenTrophies.length, entries.trophies.length);
+        els.colTrophies.innerHTML = entries.trophies.map(level => {
+            const n = c.trophies[level] || 0;
+            const color = config.trophy.colors[level];
+            return `<div class="col-trophy${n ? '' : ' col-unknown'}">${n ? trophySwatch(level) : '<span class="dc-trophy"></span>'}` +
+                `<span>${n ? `${color.name} ×${n.toLocaleString()}` : '？'}</span></div>`;
+        }).join('');
+
+        const r = c.records;
+        const records = [
+            ['合計ゲーム数', `${(r.games || 0).toLocaleString()}G`],
+            ['RASH 突入', `${r.rash || 0}回`],
+            ['SUPER 突入', `${r.super || 0}回`],
+            ['内定の時 突破', `${r.naitei || 0}回`],
+            ['ロングフリーズ', `${r.freeze || 0}回`],
+            ['台移動', `${r.moves || 0}回`],
+            ['1回の RASH の最高獲得', `${(r.bestCoins || 0).toLocaleString()}枚`],
+            ['1回の RASH の最多撃破', `${r.bestDefeats || 0}体`]
+        ];
+        els.colRecords.innerHTML = records.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+    }
+
+    // 実績解除の通知 (液晶の演出が終わってから、1つずつ順に)
+    const toastQueue = [];
+    let toastTimer = null;
+
+    function showAchievements(events) {
+        for (const e of events) if (e.type === 'achievement') toastQueue.push(e.name);
+        if (!toastTimer) nextToast();
+    }
+
+    function nextToast() {
+        const name = toastQueue.shift();
+        if (!name) {
+            els.achievementToast.hidden = true;
+            toastTimer = null;
+            return;
+        }
+        els.achievementToast.innerHTML = `<span class="toast-label">★ 実績解除</span>${name}`;
+        els.achievementToast.hidden = false;
+        // 同じ要素を出し直すとアニメーションが最初から流れないので、一度外して付け直す
+        els.achievementToast.classList.remove('show');
+        void els.achievementToast.offsetWidth;
+        els.achievementToast.classList.add('show');
+        Sound.win();
+        toastTimer = setTimeout(nextToast, 2800);
     }
 
     // ----- 台移動 (コインなどはそのままに、設定を抽選し直した新しい台へ) -----
@@ -447,5 +633,5 @@ const UI = (() => {
         });
     }
 
-    return { init, update, bindDebugActions };
+    return { init, update, bindDebugActions, showAchievements };
 })();

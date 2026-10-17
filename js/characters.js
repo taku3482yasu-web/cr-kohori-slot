@@ -449,8 +449,8 @@ const Characters = (() => {
         ctx.globalAlpha = 1;
     }
 
-    // 敵を描く。(x, groundY) は足元の中央。hurt で白く光る、alpha で透明度
-    function drawEnemy(ctx, id, x, groundY, { scale = 2, frame = 0, hurt = false, alpha = 1 } = {}) {
+    // 敵を描く。(x, groundY) は足元の中央。hurt で白く光る、silhouette で黒い影、alpha で透明度
+    function drawEnemy(ctx, id, x, groundY, { scale = 2, frame = 0, hurt = false, silhouette = false, alpha = 1 } = {}) {
         const enemy = ENEMIES[id];
         if (!enemy) return;
         const left = Math.round(x - (enemy.w * scale) / 2);
@@ -459,7 +459,7 @@ const Characters = (() => {
         enemy.draw((rx, ry, rw, rh, color) => {
             const x0 = Math.round(left + rx * scale), x1 = Math.round(left + (rx + rw) * scale);
             const y0 = Math.round(top + ry * scale), y1 = Math.round(top + (ry + rh) * scale);
-            ctx.fillStyle = hurt ? '#ffffff' : color;
+            ctx.fillStyle = silhouette ? '#101018' : hurt ? '#ffffff' : color;
             ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
         }, frame);
         ctx.globalAlpha = 1;

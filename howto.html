@@ -296,8 +296,16 @@
         <h3>設定示唆トロフィー</h3>
         <p>おにおにRASH（SUPER）が終わると、<span id="trophy-rate"></span>くらいの確率で液晶の左下にトロフィーが出ます。<b>色で「設定○以上」を示唆</b>します（次のレバー ON で消えます。大当たり履歴にも残ります）。高い設定ほど、上の色が出やすくなります。</p>
         <ul id="trophy-list" class="trophy-list"></ul>
+        <h3>設定推測</h3>
+        <p>データカウンターの <b>設定推測</b> を開くと、この台で見た「通常時のチャンス目の出現率」「城突入チャレンジの成功率」「トロフィーの色」から、設定1〜6それぞれの可能性（%）を計算して表示します。打ち始めは設定1がいちばん高く出ます（台の設定の出やすさから始まるため）。低設定っぽければ <b>⇄ 台移動</b> で別の台へ。</p>
         <h3>データカウンター</h3>
         <p>リールの下に、総ゲーム数・現在のゲーム数（前回の RASH から）・RASH と SUPER の回数・初当たり確率と、<b>大当たり履歴</b>（当選までのゲーム数・契機・SUPER 到達・獲得枚数・撃破数、新しい順に<span id="dc-shown"></span>件）を表示します。グラフは当選までのゲーム数（赤: RASH、金: SUPER 到達）です。</p>
+    </section>
+
+    <section id="collection">
+        <h2>図鑑・実績</h2>
+        <p>画面上部の <b>★ 図鑑</b> で、撃破した敵・見た必殺技・出たトロフィーの色・記録と、実績を見られます。図鑑・実績は台移動しても残ります（リセットすると消えます）。実績を解除すると、画面上部に「★ 実績解除」が出ます。</p>
+        <div class="table-wrap"><table id="achievement-table"></table></div>
     </section>
 
     <a class="back" href="index.html">← ゲームに戻る</a>
@@ -568,6 +576,8 @@
         const meaning = s === '1' ? '示唆なし' : s === '6' ? '<span class="red">設定6確定</span>' : `設定${s}以上`;
         return `<li><span class="trophy-swatch" style="${swatch}"></span>${t.name} … ${meaning}</li>`;
     }).join('');
+    table('achievement-table', ['実績', '条件'], c.collection.achievements.map(a => [a.name, a.desc]));
+
     table('setting-table', ['設定', '通常時のチャンス目', '城突入チャレンジのチャンス目', '城突入率', 'ポイントチャンス（多）'],
         settings.map(s => [
             s,
