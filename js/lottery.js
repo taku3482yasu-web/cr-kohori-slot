@@ -124,6 +124,10 @@ const Lottery = {
 
     // 1ゲーム分の抽選結果 (outcome) を返す。ロングフリーズは他の役より先に抽選する
     draw(state, config, rng = Math.random) {
+        // 復活待ちのレバー ON (暗転中) は 7揃い確定。演出なので払い出しはなし (noPayout)
+        if (StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL) {
+            return { ...this.makeOutcome('seven', config, rng), noPayout: true };
+        }
         if (rng() < (config.longFreeze.prob[state.mode] || 0)) return this.makeOutcome('longFreeze', config, rng);
         const role = StateMachine.isRashMode(state)
             ? Battle.drawRole(state, config, rng)

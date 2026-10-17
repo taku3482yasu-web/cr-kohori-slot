@@ -7,6 +7,7 @@
 
 const SaveData = (() => {
     const KEY = 'koori-save';
+    const OPENING_KEY = 'koori-opening';   // 次に開いたときにオープニングを流す印 (リセット・台移動)
     const VERSION = 1;
 
     function save(state) {
@@ -67,6 +68,26 @@ const SaveData = (() => {
         return Number.isFinite(state.coins);
     }
 
+    // 次に開いたときにオープニングを流す
+    function requestOpening() {
+        try {
+            localStorage.setItem(OPENING_KEY, '1');
+        } catch (e) {
+            // 保存できない環境では流さない
+        }
+    }
+
+    // オープニングを流す印があるか (読んだら消す)
+    function takeOpeningRequest() {
+        try {
+            const requested = localStorage.getItem(OPENING_KEY) === '1';
+            localStorage.removeItem(OPENING_KEY);
+            return requested;
+        } catch (e) {
+            return false;
+        }
+    }
+
     function savedAt() {
         try {
             const data = JSON.parse(localStorage.getItem(KEY));
@@ -76,5 +97,5 @@ const SaveData = (() => {
         }
     }
 
-    return { save, load, clear, savedAt };
+    return { save, load, clear, savedAt, requestOpening, takeOpeningRequest };
 })();

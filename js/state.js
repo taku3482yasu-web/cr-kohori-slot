@@ -793,9 +793,9 @@ const GameFlow = {
         return Number(Lottery.weightedPick(Object.keys(weights), level => weights[level], rng));
     },
 
-    // 払い出し (柄が揃ったとき)
+    // 払い出し (柄が揃ったとき。復活の 7揃いは払い出しなし)
     applyPayout(state, outcome, config) {
-        const amount = outcome.aligned ? (config.reels.payouts[outcome.role] || 0) : 0;
+        const amount = outcome.aligned && !outcome.noPayout ? (config.reels.payouts[outcome.role] || 0) : 0;
         state.coins += amount;
         state.totalCoinsWon += amount;
         if (StateMachine.isRashMode(state)) state.rash.coinsWon += amount;

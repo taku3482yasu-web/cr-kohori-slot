@@ -224,18 +224,19 @@
         btn.addEventListener('click', () => { debugNextRole = btn.dataset.nextRole; });
     });
 
-    // オープニング: はじめて遊ぶとき (保存データがないとき) に流す。液晶かレバーを押すとスキップ
+    // オープニング: はじめて遊ぶとき (保存データがないとき)・リセットしたあと・台移動したあとに流す。液晶かレバーを押すとスキップ
     document.getElementById('lcd').addEventListener('click', () => Lcd.skipOpening());
-    if (!savedState) Lcd.playOpening();
+    const openingRequested = SaveData.takeOpeningRequest();
+    const opening = !savedState || openingRequested ? Lcd.playOpening() : Promise.resolve();
 
     refresh();
     if (state.justMoved) {
-        // 台移動の直後
+        // 台移動の直後 (オープニングのあとに表示)
         delete state.justMoved;
         SaveData.save(state);
-        Lcd.showMessage(`${state.machineNo}番台に移動!`, '#7fffd4', 2500);
+        opening.then(() => Lcd.showMessage(`${state.machineNo}番台に移動!`, '#7fffd4', 2500));
     } else if (savedState) {
-        Lcd.showMessage('CONTINUE!', '#9fe6ff', 2000);
+        opening.then(() => Lcd.showMessage('CONTINUE!', '#9fe6ff', 2000));
     }
 
     // テスト・デバッグ用に公開

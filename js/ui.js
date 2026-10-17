@@ -436,6 +436,7 @@ const UI = (() => {
         // 保存データだけを消して読み込み直す (キー割り当て・サウンドの設定は別に保存しているので残る)
         els.resetConfirm.addEventListener('click', () => {
             SaveData.clear();
+            SaveData.requestOpening();
             location.reload();
         });
     }
@@ -712,6 +713,7 @@ const UI = (() => {
                 alert('この環境ではデータを保存できないため、台移動できません');
                 return;
             }
+            SaveData.requestOpening();
             location.reload();
         });
     }

@@ -112,7 +112,7 @@ function play(setting, games, seed) {
         questionFails: 0,
         revenge: { success: 0, toSuper: 0, fromSuper: 0, carried: 0, wrong: 0 },
         joined: new Set(),       // 仲間になった仲間の id
-        revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0 },
+        revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0, notSeven: 0, paid: 0 },
         furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0 }
     };
     let pendingGuaranteed = false;
@@ -171,6 +171,8 @@ function play(setting, games, seed) {
             if (e.type === 'companionChallenge' && e.success) log.joined.add(e.memberId);
             if (e.type === 'revival') {
                 log.revival.revived++;
+                if (outcome.role !== 'seven' || !outcome.aligned) log.revival.notSeven++;
+                if (events.some(p => p.type === 'payout' && p.amount > 0)) log.revival.paid++;
                 if (!events.some(d => d.type === 'defeat' && d.enemyId === e.enemyId)) log.revival.noDefeat++;
             }
         }
@@ -467,7 +469,7 @@ test('ふるカワ: キャラクターの話をする (通常時・仲間・戦�
     }
 });
 
-test('復活: 「？？」の負けの一部で復活が決まり、次のゲームで戦っていた敵を撃破して RASH 継続', () => {
+test('復活: 「？？」の負けの一部で復活が決まり、次のゲームは 7揃い (払い出しなし) で戦っていた敵を撃破して RASH 継続', () => {
     for (const { setting, state, log } of runs) {
         const r = log.revival;
         assert(r.pending > 0, `設定${setting} で復活が一度もない`);
@@ -475,6 +477,8 @@ test('復活: 「？？」の負けの一部で復活が決まり、次のゲー
         assertEqual(r.notPending, 0, `設定${setting} で復活が決まったのに復活待ちになっていない`);
         assert(r.revived === r.pending || r.revived === r.pending - 1, `設定${setting} で復活待ちのあと復活していない`);
         assertEqual(r.noDefeat, 0, `設定${setting} で復活したのに敵を撃破していない`);
+        assertEqual(r.notSeven, 0, `設定${setting} で復活のゲームが 7揃いでない`);
+        assertEqual(r.paid, 0, `設定${setting} で復活の 7揃いに払い出しがある`);
         assertEqual(state.collection.records.revival, r.revived, `設定${setting} の図鑑の復活の回数`);
     }
 });
