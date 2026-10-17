@@ -123,6 +123,7 @@ const Lcd = (() => {
     // state に合わせて場面をそろえる (起動時・デバッグ遷移時)
     function syncWithState() {
         displayMap = state.normal.map;
+        kooriAura = Boolean(state.challenge.chanceBoost) && !StateMachine.isRashMode(state);
         letterboxTarget = 0;
         bubbles = null;
         party = [...state.companions];
@@ -257,6 +258,27 @@ const Lcd = (() => {
     }
 
     // ----- キャラクター・背景の動くもの -----
+    let kooriAura = false;   // SE城前でチャンス目 → 城突入チャレンジの突入率UP中 (赤いオーラ)
+
+    // こおりくんの赤いオーラ: 脈打つ赤い光と、足元から立ちのぼる炎
+    function drawAura(time, cx, groundY, size) {
+        const pulse = 0.3 + 0.15 * Math.sin(time / 120);
+        ctx.fillStyle = `rgba(255,40,40,${pulse})`;
+        ctx.beginPath();
+        ctx.ellipse(cx, groundY - size / 2, size * 0.75, size * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        for (let i = 0; i < 10; i++) {
+            const t = (time / 700 + i / 10) % 1;
+            const fx = cx + Math.sin(i * 2.4 + time / 300) * size * 0.5;
+            const fy = groundY - t * size * 1.4;
+            const s = Math.max(1, Math.round((1 - t) * 4));
+            ctx.globalAlpha = 1 - t;
+            ctx.fillStyle = t < 0.4 ? '#ffb040' : '#ff3030';
+            ctx.fillRect(Math.round(fx - s / 2), Math.round(fy), s, s * 2);
+        }
+        ctx.globalAlpha = 1;
+    }
+
     function drawKoori(time) {
         if (!koori.visible) return;
         const bg = Backgrounds.get(displayMap);
@@ -268,6 +290,7 @@ const Lcd = (() => {
         const jump = valueAt(koori.jump, time);
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.fillRect(x + 4, bg.groundY - 2, size - 8, 3);
+        if (kooriAura && state.challenge.chanceBoost) drawAura(time, x + size / 2, bg.groundY + jump, size);
         drawSprite(ctx, SPRITES.koori, frame, x, bg.groundY - size + bob + jump, KOORI_SCALE);
     }
 
@@ -1996,13 +2019,25 @@ const Lcd = (() => {
         letterboxTarget = 1;
         startFlash('#ff3030', 500);
         startShake(config.effects.intensity.shakeSmall, 400);
-        const boost = event.companionBoost > 1 ? `（仲間の力で突入率×${Math.round(event.companionBoost * 100) / 100}）` : '';
+        // 仲間とオーラの倍率はまとめて表示 (帯の幅に収まるように)
+        const mult = event.companionBoost * (event.chanceBoost ? config.castle.chanceBoost : 1);
+        const boost = mult > 1 ? `（突入率×${Math.round(mult * 100) / 100}）` : '';
         showTitle('城突入チャレンジ!!', `${event.games}G以内に チャンス目を引け！${boost}`, '#ff8080', timing.castleMovie);
         koori.moving = true;
         await animateTo(koori.x, 112, timing.castleMovie * 0.5);
         koori.moving = false;
         await sleep(timing.castleMovie * 0.5);
         letterboxTarget = 0;
+    }
+
+    // SE城前でチャンス目: こおりくんが赤いオーラをまとい、突入率UP
+    async function castleBoost(event) {
+        kooriAura = true;
+        startFlash('#ff3030', 400);
+        startShake(config.effects.intensity.shakeSmall, 300);
+        Sound.chance();
+        showTitle('突入率UP!!', `こおりくんが燃えている！（突入率×${event.rate}）`, '#ff5a5a', 1600);
+        await sleep(1600);
     }
 
     // 突入できなかったゲーム: 門に体当たりしてはじかれる
@@ -2019,6 +2054,10 @@ const Lcd = (() => {
         const timing = config.effects.timing;
         scene = 'entry';
         letterboxTarget = 1;
+        // こおりくんのカットイン「こおりばりきつよい！」→ 門が開く
+        startFlash('#ffd700', 400);
+        Sound.chance();
+        await playCutIn('koori', config.castle.entryCutIn, '#b01828', 1400, '突入成功!!');
         startFlash('#ffffff', 600);
         startShake(config.effects.intensity.shakeLarge, 500);
         if (event.oni) {
@@ -2467,6 +2506,9 @@ const Lcd = (() => {
                     break;
                 case 'pointChance':
                     await pointChance(event);
+                    break;
+                case 'castleBoost':
+                    await castleBoost(event);
                     break;
                 case 'challengeStart':
                     await challengeIntro(event);

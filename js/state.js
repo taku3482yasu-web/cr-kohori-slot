@@ -126,7 +126,7 @@ function createInitialState(config, rng = Math.random) {
         estimate: {
             normalGames: 0,    // 通常時のゲーム数 (ロングフリーズを除く)
             normalChance: 0,   // そのうちチャンス目が出た回数
-            challenges: {},    // 城突入チャレンジの結果 { 仲間による突入率の倍率: { tries, wins } }
+            challenges: {},    // 城突入チャレンジの結果 { 突入率の倍率 (仲間・SE城前のチャンス目): { tries, wins } }
             trophies: {}       // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
         },
 
@@ -155,7 +155,8 @@ function createInitialState(config, rng = Math.random) {
 
         // 城突入チャレンジ
         challenge: {
-            gamesRemaining: 0
+            gamesRemaining: 0,
+            chanceBoost: false     // SE城前でチャンス目を引いた (このあとのチャレンジの突入率UP)
         },
 
         // RASH / SUPER_RASH
@@ -197,7 +198,7 @@ const SettingEstimate = {
     },
 
     countChallenge(state, config, entered) {
-        const key = String(Companions.castleEntryMultiplier(state, config));
+        const key = String(GameFlow.castleEntryBoost(state, config));
         const c = state.estimate.challenges[key] || (state.estimate.challenges[key] = { tries: 0, wins: 0 });
         c.tries++;
         if (entered) c.wins++;
@@ -212,7 +213,7 @@ const SettingEstimate = {
         return config.lottery.normal.chance * config.machine.multipliers[setting].chance;
     },
 
-    // 設定ごとの、城突入チャレンジ1回の成功率 (boost: 仲間による突入率の倍率)
+    // 設定ごとの、城突入チャレンジ1回の成功率 (boost: 仲間・SE城前のチャンス目による突入率の倍率)
     // ロングフリーズで終わったチャレンジは数えていないので、ここでも除いて計算する
     challengeRate(config, setting, boost) {
         const mult = config.machine.multipliers[setting];
@@ -426,6 +427,11 @@ const GameFlow = {
         if (normal.map === config.map.castle) {
             normal.castleWaitRemaining = Math.max(0, normal.castleWaitRemaining - 1);
             const events = [{ type: 'castleWait', remaining: normal.castleWaitRemaining }];
+            // チャンス目を引くと、このあとの城突入チャレンジの突入率UP (1回だけ。重ねがけはしない)
+            if (outcome.isChance && !state.challenge.chanceBoost) {
+                state.challenge.chanceBoost = true;
+                events.push({ type: 'castleBoost', rate: config.castle.chanceBoost });
+            }
             if (normal.castleWaitRemaining === 0) events.push(...this.startCastleChallenge(state, config));
             return events;
         }
@@ -515,6 +521,7 @@ const GameFlow = {
     // SE城前へ (チャンスポイントが規定値に到達・ダンシングステージのチャンスゾーン突入)
     goToCastle(state, config) {
         state.normal.castleWaitRemaining = config.castle.waitGames;
+        state.challenge.chanceBoost = false;
         return this.changeMap(state, config.map.castle);
     },
 
@@ -561,6 +568,11 @@ const GameFlow = {
         return { type: 'mapChange', from, to };
     },
 
+    // 城突入チャレンジの突入率にかかる倍率 (仲間・SE城前のチャンス目)
+    castleEntryBoost(state, config) {
+        return Companions.castleEntryMultiplier(state, config) * (state.challenge.chanceBoost ? config.castle.chanceBoost : 1);
+    },
+
     // 城突入チャレンジ開始
     startCastleChallenge(state, config) {
         const events = [StateMachine.transition(state, MODES.CASTLE_CHALLENGE)];
@@ -568,7 +580,8 @@ const GameFlow = {
         events.push({
             type: 'challengeStart',
             games: config.castle.challengeGames,
-            companionBoost: Companions.castleEntryMultiplier(state, config)
+            companionBoost: Companions.castleEntryMultiplier(state, config),
+            chanceBoost: state.challenge.chanceBoost
         });
         return events;
     },
@@ -579,11 +592,14 @@ const GameFlow = {
         challenge.gamesRemaining--;
         const rate = Math.min(1, (config.castle.entryRate[outcome.role] || 0)
             * MachineSetting.multipliers(state, config).castleEntry
-            * Companions.castleEntryMultiplier(state, config));
+            * this.castleEntryBoost(state, config));
         const success = rng() < rate;
         const events = [{ type: 'challengeGame', remaining: challenge.gamesRemaining, role: outcome.role, success }];
 
-        if (success || challenge.gamesRemaining <= 0) SettingEstimate.countChallenge(state, config, success);
+        if (success || challenge.gamesRemaining <= 0) {
+            SettingEstimate.countChallenge(state, config, success);
+            challenge.chanceBoost = false;
+        }
 
         if (success) {
             // 7・7・BAR で突入したら最初の相手はおにおに
@@ -681,6 +697,7 @@ const GameFlow = {
     // RASH 突入: 当選までのゲーム数と契機を記録 (trigger: castle / sevenBar / freeze / revenge)
     recordHit(state, config, trigger) {
         state.rashCount++;
+        state.challenge.chanceBoost = false;   // ロングフリーズなどで SE城前から直接 RASH に入ったときも、突入率UPは終わり
         for (const hit of state.hitHistory) hit.active = false;
         state.hitHistory.unshift({
             no: state.rashCount,
@@ -755,6 +772,7 @@ const DebugState = {
         state.normal.chancePoint = config.chancePoint.threshold;
         state.normal.castleWaitRemaining = 0;
         state.normal.dance = null;
+        state.challenge.chanceBoost = false;
         return [{ type: 'debug', label: '城突入チャレンジへ' }, ...GameFlow.startCastleChallenge(state, config)];
     },
     toRash(state) {

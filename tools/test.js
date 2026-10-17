@@ -287,8 +287,17 @@ test('設定推測: 城突入チャレンジの成功率が計算値と合う', 
             if (c.tries < 200) continue;
             const p = game.SettingEstimate.challengeRate(game.config, setting, Number(boost));
             const sd = Math.sqrt(p * (1 - p) / c.tries);
-            assertBetween(c.wins / c.tries, p - 4 * sd, p + 4 * sd, `設定${setting} (仲間の倍率 ${boost}) の成功率`);
+            assertBetween(c.wins / c.tries, p - 4 * sd, p + 4 * sd, `設定${setting} (突入率の倍率 ${boost}) の成功率`);
         }
+    }
+});
+
+test('SE城前のチャンス目: 突入率UP (オーラ) のチャレンジがあり、成功率が上がる', () => {
+    for (const { setting, state, game } of runs) {
+        const boosted = state.estimate.challenges[String(game.config.castle.chanceBoost)];
+        const plain = state.estimate.challenges['1'];
+        assert(boosted && boosted.tries > 0, `設定${setting} で突入率UPのチャレンジがない`);
+        assert(boosted.wins / boosted.tries > plain.wins / plain.tries, `設定${setting} で突入率UPのほうが成功率が低い`);
     }
 });
 
