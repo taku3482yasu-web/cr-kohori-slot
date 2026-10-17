@@ -1199,10 +1199,50 @@ button {
     user-select: none;
 }
 
+/* 筐体の長押しで文字が選ばれたり、メニュー・画像の保存が出たりしないように */
+.slot-machine {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* 回っているリールは、リールそのものを押しても止められる (main.js) */
+.reel.stoppable {
+    cursor: pointer;
+}
+
 /* キーボードがない端末 (スマホ・タブレット) ではキー表示を隠す */
 @media (hover: none) and (pointer: coarse) {
     .key-hint {
         display: none;
+    }
+}
+
+/* スマホ (縦・横): 上のボタンはアイコンの下に小さく名前を出す */
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+    #settings-button,
+    #howto-button,
+    #collection-button,
+    #move-button,
+    #reset-button {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        padding: 3px 5px;
+        border-radius: 10px;
+        border-width: 2px;
+        line-height: 1.1;
+    }
+
+    .tb-icon {
+        font-size: 0.95rem;
+    }
+
+    .tb-label {
+        font-size: 0.56rem;
+        white-space: nowrap;
     }
 }
 
@@ -1229,33 +1269,45 @@ button {
         font-size: 0.9rem;
     }
 
+    /* 上のボタンは1段に (アイコンの下に小さく名前)。モード表示は残りの幅で折り返す */
     .top-bar {
-        gap: 6px;
+        width: 100%;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) repeat(5, auto);
+        gap: 4px;
     }
 
     .mode-display {
-        padding: 4px 10px;
-        font-size: 0.75rem;
-    }
-
-    #settings-button,
-    #howto-button,
-    #collection-button,
-    #move-button,
-    #reset-button {
-        padding: 5px 10px;
-        font-size: 0.72rem;
+        align-self: stretch;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 6px;
+        border-radius: 10px;
+        font-size: 0.68rem;
+        line-height: 1.2;
+        text-align: center;
     }
 
     .status-panel {
         width: 100%;
-        padding: 6px 10px;
-        gap: 2px 12px;
+        display: grid;
+        grid-template-columns: auto auto 1fr auto;
+        padding: 4px 10px;
+        gap: 10px;
         border-width: 2px;
     }
 
+    /* ラベルを数字の上に置いて1段に収める */
+    .status-item {
+        flex-wrap: wrap;
+        gap: 0 3px;
+        line-height: 1.1;
+    }
+
     .status-label {
-        font-size: 0.68rem;
+        width: 100%;
+        font-size: 0.6rem;
     }
 
     .status-value {
@@ -1263,12 +1315,12 @@ button {
     }
 
     .currency-unit {
-        font-size: 0.9rem;
+        font-size: 0.85rem;
     }
 
     #buy-coins-button {
-        padding: 5px 10px;
-        font-size: 0.7rem;
+        padding: 6px 8px;
+        font-size: 0.68rem;
     }
 
     .slot-machine {
@@ -1372,6 +1424,187 @@ button {
 
     .game-title {
         font-size: 0.8rem;
+    }
+}
+
+/* =====================================================================
+   スマホの横画面 (高さ 500px 以下)
+   上: ボタンとステータスを1段 / 下: 左に液晶、右にリール・STOP・レバー
+   液晶の高さは「画面の高さ」と「リールの列を除いた横幅」の小さいほうに合わせる
+   ===================================================================== */
+@media (orientation: landscape) and (max-height: 500px) {
+    :root {
+        --symbol-height: 48px;
+    }
+
+    body {
+        min-height: 100dvh;
+        padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+                 max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    }
+
+    .game-container {
+        display: grid;
+        grid-template-columns: auto auto;
+        grid-template-areas:
+            "top status"
+            "machine machine"
+            "counter counter"
+            "debug debug";
+        justify-content: center;
+        gap: 6px 8px;
+        max-width: none;
+    }
+
+    .game-title {
+        display: none;
+    }
+
+    .top-bar {
+        grid-area: top;
+        flex-wrap: nowrap;
+        gap: 4px;
+    }
+
+    .mode-display {
+        padding: 4px 8px;
+        font-size: 0.68rem;
+        white-space: nowrap;
+    }
+
+    .status-panel {
+        grid-area: status;
+        flex-wrap: nowrap;
+        padding: 3px 10px;
+        gap: 10px;
+        border-width: 2px;
+    }
+
+    .status-item {
+        flex-wrap: wrap;
+        gap: 0 3px;
+        line-height: 1.1;
+    }
+
+    .status-label {
+        width: 100%;
+        font-size: 0.6rem;
+    }
+
+    .status-value {
+        font-size: 1rem;
+    }
+
+    #buy-coins-button {
+        padding: 6px 8px;
+        font-size: 0.68rem;
+    }
+
+    .slot-machine {
+        grid-area: machine;
+        display: grid;
+        grid-template-columns: auto auto;
+        grid-template-areas:
+            "lcd reels"
+            "lcd controls";
+        grid-template-rows: auto 1fr;
+        justify-content: center;
+        gap: 6px 10px;
+        width: auto;
+        padding: 8px;
+        border-width: 4px;
+        border-radius: 14px;
+    }
+
+    .lcd-frame {
+        grid-area: lcd;
+        align-self: center;
+        margin: 0;
+        padding: 2px;
+        border-width: 3px;
+    }
+
+    .lcd {
+        width: auto;
+        height: min(calc(100dvh - 100px), calc((100vw - 300px) * 0.5625));
+    }
+
+    .reels-container {
+        grid-area: reels;
+        gap: 6px;
+        padding: 6px;
+    }
+
+    .reel-column {
+        gap: 6px;
+    }
+
+    .reel {
+        width: 72px;
+    }
+
+    .symbol-img {
+        width: 40px;
+        height: 40px;
+    }
+
+    .stop-button {
+        width: 72px;
+        min-height: 40px;
+        font-size: 0.95rem;
+        border-radius: 8px;
+    }
+
+    .controls {
+        grid-area: controls;
+        align-self: end;
+        margin: 0;
+    }
+
+    #spin-button {
+        width: 100%;
+        min-height: 48px;
+        padding: 8px;
+        font-size: 1.2rem;
+    }
+
+    .data-counter {
+        grid-area: counter;
+    }
+
+    .debug-panel {
+        grid-area: debug;
+    }
+}
+
+/* 横画面で低い端末 (iPhone SE の横など) */
+@media (orientation: landscape) and (max-height: 400px) {
+    :root {
+        --symbol-height: 40px;
+    }
+
+    .symbol-img {
+        width: 34px;
+        height: 34px;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 340px) {
+    :root {
+        --symbol-height: 34px;
+    }
+
+    .symbol-img {
+        width: 28px;
+        height: 28px;
+    }
+
+    .stop-button {
+        min-height: 34px;
+    }
+
+    #spin-button {
+        min-height: 40px;
     }
 }
 

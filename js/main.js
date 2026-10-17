@@ -181,14 +181,23 @@
     buyCoinsButton.addEventListener('click', buyCoins);
     // STOP は指・マウスが触れた瞬間に止める (離したときの click を待たない)。
     // キーボード・支援技術からの click でも止められるよう両方受け付ける (2回目は無視される)
+    // スマホでは回っているリールそのものを押しても止められる (STOP より大きくて押しやすい)。
+    // 指で止めたときは短く震わせる (対応している端末だけ)
+    const stopByPointer = (e, i) => {
+        if (e.button !== 0 || stopButtons[i].disabled) return;
+        e.preventDefault();
+        Reels.stop(i);
+        if (e.pointerType === 'touch' && navigator.vibrate) navigator.vibrate(15);
+    };
     stopButtons.forEach((btn, i) => {
-        btn.addEventListener('pointerdown', (e) => {
-            if (e.button !== 0 || btn.disabled) return;
-            e.preventDefault();
-            Reels.stop(i);
-        });
+        btn.addEventListener('pointerdown', (e) => stopByPointer(e, i));
         btn.addEventListener('click', () => Reels.stop(i));
     });
+    reelElements.forEach((reel, i) => {
+        reel.addEventListener('pointerdown', (e) => stopByPointer(e, i));
+    });
+    // 画面の向きが変わると1コマの高さが変わるので、リールの位置を合わせ直す
+    window.addEventListener('resize', () => Reels.relayout());
 
     // デバッグ用の強制遷移
     const debugAction = (fn) => () => {

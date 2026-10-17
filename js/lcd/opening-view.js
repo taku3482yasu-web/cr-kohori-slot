@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------
 // 1. 遠賀川のほとりで、こおりくんと母・ともいしが暮らしている
 // 2. おにおにが現れる
-// 3. ともいしがさらわれる (「こおり！ お金返しなさ〜い！」)
-// 4. タイトル「こおりくんの大冒険」
+// 3. ともいしがさらわれる (「キャー！」)
+// 4. タイトル「こおりくんの大冒険 〜おにおにの野望〜」
 // 流す仕組みは story-view.js (StoryView.play('opening'))。
 // =====================================================================
 
@@ -66,7 +66,7 @@
 
         // ともいしのセリフ (顔の左に吹き出し)
         const face = ground - 22 + ty;
-        if (t >= CARRY + 500 && t < CARRY + 2100) bubble('こおり！ お金返しなさ〜い！', tx - 2, face);
+        if (t >= CARRY + 500 && t < CARRY + 2100) bubble('キャー！', tx - 2, face);
         else if (t >= ONI_IN + 900 && t < CARRY) bubble('あら…？', tx - 2, face);
 
         narration(SCENES.find(s => t < s.end).lines);
@@ -84,7 +84,7 @@
         text('こおりくんの大冒険', W / 2, 26, { color: '#ffd700', size: 20, align: 'center', outline: '#4a3000' });
         if (s > 900) {
             ctx.globalAlpha = Math.min(1, (s - 900) / 500);
-            text('〜ともいしを取り戻せ！〜', W / 2, 56, { color: '#9fe6ff', size: 12, align: 'center' });
+            text('〜おにおにの野望〜', W / 2, 56, { color: '#9fe6ff', size: 12, align: 'center' });
         }
         ctx.globalAlpha = 1;
     }

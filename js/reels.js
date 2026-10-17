@@ -59,7 +59,13 @@ const Reels = (() => {
             strip.style.transform = `translateY(-${offsetFor(r, initialStops[r])}px)`;
         });
         targetStops = [...initialStops];
-        stopButtons.forEach(btn => btn.disabled = true);
+        stopButtons.forEach((btn, i) => setStoppable(i, false));
+    }
+
+    // STOP を押せるか (リールそのものも押せる印 .stoppable を付ける)
+    function setStoppable(i, on) {
+        stopButtons[i].disabled = !on;
+        reelEls[i].classList.toggle('stoppable', on);
     }
 
     // 回転開始。stops の位置で止まり、全リール停止で resolve する
@@ -80,14 +86,14 @@ const Reels = (() => {
                 strip.style.animation = 'reel-spin 0.25s linear infinite';
             }, i * staggerMs);
         });
-        stopButtons.forEach(btn => btn.disabled = false);
+        stopButtons.forEach((btn, i) => setStoppable(i, true));
         return new Promise(resolve => { resolveSpin = resolve; });
     }
 
     function stop(i) {
         if (stopped[i]) return;
         stopped[i] = true;
-        stopButtons[i].disabled = true;
+        setStoppable(i, false);
 
         clearTimeout(startTimers[i]);
         const strip = reelEls[i].querySelector('.reel-strip');
@@ -106,8 +112,17 @@ const Reels = (() => {
 
     // STOP ボタンを一時的に押せなくする (ロングフリーズ中)。解除すると止まっていないリールの STOP が押せる
     function lockStops(locked) {
-        stopButtons.forEach((btn, i) => {
-            btn.disabled = locked || stopped[i];
+        stopButtons.forEach((btn, i) => setStoppable(i, !locked && !stopped[i]));
+    }
+
+    // 画面の向き・幅が変わって1コマの高さが変わったとき、止まっているリールの位置と回転の幅を合わせ直す
+    function relayout() {
+        reelEls.forEach((reel, i) => {
+            const strip = reel.querySelector('.reel-strip');
+            strip.style.setProperty('--cycle', `-${strips[i].length * symbolHeight()}px`);
+            if (!stopped[i]) return;
+            strip.style.transition = 'none';
+            strip.style.transform = `translateY(-${offsetFor(i, targetStops[i])}px)`;
         });
     }
 
@@ -130,5 +145,5 @@ const Reels = (() => {
         litCells = [];
     }
 
-    return { init, spin, stop, isSpinning, highlight, clearHighlight, lockStops };
+    return { init, spin, stop, relayout, isSpinning, highlight, clearHighlight, lockStops };
 })();
