@@ -123,6 +123,8 @@ const Lcd = (() => {
     // state に合わせて場面をそろえる (起動時・デバッグ遷移時)
     function syncWithState() {
         displayMap = state.normal.map;
+        revival = null;
+        defeatDim = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL;
         kooriAura = Boolean(state.challenge.chanceBoost) && !StateMachine.isRashMode(state);
         letterboxTarget = 0;
         bubbles = null;
@@ -216,6 +218,7 @@ const Lcd = (() => {
             if (scene === 'challenge') drawChallengeHud(time);
         }
         ctx.restore();
+        drawRevival(time);
         drawPopups(time);
         drawMessage(time);
         drawPreview(time);
@@ -972,6 +975,7 @@ const Lcd = (() => {
     const SPECIAL_FX = {
         koori: 'iceBurst',          // 大腸炎アタック
         kooriKill: 'sevenFlash',    // 7つの内定フラッシュ
+        kooriNaitei: 'requiem',     // ばりきつよめのレクイエム
         yasu: 'punch',              // やすパンチ
         tamu: 'kick',               // たむキック
         dake: 'chop',               // だけチョップ
@@ -984,17 +988,19 @@ const Lcd = (() => {
         naitei: 'judge'             // 不採用の裁き
     };
     const FX_DURATION = {
-        iceBurst: 600, sevenFlash: 1000, punch: 500, kick: 500, chop: 500,
+        iceBurst: 600, sevenFlash: 1000, requiem: 1300, punch: 500, kick: 500, chop: 500,
         beam: 800, soundwave: 1000, driver: 500, slash: 750, club: 900, goldbite: 900, judge: 1100
     };
 
     // こおりくんがとどめ: 大腸炎アタック / 一撃必殺の役は 7つの内定フラッシュ。エフェクトの種類を返す (攻撃が当たる瞬間に出す)
-    async function kooriSpecial(kill) {
-        startFlash(kill ? '#ffd700' : '#ffffff', 300);
+    //   内定の時ゾーンの突破 (naitei) は ばりきつよめのレクイエム
+    async function kooriSpecial(kill, naitei = false) {
+        const id = naitei ? 'kooriNaitei' : kill ? 'kooriKill' : 'koori';
+        startFlash(naitei || kill ? '#ffd700' : '#ffffff', 300);
         Sound.chance();
-        await playCutIn('koori', kill ? config.specials.kooriKill : config.specials.koori,
-            kill ? '#8a6a00' : '#b01828', 1500, '必殺技!!');
-        return kill ? SPECIAL_FX.kooriKill : SPECIAL_FX.koori;
+        const color = { kooriNaitei: '#5a1a8a', kooriKill: '#8a6a00', koori: '#b01828' }[id];
+        await playCutIn('koori', config.specials[id], color, naitei ? 1800 : 1500, '必殺技!!');
+        return SPECIAL_FX[id];
     }
 
     // 仲間がとどめ: 仲間ごとの必殺技。エフェクトの種類を返す
@@ -1013,6 +1019,7 @@ const Lcd = (() => {
         Sound.special(kind);
         startFx(kind);
         if (kind === 'sevenFlash') startFlash('#ffffff', 300);
+        if (kind === 'requiem') startFlash('#ffd700', 400);
     }
 
     // 敵の必殺技 (「？？」で継続できなかったとき・内定の時ゾーンの失敗): カットイン → 技ごとのエフェクト
@@ -1293,6 +1300,25 @@ const Lcd = (() => {
                 ctx.globalAlpha = 1 - p;
                 text('内定', ex, ey - 30 - p * 10, { color: '#ffffff', size: 18, align: 'center', outline: '#b8860b' });
             }
+        },
+        // ばりきつよめのレクイエム: 敵の上に金色の十字の光がそびえ、音符が舞い上がる
+        requiem(t, time, { ex, ey }) {
+            const grow = ease(t / 0.3);
+            ctx.globalAlpha = fadeOut(t, 0.6);
+            ctx.fillStyle = 'rgba(255,215,0,0.35)';
+            ctx.beginPath();
+            ctx.arc(ex, ey - 6, 46 * grow, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff6c0';
+            const h = 110 * grow;
+            ctx.fillRect(Math.round(ex - 4), Math.round(ey - 6 - h / 2), 8, Math.round(h));
+            ctx.fillRect(Math.round(ex - 30 * grow), Math.round(ey - 30), Math.round(60 * grow), 7);
+            for (let i = 0; i < 8; i++) {
+                const nx = ex + Math.sin(i * 1.7 + time / 200) * 44;
+                const ny = ey + 24 - ((t * 90 + i * 14) % 90);
+                text(i % 2 ? '♪' : '♫', nx, ny, { color: i % 3 ? '#ffd700' : '#ffffff', size: 12, align: 'center' });
+            }
+            ctx.globalAlpha = 1;
         },
         // やすパンチ: 大きな拳が飛んでいって、当たると星がはじける
         punch(t, time, { ex, ey }) {
@@ -2175,7 +2201,7 @@ const Lcd = (() => {
             await playCutIn('koori', '完全撃破!!', '#8a2ab0');
         } else if (event.finishBy === 'koori') {
             // こおりくんがとどめ: 必殺技 (内定の時は HP が残っていても、このカットインで決着)
-            kooriFx = await kooriSpecial(event.finishKill);
+            kooriFx = await kooriSpecial(event.finishKill, Boolean(event.finisher));
         } else if (event.big && Math.random() < config.effects.cutInRate) {
             await playCutIn('koori', event.kill ? '必殺!!' : 'くらえ!!', event.kill ? '#b01828' : '#1a5ab0');
         }
@@ -2466,8 +2492,85 @@ const Lcd = (() => {
             await enemySpecial(event.enemyId);
             Sound.miss();
             showTitle('RASH終了…', null, '#9fb8d8', 1500);
+            // 復活が決まっていても通常時には戻らず、暗いまま止まる (次のレバー ON で復活演出)
+            if (event.revival) defeatDim = true;
         }
         await sleep(1500);
+    }
+
+    // ----- 復活演出 -----
+    let defeatDim = false;     // 復活待ち: RASH の場面を暗くして止める
+    let revival = null;        // { phase: 'black' | 'glow', start }
+
+    // 復活待ちでレバー ON: 画面が暗転する
+    function revivalBlackout() {
+        revival = { phase: 'black', start: performance.now() };
+    }
+
+    // 暗転 → こおりくんが光り輝いてフラッシュ →「こおりまだまえる！」→ 戦っていた敵を撃破
+    async function revivalEffect(event) {
+        const intensity = config.effects.intensity;
+        if (!revival) revivalBlackout();
+        defeatDim = false;
+        await sleep(700);
+        revival = { phase: 'glow', start: performance.now() };
+        Sound.rainbow();
+        for (let i = 0; i < 3; i++) {
+            startFlash('#ffffff', 250);
+            await sleep(380);
+        }
+        startFlash('#ffd700', 700);
+        startShake(intensity.shakeLarge, 500);
+        Bgm.setPaused(false);
+        Sound.fanfare();
+        showTitle(config.revival.text, '復活!!', '#ffd700', 2000);
+        await sleep(2000);
+        revival = null;
+        // 一撃で撃破
+        koori.moving = true;
+        await animateTo(koori.x, ENEMY_X - 56, 150);
+        battle.hurtUntil = performance.now() + 600;
+        startFlash('#ffffff', 300);
+        startShake(intensity.shakeLarge, 400);
+        Sound.bigHit();
+        damageNumbers.push({ text: `-${event.amount}`, color: '#ffd700', size: 16, born: performance.now() });
+        animateTo(battle.hp, 0, 300);
+        await animateTo(koori.x, KOORI_BATTLE_X, 250);
+        koori.moving = false;
+        await sleep(300);
+    }
+
+    function drawRevival(time) {
+        if (scene !== 'rash') return;
+        if (!revival) {
+            if (defeatDim) {
+                ctx.fillStyle = 'rgba(0,0,12,0.7)';
+                ctx.fillRect(0, 0, W, H);
+            }
+            return;
+        }
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        if (revival.phase !== 'glow') return;
+        // 暗闇の中で、こおりくんだけが光り輝く
+        const t = time - revival.start;
+        const hall = Backgrounds.get(logoSuper && !naiteiZone ? 'goldHall' : 'castleHall');
+        const size = 16 * KOORI_SCALE;
+        const x = valueAt(koori.x, time);
+        const cx = x + size / 2, cy = hall.groundY - size / 2;
+        const radius = Math.min(1, t / 400) * (56 + 6 * Math.sin(time / 90));
+        const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, radius);
+        glow.addColorStop(0, 'rgba(255,255,220,0.95)');
+        glow.addColorStop(0.4, 'rgba(255,215,0,0.6)');
+        glow.addColorStop(1, 'rgba(255,215,0,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+        for (let i = 0; i < 12; i++) {
+            const a = time / 600 + (i / 12) * Math.PI * 2;
+            line(cx + Math.cos(a) * 22, cy + Math.sin(a) * 22, cx + Math.cos(a) * radius * 1.4, cy + Math.sin(a) * radius * 1.4,
+                i % 2 ? 'rgba(255,255,255,0.7)' : 'rgba(255,215,0,0.7)', 2);
+        }
+        drawSprite(ctx, SPRITES.koori, 'walk1', x, hall.groundY - size, KOORI_SCALE);
     }
 
     async function rashEnd(event) {
@@ -2540,6 +2643,9 @@ const Lcd = (() => {
                     break;
                 case 'questionResult':
                     await questionResult(event);
+                    break;
+                case 'revival':
+                    await revivalEffect(event);
                     break;
                 case 'rashEnd':
                     await rashEnd(event);
@@ -2779,6 +2885,6 @@ const Lcd = (() => {
 
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
-        reach, push, reachResult, longFreeze, playChanceEffect, hideTrophy, showFurukawa, hideFurukawa
+        reach, push, reachResult, longFreeze, playChanceEffect, hideTrophy, showFurukawa, hideFurukawa, revivalBlackout
     };
 })();

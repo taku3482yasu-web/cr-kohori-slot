@@ -235,10 +235,10 @@ window.GAME_CONFIG = {
     rash: {
         // continueRate: 目標の継続率 (1セットごと。ガード崩し・ブレイクで勝ちになる分も含めた最終的な値)
         // presetRate:   セット開始時に「勝ちセット」にする確率 (先決め)。
-        //               負けセットでもガード崩し・ブレイクで撃破できるぶん、continueRate より低くしてある。
+        //               負けセットでもガード崩し・ブレイク・仲間の肩代わり・復活で続くぶん、continueRate より低くしてある。
         //               ダメージ・確率・ブレイク率を変えたら、シミュレーションで continueRate に合うよう調整する
-        normal: { continueRate: 0.70, presetRate: 0.470 },   // おにおにRASH
-        super: { continueRate: 0.93, presetRate: 0.875 },    // SUPERおにおにRASH
+        normal: { continueRate: 0.70, presetRate: 0.390 },   // おにおにRASH
+        super: { continueRate: 0.93, presetRate: 0.853 },    // SUPERおにおにRASH
         // BATTLE開始時のゲーム数 (重み付き抽選)
         initialGames: [
             { games: 5, weight: 45 },
@@ -483,6 +483,7 @@ window.GAME_CONFIG = {
     specials: {
         koori: '大腸炎アタック',
         kooriKill: '7つの内定フラッシュ',
+        kooriNaitei: 'ばりきつよめのレクイエム',   // 内定の時ゾーンを突破したとき (ユーザー指定)
         questionWarning: '敵がこうげきしそうだ…！'   // 「？？」の間の表示
     },
 
@@ -521,12 +522,22 @@ window.GAME_CONFIG = {
         historyShown: 10
     },
 
+    // ----- 復活演出 -----
+    // 「？？」で揃わず (仲間の肩代わりもなく) RASH が終わるとき、rates[モード] の確率で復活が決まる (ユーザー指定)。
+    // 液晶は「RASH終了…」のあと通常時に戻らず暗いまま止まり、次のレバー ON で暗転 → こおりくんが光り輝いて
+    // 「こおりまだまえる！」→ 戦っていた敵を撃破して RASH 継続
+    revival: {
+        rates: { RASH: 0.1, SUPER_RASH: 0.15 },
+        text: 'こおりまだまえる！'
+    },
+
     // ----- ふるカワ (液晶の右下に出てきて、吹き出しでしゃべる) -----
     // レバー ON でそのゲームの熱さ (0〜6) を決め、appearRates[熱さ] の確率で出現する (js/furukawa.js)
     //   heat:         熱さの決め方。normal / battle は役ごと、entrySteps は城突入チャレンジの突入率の段階
     //                 (突入率がいくつ以上の段を超えたか = 熱さ)、questionWin は「？？」で継続するとき
     //   colorWeights: 熱さごとの、吹き出しの文字の色の重み (0:白 1:青 2:緑 3:紫 4:赤 5:金 6:虹)。虹は確定
     //   chanceLines:  色が赤以上のときのセリフ / expectLines: 緑・紫のとき半分の確率で言うセリフ
+    //   rashChanceLines / rashExpectLines: RASH 中はこちら (攻めるセリフ)
     //   kindWeights:  それ以外のときのセリフの種類 (hint: ヒント / stage: 今の状況 / setting: 設定示唆)
     //   settingLines: 設定示唆のセリフ。weights は台の設定ごとの重み (0 の設定では言わない = それ以上確定)
     furukawa: {
@@ -556,6 +567,13 @@ window.GAME_CONFIG = {
             6: ['すごいのが来る…！！！', 'ぜったい来るよ！！！']
         },
         expectLines: ['なにか来そう…？', 'ちょっと期待していいかも', 'ん…？ なんだか気になる'],
+        // RASH 中は攻めるセリフに変わる (ユーザー指定: いけるよ！ / ここがせめどき！)
+        rashChanceLines: {
+            4: ['いけるよ！', 'ここがせめどき！', 'たたみかけて！'],
+            5: ['ここがせめどき！！', 'いけるよ！ いっけー！！', '一気にたおしちゃえ！！'],
+            6: ['ぜったいいける！！！', 'もう勝ったも同然！！！']
+        },
+        rashExpectLines: ['いけるかも…？', 'そろそろせめどき…？'],
         kindWeights: { hint: 30, stage: 40, setting: 30 },
         hints: [
             'チャンス目はスイカ崩れ・BAR崩れ・7崩れの3つだよ',
@@ -602,7 +620,8 @@ window.GAME_CONFIG = {
             { id: 'allEnemies', name: '全員撃破', desc: 'すべての敵を撃破する', stat: 'enemyKinds', value: 'all' },
             { id: 'allSpecials', name: '必殺技マスター', desc: 'すべての必殺技を見る', stat: 'specialKinds', value: 'all' },
             { id: 'moves5', name: '台選び上手', desc: '台移動を合計5回する', stat: 'moves', value: 5 },
-            { id: 'games10000', name: '打ち込み1万G', desc: '合計10,000ゲーム回す', stat: 'games', value: 10000 }
+            { id: 'games10000', name: '打ち込み1万G', desc: '合計10,000ゲーム回す', stat: 'games', value: 10000 },
+            { id: 'revival', name: 'こおりまだまえる', desc: '復活して敵を撃破する', stat: 'revival', value: 1 }
         ]
     },
 

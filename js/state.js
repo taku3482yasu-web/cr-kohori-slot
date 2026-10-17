@@ -21,7 +21,8 @@ const RASH_PHASES = Object.freeze({
     BATTLE: 'BATTLE',     // BATTLE中
     QUESTION: 'QUESTION', // 残りゲーム数「？？」: 揃えば継続、揃わなければ終了
     TREASURE: 'TREASURE', // 宝物庫ゾーン: BATTLE を中断し、揃った柄で次の BATTLE のゲーム数を上乗せ
-    NAITEI: 'NAITEI'      // 内定の時ゾーン: SELECT で 7揃い・7・7・BAR → シーシャ・ナイテイ・ナイナイと1対1
+    NAITEI: 'NAITEI',     // 内定の時ゾーン: SELECT で 7揃い・7・7・BAR → シーシャ・ナイテイ・ナイナイと1対1
+    REVIVAL: 'REVIVAL'    // 復活待ち: 「？？」で負けたが復活が決まった。次のゲームで戦っていた敵を撃破して継続
 });
 
 const MODE_LABELS = {
@@ -135,7 +136,7 @@ function createInitialState(config, rng = Math.random) {
             defeats: {},       // 敵ごとの撃破数 { 敵の id: 回数 }
             specials: {},      // 見た必殺技ごとの回数 { 敵・仲間の id / こおりくんは koori・kooriKill: 回数 }
             trophies: {},      // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
-            records: { games: 0, rash: 0, super: 0, naitei: 0, freeze: 0, moves: 0, bestCoins: 0, bestDefeats: 0 },
+            records: { games: 0, rash: 0, super: 0, naitei: 0, freeze: 0, moves: 0, revival: 0, bestCoins: 0, bestDefeats: 0 },
             achievements: {}   // 解除した実績 { 実績の id: 解除したときの合計ゲーム数 }
         },
 
@@ -275,10 +276,11 @@ const Collection = {
             switch (e.type) {
                 case 'rashStart': r.rash++; break;
                 case 'superStart': r.super++; break;
+                case 'revival': r.revival = (r.revival || 0) + 1; break;
                 case 'defeat': add(c.defeats, e.enemyId); break;
                 case 'damage':
                     // とどめの必殺技 (液晶でカットインが出るのと同じ条件)
-                    if (e.finishBy && !e.freeze) add(c.specials, e.finishBy !== 'koori' ? e.finishBy : e.finishKill ? 'kooriKill' : 'koori');
+                    if (e.finishBy && !e.freeze) add(c.specials, e.finishBy !== 'koori' ? e.finishBy : this.kooriSpecial(e));
                     break;
                 case 'questionResult':
                     if (!e.continued && e.enemyId) add(c.specials, e.enemyId);
@@ -304,6 +306,12 @@ const Collection = {
         return this.unlock(state, config);
     },
 
+    // こおりくんのとどめの必殺技 (内定の時の突破はばりきつよめのレクイエム)
+    kooriSpecial(damage) {
+        if (damage.finisher) return 'kooriNaitei';
+        return damage.finishKill ? 'kooriKill' : 'koori';
+    },
+
     unlock(state, config) {
         const c = state.collection;
         const events = [];
@@ -323,6 +331,7 @@ const Collection = {
             specials: [
                 { id: 'koori', who: 'こおりくん', name: config.specials.koori },
                 { id: 'kooriKill', who: 'こおりくん', name: config.specials.kooriKill },
+                { id: 'kooriNaitei', who: 'こおりくん', name: config.specials.kooriNaitei },
                 ...config.companions.members.map(m => ({ id: m.id, who: m.name, name: m.special })),
                 ...enemies.map(e => ({ id: e.id, who: e.name, name: e.special }))
             ],
@@ -639,6 +648,8 @@ const GameFlow = {
                 return Battle.treasureGame(state, outcome, config);
             case RASH_PHASES.NAITEI:
                 return Battle.naiteiGame(state, outcome, config, rng);
+            case RASH_PHASES.REVIVAL:
+                return Battle.revivalGame(state, config);
         }
         return [];
     },

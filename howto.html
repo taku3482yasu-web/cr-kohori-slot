@@ -237,6 +237,8 @@
         <div class="table-wrap"><table id="games-table"></table></div>
         <h3>必殺技</h3>
         <p>とどめを刺したキャラの必殺技がカットインで出ます。「？？」で継続できなかったときは、敵が必殺技を打ってきます。</p>
+        <h3>復活</h3>
+        <p>「？？」で負けても、まれに <b>復活</b> することがあります。RASH が終わったあと通常ステージに戻らず、画面が暗いまま止まったら…次のレバー ON で <span class="gold">「こおりまだまえる！」</span> 戦っていた敵を倒して RASH 継続！</p>
         <div class="table-wrap"><table id="special-table"></table></div>
     </section>
 
@@ -304,7 +306,7 @@
 
     <section id="furukawa">
         <h2>ふるカワ</h2>
-        <p>ときどき液晶の右下に <b>ふるカワ</b> が出てきて、吹き出しでしゃべります。ヒントや次のステージを教えてくれたり、台の設定をこっそり示唆したりします。</p>
+        <p>ときどき液晶の右下に <b>ふるカワ</b> が出てきて、吹き出しでしゃべります。ヒントや次のステージを教えてくれたり、台の設定をこっそり示唆したりします。RASH 中に熱くなると「いけるよ！」「ここがせめどき！」と応援してくれます。</p>
         <p>吹き出しの文字の色は、<b>そのゲームの熱さ</b>（城突入チャレンジでは突入のしやすさ）を表します。白 → <span style="color:#4f9bff">青</span> → <span style="color:#3fdf6f">緑</span> → <span style="color:#c070ff">紫</span> → <span class="red">赤</span> → <span class="gold">金</span> → 虹 の順に熱く、<b>虹は確定</b>！ 熱いゲームほど出てきやすくなります。</p>
     </section>
 
@@ -486,13 +488,14 @@
     table('special-table', ['キャラ', '必殺技', '出るとき'], [
         ['こおりくん', c.specials.koori, 'とどめを刺したとき'],
         ['こおりくん', c.specials.kooriKill, '一撃必殺（BAR揃い・7揃い・7・7・BAR）でとどめ'],
+        ['こおりくん', c.specials.kooriNaitei, '内定の時ゾーンを突破したとき'],
         ...c.companions.members.map(m => [m.name, m.special, '仲間の追撃でとどめを刺したとき']),
         ...[...c.enemies, c.goldDog].map(e => [e.name, e.special, '「？？」で継続できなかったとき']),
         [c.naitei.enemy.name, c.naitei.enemy.special, '内定の時ゾーンを突破できなかったとき']
     ]);
     $('naitei-list').innerHTML = [
         `突入時に<b>仲間抽選</b>（${companionRateText}。まだ仲間でない人が対象）`,
-        `1ゲームごとに<b>出目で突破を抽選</b>（下の表）。当たると HP が残っていても こおりくんの必殺技<b>「${c.specials.koori}」</b>（7揃い・7・7・BAR などの一撃必殺は<b>「${c.specials.kooriKill}」</b>）で決着！ 突破できなければ「${c.naitei.enemy.special}」をくらいます`,
+        `1ゲームごとに<b>出目で突破を抽選</b>（下の表）。当たると HP が残っていても こおりくんの必殺技<b>「${c.specials.kooriNaitei}」</b>で決着！ 突破できなければ「${c.naitei.enemy.special}」をくらいます`,
         `${nz.games}ゲームでの突破率は <span class="red">約${pct(Battle.naiteiWinRate(c))}</span>。ふつうのダメージでは倒しきれず、仲間の肩代わりもありません`,
         `<b>突破</b>: 暗転 →「内定は」→ 虹色の <span class="gold">「こおりがいただいた！」</span>。${bonusText(nz.enemy.bonus)}、おにおにRASH なら <span class="gold">SUPERおにおにRASH</span> へ。さらに <span class="gold">次の BATTLE は勝利確定!!</span>`,
         `<b>失敗</b>: おにおにRASH は終了して <b>SE城の城突入チャレンジ</b>へ戻る（仲間は残る）。SUPER 中なら SUPER は継続`,

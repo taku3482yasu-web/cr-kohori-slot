@@ -514,6 +514,23 @@ const Battle = {
             rash.phase = RASH_PHASES.BATTLE;
             return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId }];
         }
+        // 復活: 液晶は RASH 終了に見せたまま止まり、次のゲームで戦っていた敵を撃破して継続
+        if (rng() < this.revivalRate(state, config)) {
+            rash.phase = RASH_PHASES.REVIVAL;
+            return [{ type: 'questionResult', continued: false, enemyId: rash.enemyId, revival: true }];
+        }
         return [{ type: 'questionResult', continued: false, enemyId: rash.enemyId }, ...GameFlow.endRash(state, config, rng)];
+    },
+
+    revivalRate(state, config) {
+        return config.revival.rates[state.mode] || 0;
+    },
+
+    // 復活のゲーム: 戦っていた敵を撃破して RASH 継続 (出目に関係なく)
+    revivalGame(state, config) {
+        const rash = state.rash;
+        const amount = rash.enemyHp;
+        rash.enemyHp = 0;
+        return [{ type: 'revival', enemyId: rash.enemyId, amount }, ...this.defeatEnemy(state, config)];
     }
 };

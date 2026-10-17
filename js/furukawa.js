@@ -55,8 +55,10 @@ const Furukawa = {
     line(state, config, color, rng) {
         const cfg = config.furukawa;
         const pick = list => list[Math.floor(rng() * list.length)];
-        if (color >= 4) return pick(cfg.chanceLines[color]);
-        if (color >= 2 && rng() < 0.5) return pick(cfg.expectLines);
+        // RASH 中は攻めるセリフ (いけるよ！ / ここがせめどき！ など)
+        const inRash = StateMachine.isRashMode(state);
+        if (color >= 4) return pick((inRash ? cfg.rashChanceLines : cfg.chanceLines)[color]);
+        if (color >= 2 && rng() < 0.5) return pick(inRash ? cfg.rashExpectLines : cfg.expectLines);
         const kinds = cfg.kindWeights;
         const kind = Lottery.weightedPick(Object.keys(kinds), k => kinds[k], rng);
         if (kind === 'hint') return pick(cfg.hints);

@@ -110,7 +110,8 @@ function play(setting, games, seed) {
         companionFinishes: 0,
         enemyIdMissing: 0,       // 「？？」の失敗・肩代わりに敵の id がない
         questionFails: 0,
-        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rainbowNotSure: 0, sureSilent: 0, empty: 0 }
+        revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0 },
+        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), rainbowNotSure: 0, sureSilent: 0, empty: 0 }
     };
     let pendingGuaranteed = false;
     for (let g = 0; g < games; g++) {
@@ -130,7 +131,7 @@ function play(setting, games, seed) {
             f.talks++;
             f.byHeat[talk.heat] = (f.byHeat[talk.heat] || 0) + 1;
             f.byColor[talk.color] = (f.byColor[talk.color] || 0) + 1;
-            f.lines.add(talk.text);
+            (mode === MODES.RASH || mode === MODES.SUPER_RASH ? f.rashLines : f.lines).add(talk.text);
             if (talk.color === 6 && talk.heat !== 6) f.rainbowNotSure++;
             if (!talk.text) f.empty++;
         } else if (heat === 6) {
@@ -141,6 +142,21 @@ function play(setting, games, seed) {
         if (wasBattle && outcome.role === 'chance' && !breakBefore && !outcome.isFreeze) {
             log.chanceBreak.eligible++;
             if (events.some(e => e.type === 'break')) log.chanceBreak.broke++;
+        }
+        // 復活: 「？？」の負けで決まったら RASH のまま復活待ち、次のゲームで敵を撃破
+        for (const e of events) {
+            if (e.type === 'questionResult' && !e.continued) {
+                if (e.revival) {
+                    log.revival.pending++;
+                    if (state.rash.phase !== RASH_PHASES.REVIVAL) log.revival.notPending++;
+                } else {
+                    log.revival.ends++;
+                }
+            }
+            if (e.type === 'revival') {
+                log.revival.revived++;
+                if (!events.some(d => d.type === 'defeat' && d.enemyId === e.enemyId)) log.revival.noDefeat++;
+            }
         }
         for (const e of events) {
             if (e.type === 'rashEnd' || (e.type === 'naiteiResult' && e.toCastle)) {
@@ -371,6 +387,22 @@ test('ふるカワ: たまに出てきて、虹は確定のときだけ、設定
         for (let c = 0; c <= 5; c++) assert(f.byColor[c] > 0, `設定${setting} で色 ${c} が一度も出ない`);
         assert(f.byColor[6] > 0, `設定${setting} で虹が一度も出ない`);
         assert([...f.lines].some(t => t.startsWith('次は')), `設定${setting} で次のステージを言わない`);
+        // RASH 中は攻めるセリフ (通常時のチャンスのセリフは言わない)
+        assert(f.rashLines.has('いけるよ！') && f.rashLines.has('ここがせめどき！'), `設定${setting} の RASH で「いけるよ！」「ここがせめどき！」を言わない`);
+        const normalChance = [...Object.values(cfg.chanceLines).flat(), ...cfg.expectLines];
+        assert(!normalChance.some(t => f.rashLines.has(t)), `設定${setting} の RASH で通常時のチャンスのセリフを言った`);
+    }
+});
+
+test('復活: 「？？」の負けの一部で復活が決まり、次のゲームで戦っていた敵を撃破して RASH 継続', () => {
+    for (const { setting, state, log } of runs) {
+        const r = log.revival;
+        assert(r.pending > 0, `設定${setting} で復活が一度もない`);
+        assertBetween(r.pending / (r.pending + r.ends), 0.07, 0.18, `設定${setting} の復活の割合`);
+        assertEqual(r.notPending, 0, `設定${setting} で復活が決まったのに復活待ちになっていない`);
+        assert(r.revived === r.pending || r.revived === r.pending - 1, `設定${setting} で復活待ちのあと復活していない`);
+        assertEqual(r.noDefeat, 0, `設定${setting} で復活したのに敵を撃破していない`);
+        assertEqual(state.collection.records.revival, r.revived, `設定${setting} の図鑑の復活の回数`);
     }
 });
 

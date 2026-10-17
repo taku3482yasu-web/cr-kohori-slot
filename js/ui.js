@@ -128,9 +128,12 @@ const UI = (() => {
         gameState = state;
         els.coins.textContent = state.coins;
         els.games.textContent = state.totalGames;
-        els.mode.textContent = MODE_LABELS[state.mode];
-        document.body.dataset.mode = state.mode;   // モードに応じたボタン・筐体の光り方 (CSS)
-        document.body.dataset.phase = StateMachine.isRashMode(state) ? state.rash.phase : '';
+        // 復活待ちは RASH が終わったように見せる (次のレバー ON で復活演出)
+        const reviving = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL;
+        const shownMode = reviving ? MODES.NORMAL : state.mode;
+        els.mode.textContent = MODE_LABELS[shownMode];
+        document.body.dataset.mode = shownMode;   // モードに応じたボタン・筐体の光り方 (CSS)
+        document.body.dataset.phase = StateMachine.isRashMode(state) && !reviving ? state.rash.phase : '';
         document.body.dataset.revenge = state.mode === MODES.NORMAL && state.normal.revengeGames > 0 ? 'on' : '';
         if (showProfit) {
             const coinValue = config.coins.packagePrice / config.coins.packageAmount;
@@ -506,6 +509,7 @@ const UI = (() => {
             ['内定の時 突破', `${r.naitei || 0}回`],
             ['ロングフリーズ', `${r.freeze || 0}回`],
             ['台移動', `${r.moves || 0}回`],
+            ['復活', `${r.revival || 0}回`],
             ['1回の RASH の最高獲得', `${(r.bestCoins || 0).toLocaleString()}枚`],
             ['1回の RASH の最多撃破', `${r.bestDefeats || 0}体`]
         ];

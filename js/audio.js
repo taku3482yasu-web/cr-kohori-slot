@@ -64,6 +64,7 @@ const Sound = (() => {
 
     // 必殺技の効果音 (エフェクトの種類ごと)
     const SPECIAL_SOUNDS = {
+        requiem: () => { sequence([523.25, 659.25, 783.99, 1046.5, 1318.5, 1568], 110, 'triangle', 0.5, 0.09); sweep(2000, 300, 'sine', 0.9, 0.05, 600); },
         beam: () => { sweep(1400, 300, 'sawtooth', 0.7, 0.07); sweep(700, 150, 'square', 0.7, 0.05); },
         soundwave: () => [0, 150, 300, 450].forEach(d => { sweep(90, 45, 'sawtooth', 0.25, 0.14, d); sweep(1200, 900, 'square', 0.12, 0.04, d); }),
         driver: () => { sweep(200, 900, 'square', 0.3, 0.07); setTimeout(() => { noise(0.4, 0.2); sweep(120, 40, 'sawtooth', 0.4, 0.16); }, 420); },

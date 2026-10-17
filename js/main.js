@@ -31,6 +31,7 @@
 
     // 場面ごとの BGM
     function bgmTrack(s) {
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return 'defeat';   // 復活待ちは負けたように見せる
         if (s.mode === MODES.SUPER_RASH) return 'super';
         if (s.mode === MODES.RASH) return 'battle';
         if (s.mode === MODES.CASTLE_CHALLENGE || s.normal.map === config.map.castle) return 'castle';
@@ -61,6 +62,11 @@
         Lcd.clearMessage();
         Lcd.hideTrophy();
         Lcd.hideFurukawa();
+        // 復活待ちでレバー ON: 画面が暗転し、BGM も止まる (復活演出で鳴り直す)
+        if (StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL) {
+            Lcd.revivalBlackout();
+            Bgm.setPaused(true);
+        }
         refresh();
 
         const outcome = debugNextRole ? Lottery.makeOutcome(debugNextRole, config) : Lottery.draw(state, config);
@@ -129,7 +135,11 @@
         const events = GameFlow.onGameEnd(state, outcome, config);
         if (config.debug) console.log('outcome', outcome, 'events', events);
         refresh();
+        // バトルに負けたときは、演出のあいだ敗北の BGM
+        const defeated = events.some(e => (e.type === 'questionResult' && !e.continued) || (e.type === 'naiteiResult' && !e.win));
+        if (defeated) Bgm.play('defeat');
         await Lcd.playEvents(events);
+        Bgm.setPaused(false);
         refresh();
         UI.showAchievements(events);
         SaveData.save(state);
