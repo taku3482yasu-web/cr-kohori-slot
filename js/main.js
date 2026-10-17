@@ -60,6 +60,7 @@
         state.coins -= cost;
         Lcd.clearMessage();
         Lcd.hideTrophy();
+        Lcd.hideFurukawa();
         refresh();
 
         const outcome = debugNextRole ? Lottery.makeOutcome(debugNextRole, config) : Lottery.draw(state, config);
@@ -72,6 +73,10 @@
             const gold = outcome.role !== 'miss' && Math.random() < effects.preview.goldRate;
             Lcd.startPreview(gold ? 2 : 1);
         }
+
+        // ふるカワ: そのゲームの熱さに応じて出てきて、しゃべる
+        const talk = Furukawa.talk(state, outcome, config);
+        if (talk) Lcd.showFurukawa(talk);
 
         const stopOrder = [];
         let reach = null;

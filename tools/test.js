@@ -18,7 +18,7 @@ const path = require('path');
 const vm = require('vm');
 
 const JS_DIR = path.join(__dirname, '..', 'js');
-const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'save.js'];
+const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'save.js', 'furukawa.js'];
 
 // ----- 引数 -----
 const args = process.argv.slice(2);
@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -92,7 +92,7 @@ const pct = v => (v * 100).toFixed(1) + '%';
 // ----- 自動プレイして、テストに使う記録を集める -----
 function play(setting, games, seed) {
     const game = loadGame(seed);
-    const { createInitialState, Lottery, GameFlow, MODES, RASH_PHASES, config } = game;
+    const { createInitialState, Lottery, GameFlow, Furukawa, MODES, RASH_PHASES, config } = game;
     const state = createInitialState(config);
     state.setting = setting;
     const log = {
@@ -109,7 +109,8 @@ function play(setting, games, seed) {
         killNotKoori: 0,         // 一撃必殺の役なのに finishBy がこおりくんでない
         companionFinishes: 0,
         enemyIdMissing: 0,       // 「？？」の失敗・肩代わりに敵の id がない
-        questionFails: 0
+        questionFails: 0,
+        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rainbowNotSure: 0, sureSilent: 0, empty: 0 }
     };
     let pendingGuaranteed = false;
     for (let g = 0; g < games; g++) {
@@ -120,6 +121,21 @@ function play(setting, games, seed) {
         const breakBefore = rash.breakActive;
         const guaranteedBefore = wasBattle && rash.winGuaranteed;
         const outcome = Lottery.draw(state, config);
+        // ふるカワ (レバー ON の直後、状態を更新する前に呼ぶ)
+        const f = log.furukawa;
+        const canTalk = Furukawa.canAppear(state, config);
+        const heat = canTalk ? Furukawa.heat(state, outcome, config) : null;
+        const talk = Furukawa.talk(state, outcome, config);
+        if (talk) {
+            f.talks++;
+            f.byHeat[talk.heat] = (f.byHeat[talk.heat] || 0) + 1;
+            f.byColor[talk.color] = (f.byColor[talk.color] || 0) + 1;
+            f.lines.add(talk.text);
+            if (talk.color === 6 && talk.heat !== 6) f.rainbowNotSure++;
+            if (!talk.text) f.empty++;
+        } else if (heat === 6) {
+            f.sureSilent++;
+        }
         const events = GameFlow.onGameEnd(state, outcome, config);
 
         if (wasBattle && outcome.role === 'chance' && !breakBefore && !outcome.isFreeze) {
@@ -339,6 +355,23 @@ test('図鑑・実績: 記録・トロフィーが数えられ、解除した実
     const six = runs[5].state.collection;
     assertEqual(Object.keys(six.defeats).length, all.enemies.length, '設定6で全員撃破');
     assertEqual(Object.keys(six.specials).length, all.specials.length, '設定6ですべての必殺技');
+});
+
+test('ふるカワ: たまに出てきて、虹は確定のときだけ、設定示唆のセリフは台の設定で言わないものを言わない', () => {
+    for (const { setting, log, game } of runs) {
+        const f = log.furukawa;
+        const cfg = game.config.furukawa;
+        assertBetween(f.talks / GAMES, 1 / 40, 1 / 8, `設定${setting} の出現率`);
+        assertEqual(f.rainbowNotSure, 0, `設定${setting} で確定でないのに虹`);
+        assertEqual(f.sureSilent, 0, `設定${setting} で確定なのに出てこない`);
+        assertEqual(f.empty, 0, `設定${setting} で空のセリフ`);
+        for (const line of cfg.settingLines) {
+            if (!line.weights[setting]) assert(!f.lines.has(line.text), `設定${setting} で「${line.text}」を言った`);
+        }
+        for (let c = 0; c <= 5; c++) assert(f.byColor[c] > 0, `設定${setting} で色 ${c} が一度も出ない`);
+        assert(f.byColor[6] > 0, `設定${setting} で虹が一度も出ない`);
+        assert([...f.lines].some(t => t.startsWith('次は')), `設定${setting} で次のステージを言わない`);
+    }
 });
 
 test('台移動: コイン・投資額・獲得枚数は持ち越し、台の設定・進行状況・データカウンターは新しい台', () => {

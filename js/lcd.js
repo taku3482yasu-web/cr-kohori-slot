@@ -221,6 +221,7 @@ const Lcd = (() => {
         drawPreview(time);
         drawChanceFx(time);
         drawReach(time);
+        drawFurukawa(time);
         drawLetterbox();
         drawCutIn(time);
         drawRoulette(time);
@@ -2638,6 +2639,81 @@ const Lcd = (() => {
     }
 
     // 次のレバー ON で消す (出てから minShow ミリ秒は残す)
+    // ----- ふるカワ (右下に出てきて、左に吹き出しをだしてしゃべる) -----
+    let furukawa = null;   // { text, color, lines, start, until } (color: 0:白 〜 6:虹)
+    const FURUKAWA_SCALE = 2;
+    const BUBBLE_FONT = 10;
+    const BUBBLE_LINE = 12;
+
+    function showFurukawa(talk) {
+        const now = performance.now();
+        furukawa = { ...talk, lines: wrapText(talk.text, BUBBLE_FONT, 150), start: now, until: now + config.furukawa.talkTime };
+        Sound.talk();
+    }
+
+    function hideFurukawa() {
+        furukawa = null;
+    }
+
+    // 文字ごとに区切って、maxWidth に収まるように折り返す
+    function wrapText(str, size, maxWidth) {
+        const lines = [''];
+        for (const ch of str) {
+            const last = lines[lines.length - 1];
+            if (last && textWidth(last + ch, size) > maxWidth) lines.push(ch);
+            else lines[lines.length - 1] = last + ch;
+        }
+        return lines;
+    }
+
+    function drawFurukawa(time) {
+        if (!furukawa) return;
+        if (time > furukawa.until) {
+            furukawa = null;
+            return;
+        }
+        const t = time - furukawa.start;
+        const w = 16 * FURUKAWA_SCALE, h = 20 * FURUKAWA_SCALE;
+        const rise = Math.min(1, t / 180);   // 下からぴょこっと出てくる
+        const x = W - w - 4;
+        const y = H - h + Math.round((1 - rise) * h);
+        ctx.globalAlpha = Math.min(1, (furukawa.until - time) / 250);
+        const talking = t < config.furukawa.talkTime - 800 && Math.floor(t / 140) % 2 === 0;
+        drawSprite(ctx, SPRITES.furukawa, talking ? 'talk' : 'idle', x, y, FURUKAWA_SCALE);
+
+        if (rise >= 1) {
+            const lines = furukawa.lines;
+            const bw = Math.max(...lines.map(l => textWidth(l, BUBBLE_FONT))) + 12;
+            const bh = lines.length * BUBBLE_LINE + 8;
+            const bx = x - bw - 6, by = H - bh - 16;
+            box(bx, by, bw, bh, 'rgba(12,12,32,0.9)', '#ffffff');
+            // しっぽ (ふるカワの顔のほうへ)
+            const ty = by + bh - 10;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(bx + bw - 1, ty);
+            ctx.lineTo(bx + bw + 6, ty + 5);
+            ctx.lineTo(bx + bw - 1, ty + 7);
+            ctx.closePath();
+            ctx.fill();
+            const color = config.furukawa.colors[furukawa.color];
+            lines.forEach((line, i) => {
+                const ly = by + 4 + i * BUBBLE_LINE;
+                if (color !== 'rainbow') {
+                    text(line, bx + 6, ly, { color, size: BUBBLE_FONT });
+                    return;
+                }
+                // 虹: 1文字ずつ色を流す
+                let cx = bx + 6;
+                [...line].forEach((ch, k) => {
+                    text(ch, cx, ly, { color: `hsl(${(time / 3 + (i * 8 + k) * 30) % 360}, 100%, 65%)`, size: BUBBLE_FONT });
+                    cx += textWidth(ch, BUBBLE_FONT);
+                });
+            });
+        }
+        ctx.globalAlpha = 1;
+    }
+
     function hideTrophy() {
         if (!trophy) return;
         trophy.until = Math.max(performance.now(), trophy.born + config.trophy.minShow);
@@ -2703,6 +2779,6 @@ const Lcd = (() => {
 
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
-        reach, push, reachResult, longFreeze, playChanceEffect, hideTrophy
+        reach, push, reachResult, longFreeze, playChanceEffect, hideTrophy, showFurukawa, hideFurukawa
     };
 })();

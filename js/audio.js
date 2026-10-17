@@ -85,6 +85,7 @@ const Sound = (() => {
         special: (kind) => SPECIAL_SOUNDS[kind] && SPECIAL_SOUNDS[kind](),
         rainbow: () => sequence([523.25, 659.25, 783.99, 1046.5, 1318.5, 1568, 2093], 110, 'triangle', 0.5, 0.09),
         spin: () => tone(200, 'sawtooth', 0.1, 0.05),
+        talk: () => sequence([988, 1319], 70, 'square', 0.06, 0.05),   // ふるカワが出てくる
         stop: (i) => tone(400 - i * 100, 'square', 0.1, 0.1),
         win: () => sequence([523.25, 659.25, 783.99], 100, 'sine', 0.3, 0.1),
         chance: () => sequence([660, 880, 660, 880], 80, 'square', 0.1, 0.08),

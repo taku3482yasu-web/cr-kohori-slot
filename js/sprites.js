@@ -50,6 +50,55 @@ const SPRITES = {
                 walk2: [...body, '....odo..odo....', '....ooo..ooo....', '................']
             };
         })()
+    },
+
+    // ふるカワ (16x20): リボンのボブヘアの女の子。idle と talk (口が開く) の2コマ
+    furukawa: {
+        palette: {
+            o: '#2a1a1a',  // 輪郭
+            h: '#7a4a2a',  // 髪
+            H: '#b07a48',  // 髪のつや
+            r: '#ff4f8b',  // リボン
+            s: '#ffe2cc',  // 肌
+            e: '#2a1830',  // 目
+            w: '#ffffff',  // 目のハイライト
+            p: '#ff9eb5',  // ほっぺ
+            k: '#a03048',  // 口
+            d: '#ff8ab8',  // 服
+            D: '#e0609a',  // 服の影
+            f: '#6a3a2a'   // くつ
+        },
+        frames: (() => {
+            const head = [
+                '....oooooooo....',
+                '...ohhhhhhhhorr.',
+                '..ohhHHhhhhhhorr',
+                '..ohhhhhhhhhhho.',
+                '.ohhhsssssshhhho',
+                '.ohhsssssssshho.',
+                '.ohssewssewssho.',
+                '.ohsseessseesho.',
+                '.ohspsssssspsho.'
+            ];
+            const body = [
+                '..ohhsssssshhho.',
+                '...oooddddooo...',
+                '...odDddddDdo...',
+                '..osdddrrdddso..',
+                '..osddddddddso..',
+                '...oDddddddDo...',
+                '...oDDDDDDDDo...',
+                '....oso..oso....',
+                '....off..off....',
+                '....ooo..ooo....'
+            ];
+            const mouth = '.ohhssskkssshho.';
+            return {
+                idle: [...head, mouth, ...body],
+                // 口を縦に開ける (あごの行にも口を描く)
+                talk: [...head, mouth, '..ohhsskksshhho.', ...body.slice(1)]
+            };
+        })()
     }
 };
 
