@@ -138,6 +138,7 @@ function createInitialState(config, rng = Math.random) {
             defeats: {},       // 敵ごとの撃破数 { 敵の id: 回数 }
             specials: {},      // 見た必殺技ごとの回数 { 敵・仲間の id / こおりくんは koori・kooriKill: 回数 }
             trophies: {},      // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
+            endCards: {},      // 見た RASH 終了画面の絵ごとの回数 { 絵の id: 回数 }
             records: { games: 0, rash: 0, super: 0, naitei: 0, freeze: 0, moves: 0, revival: 0, ending: 0, bestCoins: 0, bestDefeats: 0 },
             achievements: {},  // 解除した実績 { 実績の id: 解除したときの合計ゲーム数 }
             met: {}            // 会ったキャラクター (図鑑の説明の解禁) { id: 1 }
@@ -320,7 +321,7 @@ const SettingEstimate = {
     }
 };
 
-// 図鑑・実績: 1ゲームのイベントから、撃破した敵・見た必殺技・トロフィー・記録を集める。
+// 図鑑・実績: 1ゲームのイベントから、撃破した敵・見た必殺技・トロフィー・RASH 終了画面の絵・記録を集める。
 // 新しく解除した実績は { type: 'achievement' } のイベントとして返す
 const Collection = {
     record(state, outcome, events, config) {
@@ -364,6 +365,7 @@ const Collection = {
             }
             if (e.type === 'rashEnd' || (e.type === 'naiteiResult' && e.toCastle)) {
                 if (e.trophy) add(c.trophies, e.trophy);
+                if (e.endCard) add(c.endCards || (c.endCards = {}), e.endCard);
                 r.bestCoins = Math.max(r.bestCoins || 0, e.coinsWon);
                 r.bestDefeats = Math.max(r.bestDefeats || 0, e.defeatCount);
             }
@@ -403,7 +405,7 @@ const Collection = {
         return events;
     },
 
-    // 図鑑の項目: 敵・必殺技・トロフィーの色
+    // 図鑑の項目: 敵・必殺技・トロフィーの色・RASH 終了画面の絵
     entries(config) {
         const enemies = [...config.enemies, config.goldDog, config.naitei.enemy];
         return {
@@ -415,7 +417,8 @@ const Collection = {
                 ...config.companions.members.map(m => ({ id: m.id, who: m.name, name: m.special })),
                 ...enemies.map(e => ({ id: e.id, who: e.name, name: e.special }))
             ],
-            trophies: Object.keys(config.trophy.colors).map(Number)
+            trophies: Object.keys(config.trophy.colors).map(Number),
+            endCards: config.endCard.cards.map(card => card.id)
         };
     },
 
@@ -426,9 +429,11 @@ const Collection = {
         switch (kind) {
             case 'defeat': return c.defeats[id] || 0;
             case 'trophy': return c.trophies[id] || 0;
+            case 'endCard': return (c.endCards || {})[id] || 0;
             case 'enemyKinds': return kinds(c.defeats);
             case 'specialKinds': return kinds(c.specials);
             case 'trophyKinds': return kinds(c.trophies);
+            case 'endCardKinds': return kinds(c.endCards || {});
             default: return c.records[kind] || 0;
         }
     },
@@ -437,7 +442,9 @@ const Collection = {
     target(config, a) {
         if (a.value !== 'all') return a.value;
         const e = this.entries(config);
-        return { enemyKinds: e.enemies.length, specialKinds: e.specials.length, trophyKinds: e.trophies.length }[a.stat];
+        return {
+            enemyKinds: e.enemies.length, specialKinds: e.specials.length, trophyKinds: e.trophies.length, endCardKinds: e.endCards.length
+        }[a.stat];
     }
 };
 

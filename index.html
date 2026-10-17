@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=09d2ea4e">
+    <link rel="stylesheet" href="css/style.css?v=35906796">
 </head>
 <body>
     <div class="game-container">
@@ -242,6 +242,10 @@
                 <div id="col-trophies" class="col-trophies"></div>
             </section>
             <section class="modal-section">
+                <h3>RASH 終了画面 <span id="col-endcard-count" class="col-count"></span></h3>
+                <div id="col-endcards" class="col-endcards"></div>
+            </section>
+            <section class="modal-section">
                 <h3>実績 <span id="col-achievement-count" class="col-count"></span></h3>
                 <ul id="col-achievements" class="col-achievements"></ul>
             </section>
@@ -282,6 +286,16 @@
         </div>
     </div>
 
+    <!-- 図鑑: RASH 終了画面の絵を大きく見る -->
+    <div id="endcard-modal" class="modal profile-modal" hidden>
+        <div class="modal-content endcard-content" role="dialog" aria-modal="true" aria-labelledby="endcard-name">
+            <canvas id="endcard-canvas" class="endcard-canvas"></canvas>
+            <h2 id="endcard-name" class="endcard-name"></h2>
+            <p id="endcard-detail" class="endcard-detail"></p>
+            <button id="close-endcard-button" class="modal-button modal-close">図鑑に戻る</button>
+        </div>
+    </div>
+
     <!-- 実績解除の通知 -->
     <div id="achievement-toast" class="achievement-toast" role="status" aria-live="polite" hidden></div>
 
@@ -304,12 +318,12 @@
     </div>
 
     <!-- 読み込み順: 設定 → データ → 各機能 → 起動 -->
-    <script src="js/config.js?v=c816217b"></script>
+    <script src="js/config.js?v=75a91a21"></script>
     <script src="js/sprites.js?v=056d5554"></script>
     <script src="js/backgrounds.js?v=772c65c2"></script>
     <script src="js/characters.js?v=8d314eb2"></script>
     <script src="js/audio.js?v=41c6ca85"></script>
-    <script src="js/state.js?v=999bee0d"></script>
+    <script src="js/state.js?v=b7787465"></script>
     <script src="js/lottery.js?v=ef41b4a7"></script>
     <script src="js/battle.js?v=c75e9e9a"></script>
     <script src="js/furukawa.js?v=ba54a94d"></script>
@@ -320,15 +334,15 @@
     <script src="js/lcd/special-fx.js?v=899879ea"></script>
     <script src="js/lcd/chance-fx.js?v=5bf8dd47"></script>
     <script src="js/lcd/trophy-view.js?v=137424f8"></script>
-    <script src="js/lcd/end-card-view.js?v=3a024296"></script>
+    <script src="js/lcd/end-card-view.js?v=ba79dd8d"></script>
     <script src="js/lcd/furukawa-view.js?v=41f6e421"></script>
     <script src="js/lcd/story-view.js?v=9d4ed5f5"></script>
     <script src="js/lcd/opening-view.js?v=f59a78e2"></script>
     <script src="js/lcd/ending-view.js?v=3c9c7b55"></script>
     <script src="js/lcd.js?v=4007258e"></script>
     <script src="js/profiles.js?v=4a4867b2"></script>
-    <script src="js/updates.js?v=18248b50"></script>
-    <script src="js/ui.js?v=9448bc23"></script>
+    <script src="js/updates.js?v=b7c8f5de"></script>
+    <script src="js/ui.js?v=a5ddfa49"></script>
     <script src="js/main.js?v=0f488429"></script>
 </body>
 </html>

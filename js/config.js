@@ -678,7 +678,8 @@ window.GAME_CONFIG = {
     //   rash / super / naitei / freeze / moves / games / ending: 合計の回数 (RASH・SUPER 突入、内定の時突破、ロングフリーズ、台移動、ゲーム数、エンディング)
     //   bestCoins / bestDefeats: 1回の RASH での最高 (獲得枚数・撃破数)
     //   defeat:<敵の id>: その敵の撃破数 / trophy:<色>: その色のトロフィーが出た回数
-    //   enemyKinds / specialKinds / trophyKinds: 図鑑の埋まった数 (value: 'all' は全部)
+    //   endCard:<絵の id>: その RASH 終了画面の絵を見た回数
+    //   enemyKinds / specialKinds / trophyKinds / endCardKinds: 図鑑の埋まった数 (value: 'all' は全部)
     collection: {
         achievements: [
             { id: 'firstRash', name: 'はじめてのRASH', desc: 'おにおにRASHに突入する', stat: 'rash', value: 1 },
@@ -693,6 +694,8 @@ window.GAME_CONFIG = {
             { id: 'rash10', name: 'RASH常連', desc: 'おにおにRASHに合計10回突入する', stat: 'rash', value: 10 },
             { id: 'rainbow', name: '虹の向こう', desc: '虹のトロフィーを出す', stat: 'trophy:6', value: 1 },
             { id: 'allTrophies', name: 'トロフィーコレクター', desc: 'トロフィーを全色出す', stat: 'trophyKinds', value: 'all' },
+            { id: 'everyone', name: 'みんなで記念撮影', desc: 'RASH 終了画面で集合絵を見る', stat: 'endCard:everyone', value: 1 },
+            { id: 'allEndCards', name: '思い出アルバム', desc: 'RASH 終了画面の絵をすべて見る', stat: 'endCardKinds', value: 'all' },
             { id: 'allEnemies', name: '全員撃破', desc: 'すべての敵を撃破する', stat: 'enemyKinds', value: 'all' },
             { id: 'allSpecials', name: '必殺技マスター', desc: 'すべての必殺技を見る', stat: 'specialKinds', value: 'all' },
             { id: 'moves5', name: '台選び上手', desc: '台移動を合計5回する', stat: 'moves', value: 5 },

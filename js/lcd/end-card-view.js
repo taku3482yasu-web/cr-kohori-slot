@@ -109,14 +109,33 @@ const EndCardView = (() => {
             return;
         }
         const t = time - card.start;
-        const f = Math.floor(t / 300) % 2;
         ctx.save();
         ctx.globalAlpha = Math.min(ease(t / FADE), Math.max(0, (card.until - time) / FADE));
-        drawBackground(THEMES[CARD_THEMES[card.id] || 'normal'], t);
-        (SCENES[card.id] || SCENES.koori)(t, f);
-        text('おつかれさま！', W / 2, 6, { color: '#ffffff', size: 14, align: 'center', outline: '#2a1040' });
+        paint(card.id, t);
         ctx.restore();
     }
 
-    return { show, draw };
+    function paint(id, t) {
+        drawBackground(THEMES[CARD_THEMES[id] || 'normal'], t);
+        (SCENES[id] || SCENES.koori)(t, Math.floor(t / 300) % 2);
+        text('おつかれさま！', W / 2, 6, { color: '#ffffff', size: 14, align: 'center', outline: '#2a1040' });
+    }
+
+    // 液晶以外の canvas (図鑑) に絵を描く。canvas は液晶と同じ大きさにする。t: 出てからの時間 (キャラクターの動き)
+    function renderTo(target, id, t = 1000) {
+        const lcd = LcdKit.canvas();
+        target.width = lcd.W;
+        target.height = lcd.H;
+        // 文字などの部品 (LcdKit) も図鑑の canvas に描くよう、描くあいだだけ差し替える
+        LcdKit.setCanvas(target.getContext('2d'), lcd.W, lcd.H, lcd.config);
+        ({ ctx, W, H, config } = LcdKit.canvas());
+        try {
+            paint(id, t);
+        } finally {
+            LcdKit.setCanvas(lcd.ctx, lcd.W, lcd.H, lcd.config);
+            ({ ctx, W, H, config } = LcdKit.canvas());
+        }
+    }
+
+    return { show, draw, renderTo };
 })();

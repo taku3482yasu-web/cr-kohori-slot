@@ -429,7 +429,7 @@ test('設定推測: 何も見ていないときは台の設定の抽選の重み
     }
 });
 
-test('図鑑・実績: 記録・トロフィーが数えられ、解除した実績は条件を満たしている', () => {
+test('図鑑・実績: 記録・トロフィー・RASH 終了画面が数えられ、解除した実績は条件を満たしている', () => {
     for (const { setting, state, log, game } of runs) {
         const c = state.collection;
         const { Collection, config } = game;
@@ -438,6 +438,9 @@ test('図鑑・実績: 記録・トロフィーが数えられ、解除した実
         assertEqual(c.records.super, state.superCount, `設定${setting} の SUPER 突入`);
         const trophies = Object.values(c.trophies).reduce((a, b) => a + b, 0);
         assertEqual(trophies, log.trophies.shown, `設定${setting} のトロフィーの回数`);
+        const endCards = Object.values(c.endCards).reduce((x, y) => x + y, 0);
+        assertEqual(endCards, log.rashEnds.length, `設定${setting} の RASH 終了画面を見た回数`);
+        assertEqual(c.endCards.everyone > 0, c.achievements.everyone != null, `設定${setting} の実績「みんなで記念撮影」`);
         const best = Math.max(...log.rashEnds.map(e => e.coinsWon));
         assertEqual(c.records.bestCoins, best, `設定${setting} の最高獲得枚数`);
         const ids = Collection.entries(config);

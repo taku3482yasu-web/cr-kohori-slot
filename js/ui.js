@@ -88,6 +88,13 @@ const UI = (() => {
             colTrophyCount: $('col-trophy-count'),
             colTrophies: $('col-trophies'),
             colRecords: $('col-records'),
+            colEndCardCount: $('col-endcard-count'),
+            colEndCards: $('col-endcards'),
+            endCardModal: $('endcard-modal'),
+            endCardCanvas: $('endcard-canvas'),
+            endCardName: $('endcard-name'),
+            endCardDetail: $('endcard-detail'),
+            endCardClose: $('close-endcard-button'),
             achievementToast: $('achievement-toast'),
             dcEstimate: $('dc-estimate'),
             dcEstimateBars: $('dc-estimate-bars'),
@@ -351,6 +358,10 @@ const UI = (() => {
             if (e.code === 'Escape') closeProfile();
             return;
         }
+        if (!els.endCardModal.hidden) {
+            if (e.code === 'Escape') closeEndCard();
+            return;
+        }
         if (!els.collectionModal.hidden) {
             if (e.code === 'Escape') closeCollection();
             return;
@@ -432,7 +443,7 @@ const UI = (() => {
     // ----- リセット (確認ダイアログで「リセットする」を押したときだけ) -----
     function isDialogOpen() {
         return !els.modal.hidden || !els.resetModal.hidden || !els.moveModal.hidden || !els.collectionModal.hidden || !els.profileModal.hidden ||
-            !els.updatesModal.hidden;
+            !els.updatesModal.hidden || !els.endCardModal.hidden;
     }
 
     function openResetDialog() {
@@ -512,6 +523,29 @@ const UI = (() => {
         els.updatesModal.hidden = true;
     }
 
+    // ----- 図鑑: RASH 終了画面の絵を大きく見る (開いている間はキャラクターが動く) -----
+    let endCardFrame = 0;
+
+    function openEndCard(card, n) {
+        const hint = card.hint === 'デフォルト' ? '示唆なし' : card.hint;
+        els.endCardName.textContent = card.name;
+        els.endCardDetail.textContent = `${hint}　見た回数 ${n.toLocaleString()}回`;
+        els.endCardModal.hidden = false;
+        els.endCardClose.focus();
+        const start = performance.now();
+        const loop = (time) => {
+            if (els.endCardModal.hidden) return;
+            EndCardView.renderTo(els.endCardCanvas, card.id, time - start + 600);
+            endCardFrame = requestAnimationFrame(loop);
+        };
+        loop(start);
+    }
+
+    function closeEndCard() {
+        cancelAnimationFrame(endCardFrame);
+        els.endCardModal.hidden = true;
+    }
+
     // ----- 図鑑・実績 -----
     function initCollection() {
         els.collectionButton.addEventListener('click', openCollection);
@@ -520,6 +554,10 @@ const UI = (() => {
             if (e.target === els.collectionModal) closeCollection();
         });
         els.profileClose.addEventListener('click', closeProfile);
+        els.endCardClose.addEventListener('click', closeEndCard);
+        els.endCardModal.addEventListener('click', (e) => {
+            if (e.target === els.endCardModal) closeEndCard();
+        });
         els.profileModal.addEventListener('click', (e) => {
             if (e.target === els.profileModal) closeProfile();
         });
@@ -591,6 +629,31 @@ const UI = (() => {
             return `<div class="col-trophy${n ? '' : ' col-unknown'}">${n ? trophySwatch(level) : '<span class="dc-trophy"></span>'}` +
                 `<span>${n ? `${color.name} ×${n.toLocaleString()}` : '？'}</span></div>`;
         }).join('');
+
+        // RASH 終了画面: 見た絵は小さく描いて名前と回数 (押すと大きく見られる)、まだの絵は ？
+        const seenCards = c.endCards || {};
+        els.colEndCardCount.textContent = count(entries.endCards.filter(id => seenCards[id]).length, entries.endCards.length);
+        els.colEndCards.innerHTML = '';
+        for (const card of config.endCard.cards) {
+            const n = seenCards[card.id] || 0;
+            const item = document.createElement(n ? 'button' : 'div');
+            item.className = `col-endcard${n ? '' : ' col-unknown'}`;
+            if (n) {
+                const canvas = document.createElement('canvas');
+                EndCardView.renderTo(canvas, card.id);
+                item.append(canvas);
+                item.addEventListener('click', () => openEndCard(card, n));
+            } else {
+                const blank = document.createElement('span');
+                blank.className = 'col-endcard-blank';
+                blank.textContent = '？';
+                item.append(blank);
+            }
+            const label = document.createElement('span');
+            label.textContent = n ? `${card.name} ×${n.toLocaleString()}` : '？？？';
+            item.append(label);
+            els.colEndCards.append(item);
+        }
 
         const r = c.records;
         const records = [
