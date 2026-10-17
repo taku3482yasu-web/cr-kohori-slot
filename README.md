@@ -178,7 +178,7 @@ stateDiagram-v2
 ## 撃破ボーナス・おにおに・SUPER・ゴールド金面犬
 
 - 撃破ボーナス（`enemies[].bonus`）: `coins` はその場で加算、`games` は次の BATTLE のゲーム数に上乗せ、`probUp` は指定ゲーム数の間リプレイ以外の揃い役の確率を `value` 倍
-- おにおに: 1回の RASH で `rash.oniUnlockDefeats`（3）体撃破すると「おにおにが現れる…!?」→ 以降、重み付き抽選の候補に入る
+- おにおに: 1回の RASH で `rash.oniUnlockDefeats`（3）体撃破すると「おにおにが現れる…!?」→ 以降、重み付き抽選の候補に入る。SUPER 中は最初から候補に入っているので、撃破数が3体になっても「おにおにが現れる…!?」は出ない（`Battle.checkOniUnlock`）
 - おにおに撃破で SUPERおにおにRASH へ（継続率 93%、背景とロゴが金色、`superStart` 演出）。SUPER 中はおにおにが常に候補（`rash.superOniAlwaysAvailable`）
 - ゴールド金面犬: SUPER 中の対戦相手抽選ごとに `goldDog.prob`（1/100）。撃破で 2000 枚、次の相手はおにおに確定
 - シミュレーション: SUPER のセット継続率 93.07%（3000回）、金面犬の出現 1/99、金面犬撃破後の次の相手は 10/10 でおにおに、撃破3体前のおにおに出現 0回

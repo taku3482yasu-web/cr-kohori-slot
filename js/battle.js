@@ -202,6 +202,8 @@ const Battle = {
     // 撃破数でおにおにが対戦相手の候補に入る
     checkOniUnlock(state, config) {
         const rash = state.rash;
+        // SUPER 中はおにおにが常に対戦相手の候補に入っているので、「おにおにが現れる…!?」は出さない
+        if (state.mode === MODES.SUPER_RASH && config.rash.superOniAlwaysAvailable) return [];
         if (rash.oniUnlocked || rash.defeatCount < config.rash.oniUnlockDefeats) return [];
         rash.oniUnlocked = true;
         return [{ type: 'oniUnlocked' }];

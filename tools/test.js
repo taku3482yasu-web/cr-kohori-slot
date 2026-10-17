@@ -111,6 +111,7 @@ function play(setting, games, seed) {
         enemyIdMissing: 0,       // 「？？」の失敗・肩代わりに敵の id がない
         questionFails: 0,
         revenge: { success: 0, toSuper: 0, fromSuper: 0, carried: 0, wrong: 0 },
+        oniUnlockInSuper: 0,     // SUPER 中に「おにおにが現れる…!?」が出た回数 (出てはいけない)
         joined: new Set(),       // 仲間になった仲間の id
         revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0, notSeven: 0, paid: 0 },
         furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0 }
@@ -169,6 +170,7 @@ function play(setting, games, seed) {
                 if (!carry || state.rash.defeatCount !== carry.defeatCount || state.mode !== wantMode) log.revenge.wrong++;
             }
             if (e.type === 'companionChallenge' && e.success) log.joined.add(e.memberId);
+            if (e.type === 'oniUnlocked' && mode === MODES.SUPER_RASH) log.oniUnlockInSuper++;
             if (e.type === 'revival') {
                 log.revival.revived++;
                 if (outcome.role !== 'seven' || !outcome.aligned) log.revival.notSeven++;
@@ -481,6 +483,10 @@ test('復活: 「？？」の負けの一部で復活が決まり、次のゲー
         assertEqual(r.paid, 0, `設定${setting} で復活の 7揃いに払い出しがある`);
         assertEqual(state.collection.records.revival, r.revived, `設定${setting} の図鑑の復活の回数`);
     }
+});
+
+test('おにおに出現: SUPER 中は常に候補に入っているので「おにおにが現れる…!?」は出ない', () => {
+    for (const { setting, log } of runs) assertEqual(log.oniUnlockInSuper, 0, `設定${setting} の SUPER 中のおにおに出現`);
 });
 
 test('リベンジチャンス: 成功すると前の RASH の撃破数を引き継ぎ、SUPER だったら SUPER に戻る', () => {
