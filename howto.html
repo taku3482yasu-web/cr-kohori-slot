@@ -308,8 +308,11 @@
         <h3>設定示唆トロフィー</h3>
         <p>おにおにRASH（SUPER）が終わると、<span id="trophy-rate"></span>くらいの確率で液晶の左下にトロフィーが出ます。<b>色で「設定○以上」を示唆</b>します（次のレバー ON で消えます。大当たり履歴にも残ります）。高い設定ほど、上の色が出やすくなります。</p>
         <ul id="trophy-list" class="trophy-list"></ul>
+        <h3>RASH 終了画面</h3>
+        <p>おにおにRASH（SUPER）が終わって通常時に戻る前に、液晶に<b>「おつかれさま！」の1枚絵</b>が出ます。<b>映っているキャラクターで設定を示唆</b>します（毎回出ます）。</p>
+        <div class="table-wrap"><table id="end-card-table"></table></div>
         <h3>設定推測</h3>
-        <p>データカウンターの <b>設定推測</b> を開くと、この台で見た「通常時のチャンス目の出現率」「城突入チャレンジの成功率」「トロフィーの色」から、設定1〜6それぞれの可能性（%）を計算して表示します。打ち始めは設定1がいちばん高く出ます（台の設定の出やすさから始まるため）。低設定っぽければ <b>⇄ 台移動</b> で別の台へ。</p>
+        <p>データカウンターの <b>設定推測</b> を開くと、この台で見た「通常時のチャンス目の出現率」「城突入チャレンジの成功率」「トロフィーの色」「RASH 終了画面の絵」から、設定1〜6それぞれの可能性（%）を計算して表示します。打ち始めは設定1がいちばん高く出ます（台の設定の出やすさから始まるため）。低設定っぽければ <b>⇄ 台移動</b> で別の台へ。</p>
         <h3>データカウンター</h3>
         <p>リールの下に、総ゲーム数・現在のゲーム数（前回の RASH から）・RASH と SUPER の回数・初当たり確率と、<b>大当たり履歴</b>（当選までのゲーム数・契機・SUPER 到達・獲得枚数・撃破数、新しい順に<span id="dc-shown"></span>件）を表示します。グラフは当選までのゲーム数（赤: RASH、金: SUPER 到達）です。</p>
     </section>
@@ -330,12 +333,12 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js?v=b464ff05"></script>
+<script src="js/config.js?v=012b1c28"></script>
 <script src="js/sprites.js?v=056d5554"></script>
 <script src="js/characters.js?v=8d314eb2"></script>
-<script src="js/state.js?v=11900945"></script>
+<script src="js/state.js?v=999bee0d"></script>
 <script src="js/lottery.js?v=ef41b4a7"></script>
-<script src="js/battle.js?v=186d9931"></script>
+<script src="js/battle.js?v=c75e9e9a"></script>
 <script>
     // 表示する数値はすべて js/config.js から作る (数値を調整してもこのページは自動で追従する)
     const c = window.GAME_CONFIG;
@@ -598,6 +601,8 @@
         const meaning = s === '1' ? '示唆なし' : s === '6' ? '<span class="red">設定6確定</span>' : `設定${s}以上`;
         return `<li><span class="trophy-swatch" style="${swatch}"></span>${t.name} … ${meaning}</li>`;
     }).join('');
+    table('end-card-table', ['映っているキャラクター', '示唆'], c.endCard.cards.map(card =>
+        [card.name, /6確定/.test(card.hint) ? `<span class="red">${card.hint}</span>` : card.hint === 'デフォルト' ? '示唆なし' : card.hint]));
     table('achievement-table', ['実績', '条件'], c.collection.achievements.map(a => [a.name, a.desc]));
 
     table('setting-table', ['設定', '通常時のチャンス目', '城突入チャレンジのチャンス目', '城突入率', 'ポイントチャンス（多）'],

@@ -514,6 +514,28 @@ window.GAME_CONFIG = {
         minShow: 6000
     },
 
+    // ----- RASH 終了画面 (設定示唆の1枚絵。ユーザー指定) -----
+    // RASH (SUPER) が終わって通常時に戻る前 (内定の時の失敗で SE城前に戻るときも) に、液晶に1枚絵を出す。
+    // 絵ごとに出る台の設定が決まっている (min: 設定○以上でだけ出る / parity: 'even' 偶数・'odd' 奇数の設定でだけ出る)。
+    // 台の設定で出せる絵の中から weight の重みで選ぶ。こおりくんはどの設定でも出る (示唆なし)
+    //   hint: 遊び方・設定推測に出す意味 / showTime: 表示する時間 (ミリ秒)
+    endCard: {
+        showTime: 3000,
+        cards: [
+            { id: 'koori', name: 'こおりくん', hint: 'デフォルト', weight: 40 },
+            { id: 'yasu', name: 'やすさん', hint: '設定1以上', min: 1, weight: 20 },
+            { id: 'tamu', name: 'たむさん', hint: '設定2以上', min: 2, weight: 15 },
+            { id: 'dake', name: 'だけさん', hint: '設定3以上', min: 3, weight: 10 },
+            { id: 'furukawa', name: 'ふるカワ', hint: '偶数設定', parity: 'even', weight: 10 },
+            { id: 'tomoishi', name: 'ともいし', hint: '奇数設定', parity: 'odd', weight: 10 },
+            { id: 'onioni', name: 'おにおに', hint: '設定3未満否定', min: 3, weight: 8 },
+            { id: 'okagappaHibiki', name: 'おかがっぱ・ひびきまくり', hint: '設定4以上', min: 4, weight: 8 },
+            { id: 'sasakiShibata', name: 'Mr.SASAKI・シバター', hint: '設定5以上', min: 5, weight: 8 },
+            { id: 'everyone', name: 'みんなの集合絵', hint: '設定6確定', min: 6, weight: 6 },
+            { id: 'goldDog', name: 'ゴールド金面犬', hint: '設定6確定', min: 6, weight: 4 }
+        ]
+    },
+
     // ----- データカウンター -----
     //   historySize: 大当たり履歴に残す件数 (新しい順)
     //   historyShown: 画面に表示する件数

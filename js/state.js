@@ -129,6 +129,7 @@ function createInitialState(config, rng = Math.random) {
             normalChance: 0,   // そのうちチャンス目が出た回数
             challenges: {},    // 城突入チャレンジの結果 { 突入率の倍率 (仲間・SE城前のチャンス目): { tries, wins } }
             trophies: {},      // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
+            endCards: {},      // RASH 終了画面の絵ごとの回数 { 絵の id: 回数 }
             furukawa: {}       // ふるカワの設定示唆のセリフごとの回数 { settingLines の番号: 回数 }
         },
 
@@ -193,7 +194,32 @@ function createRashState() {
     };
 }
 
-// 設定推測: この台で見た「通常時のチャンス目の出現率」「城突入チャレンジの成功率」「トロフィーの色」「ふるカワの設定示唆のセリフ」から、
+// RASH 終了画面 (設定示唆の1枚絵。config.endCard)
+const EndCard = {
+    // その絵が台の設定 setting で出るか (min: 設定○以上 / parity: 偶数・奇数)
+    allows(card, setting) {
+        if (card.min && setting < card.min) return false;
+        if (card.parity === 'even' && setting % 2 !== 0) return false;
+        if (card.parity === 'odd' && setting % 2 === 0) return false;
+        return true;
+    },
+
+    // 台の設定で出せる絵
+    available(config, setting) {
+        return config.endCard.cards.filter(card => this.allows(card, setting));
+    },
+
+    // 出す絵の id を weight の重みで選ぶ
+    pick(config, setting, rng = Math.random) {
+        return Lottery.weightedPick(this.available(config, setting), card => card.weight, rng).id;
+    },
+
+    find(config, id) {
+        return config.endCard.cards.find(card => card.id === id);
+    }
+};
+
+// 設定推測: この台で見た「通常時のチャンス目の出現率」「城突入チャレンジの成功率」「トロフィーの色」「RASH 終了画面の絵」「ふるカワの設定示唆のセリフ」から、
 // 設定1〜6それぞれの可能性を計算する (ベイズ推定。最初の可能性は台の設定の抽選の重み machine.weights)。
 // 初当たり確率はこの3つから決まる結果なので、二重に数えないよう材料には入れない
 const SettingEstimate = {
@@ -211,6 +237,19 @@ const SettingEstimate = {
 
     countTrophy(state, level) {
         state.estimate.trophies[level] = (state.estimate.trophies[level] || 0) + 1;
+    },
+
+    countEndCard(state, id) {
+        const counts = state.estimate.endCards || (state.estimate.endCards = {});
+        counts[id] = (counts[id] || 0) + 1;
+    },
+
+    // 設定ごとの、RASH 終了画面がその絵 (id) になる確率
+    endCardRate(config, setting, id) {
+        const cards = EndCard.available(config, setting);
+        const total = cards.reduce((a, c) => a + c.weight, 0);
+        const card = cards.find(c => c.id === id);
+        return card ? card.weight / total : 0;
     },
 
     // ふるカワの設定示唆のセリフ (main.js がしゃべらせたときに数える)
@@ -269,6 +308,7 @@ const SettingEstimate = {
                 log += logOf(c.wins, rate) + logOf(c.tries - c.wins, 1 - rate);
             }
             for (const [level, n] of Object.entries(e.trophies)) log += logOf(n, this.trophyRate(config, setting, Number(level)));
+            for (const [id, n] of Object.entries(e.endCards || {})) log += logOf(n, this.endCardRate(config, setting, id));
             for (const [index, n] of Object.entries(e.furukawa || {})) log += logOf(n, this.furukawaRate(config, setting, Number(index)));
             logs[setting] = log;
         }
@@ -704,8 +744,8 @@ const GameFlow = {
     },
 
     // 内定の時ゾーンの失敗 (おにおにRASH 中): RASH 終了 → SE城前の城突入チャレンジへ (仲間は残る)
-    returnToCastle(state, config, trophy = null) {
-        this.finishHit(state, false, trophy);
+    returnToCastle(state, config, trophy = null, endCard = null) {
+        this.finishHit(state, false, trophy, endCard);
         state.rash = createRashState();
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
@@ -736,11 +776,12 @@ const GameFlow = {
         const rash = state.rash;
         const companionNames = Companions.members(state, config).map(m => m.name);
         const trophy = this.pickTrophy(state, config, rng);
+        const endCard = EndCard.pick(config, state.setting, rng);
         const events = [{
             type: 'rashEnd', coinsWon: rash.coinsWon, defeatCount: rash.defeatCount,
-            wasSuper: state.mode === MODES.SUPER_RASH, companionNames, trophy
+            wasSuper: state.mode === MODES.SUPER_RASH, companionNames, trophy, endCard
         }];
-        this.finishHit(state, state.mode === MODES.SUPER_RASH, trophy);
+        this.finishHit(state, state.mode === MODES.SUPER_RASH, trophy, endCard);
         state.companions = [];   // RASH が終わると仲間は帰っていく
         events.push(StateMachine.transition(state, MODES.NORMAL));
         state.rash = createRashState();
@@ -775,9 +816,10 @@ const GameFlow = {
         state.gamesSinceHit = 0;
     },
 
-    // RASH 終了: 獲得枚数・撃破数・SUPER 到達・出たトロフィーを記録
-    finishHit(state, reachedSuper, trophy) {
+    // RASH 終了: 獲得枚数・撃破数・SUPER 到達・出たトロフィーを記録 (トロフィーと終了画面の絵は設定推測の材料にも)
+    finishHit(state, reachedSuper, trophy, endCard = null) {
         if (trophy) SettingEstimate.countTrophy(state, trophy);
+        if (endCard) SettingEstimate.countEndCard(state, endCard);
         const hit = state.hitHistory[0];
         if (!hit || !hit.active) return;
         hit.coins = state.rash.coinsWon;

@@ -13,6 +13,7 @@
     const stopButtons = [1, 2, 3].map(n => document.getElementById(`stop-button-${n}`));
     const reelElements = [1, 2, 3].map(n => document.getElementById(`reel${n}`));
     let debugNextRole = null;   // デバッグ: 次のゲームの役を指定
+    let debugEndCard = -1;      // デバッグ: 最後に見た RASH 終了画面の絵の番号
 
     function refresh() {
         UI.update(state);
@@ -226,6 +227,13 @@
         revival: debugAction(() => DebugState.toRevival(state, config)),
         opening: () => { if (!Reels.isSpinning() && !spinButton.disabled) Lcd.playOpening(); },
         ending: debugAction(() => [{ type: 'ending' }]),
+        endCard: () => {   // RASH 終了画面の絵を、押すたびに次の絵へ
+            if (Reels.isSpinning() || spinButton.disabled) return;
+            const cards = config.endCard.cards;
+            debugEndCard = (debugEndCard + 1) % cards.length;
+            Lcd.showMessage(cards[debugEndCard].name, '#fff', 1000);
+            Lcd.showEndCard(cards[debugEndCard].id);
+        },
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },
         forceGold: debugAction(() => DebugState.forceEnemy(state, config.goldDog.id)),
         coins: debugAction(() => { state.coins += 1000; })

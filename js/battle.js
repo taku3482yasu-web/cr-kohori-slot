@@ -419,11 +419,12 @@ const Battle = {
 
         const toCastle = state.mode === MODES.RASH;
         const trophy = toCastle ? GameFlow.pickTrophy(state, config, rng) : null;
+        const endCard = toCastle ? EndCard.pick(config, state.setting, rng) : null;
         const events = [{
             type: 'naiteiResult', win: false, name: enemy.name, toCastle,
-            coinsWon: rash.coinsWon, defeatCount: rash.defeatCount, trophy
+            coinsWon: rash.coinsWon, defeatCount: rash.defeatCount, trophy, endCard
         }];
-        if (toCastle) events.push(...GameFlow.returnToCastle(state, config, trophy));
+        if (toCastle) events.push(...GameFlow.returnToCastle(state, config, trophy, endCard));
         return events;
     },
 

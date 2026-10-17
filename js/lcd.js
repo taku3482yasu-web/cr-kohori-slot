@@ -236,6 +236,7 @@ const Lcd = (() => {
         drawTitleCard(time);
         drawWipe(time);
         drawGateText(time);
+        EndCardView.draw(time);
         TrophyView.draw(time);
         drawFlash(time);
     }
@@ -2015,6 +2016,7 @@ const Lcd = (() => {
             TrophyView.show(event.trophy);
             showTitle('おにおにRASH 終了', `獲得 ${event.coinsWon}枚　撃破 ${event.defeatCount}体`, RASH_COLOR, 2500);
             await sleep(2500);
+            await EndCardView.show(event.endCard);   // 設定示唆の1枚絵
             showTitle('SE城突入ゾーンへ戻る', 'もう一度 城を目指せ!!', '#ff8080', 1600);
             await sleep(1600);
             pendingScene = 'field';   // 次のマップ移動 (SE城前) の暗転中に切り替える
@@ -2231,6 +2233,7 @@ const Lcd = (() => {
             await sleep(1800);
             party = [];
         }
+        await EndCardView.show(event.endCard);   // 設定示唆の1枚絵
         pendingScene = 'field';
     }
 
@@ -2380,6 +2383,7 @@ const Lcd = (() => {
         skipStory: () => StoryView.skip(),
         storyActive: () => StoryView.active(),
         hideTrophy: () => TrophyView.hide(),
+        showEndCard: id => EndCardView.show(id),
         showFurukawa: talk => FurukawaView.show(talk),
         hideFurukawa: () => FurukawaView.hide()
     };

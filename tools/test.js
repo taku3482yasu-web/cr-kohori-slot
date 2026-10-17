@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, UpdateNotes, UPDATES, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -294,6 +294,30 @@ test('設定示唆トロフィー: 出現率が約50%、台の設定より上の
         for (const level of Object.keys(t.byLevel)) assert(Number(level) <= setting, `設定${setting} で「${level}以上」が出た`);
         if (setting >= 2) assert(t.byLevel[setting] > 0, `設定${setting} で設定と同じ色が出ていない`);
     }
+});
+
+test('RASH 終了画面: 毎回出て、台の設定の条件に合う絵だけ・6確定の絵は設定6でだけ出る', () => {
+    const { EndCard, config } = base;
+    for (const { setting, log } of runs) {
+        const seen = {};
+        for (const e of log.rashEnds) {
+            assert(e.endCard, `設定${setting}: 終了画面の絵が決まっていない`);
+            const card = EndCard.find(config, e.endCard);
+            assert(card && EndCard.allows(card, setting), `設定${setting} で「${card ? card.name : e.endCard}」が出た`);
+            seen[e.endCard] = (seen[e.endCard] || 0) + 1;
+        }
+        assert(seen[setting % 2 ? 'tomoishi' : 'furukawa'] > 0, `設定${setting} で偶数・奇数の示唆が出ていない`);
+        if (setting === 6) assert(seen.everyone > 0 && seen.goldDog > 0, '設定6 で6確定の絵が出ていない');
+        // 設定推測の材料に数えた回数と合う
+        const counted = Object.values(runs.find(r => r.setting === setting).state.estimate.endCards).reduce((a, b) => a + b, 0);
+        assert(counted > 0, `設定${setting}: 設定推測に数えていない`);
+    }
+    for (const setting of [1, 2, 3, 4, 5, 6]) {
+        const total = config.endCard.cards.reduce((a, c) => a + base.SettingEstimate.endCardRate(config, setting, c.id), 0);
+        assertBetween(total, 0.9999, 1.0001, `設定${setting} の絵の確率の合計`);
+    }
+    const names = EndCard.available(config, 1).map(c => c.id).join();
+    assertEqual(names, 'koori,yasu,tomoishi', '設定1 で出る絵');
 });
 
 test('ブレイク: BATTLE 中のチャンス目で約50%ブレイクする', () => {

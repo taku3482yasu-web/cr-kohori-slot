@@ -243,12 +243,16 @@ const UI = (() => {
             .filter(([, n]) => n).map(([line, n]) => `「${line.short}」×${n}`).join(' ');
         const trophies = Object.keys(config.trophy.colors).filter(level => e.trophies[level])
             .map(level => `${trophySwatch(Number(level))}${config.trophy.colors[level].name}×${e.trophies[level]}`).join(' ');
+        const endCardsSeen = e.endCards || {};
+        const endCards = config.endCard.cards.filter(card => endCardsSeen[card.id])
+            .map(card => `${card.name}×${endCardsSeen[card.id]}`).join(' ');
         els.dcEstimateFacts.innerHTML = [
             `<li><b>チャンス目（通常時）</b> ${e.normalChance}回 / ${e.normalGames.toLocaleString()}G（${chanceSeen}）` +
                 `<span class="dc-note">目安 設定${low} ${odds(SettingEstimate.chanceRate(config, low))} 〜 設定${high} ${odds(SettingEstimate.chanceRate(config, high))}</span></li>`,
             `<li><b>城突入チャレンジ</b> ${wins} / ${tries}回成功${tries ? `（${Math.round(wins / tries * 100)}%）` : ''}` +
                 `<span class="dc-note">目安 設定${low} ${challengeRate(low)} 〜 設定${high} ${challengeRate(high)}（仲間なし）</span></li>`,
             `<li><b>トロフィー</b> ${trophies || 'まだ出ていません'}</li>`,
+            `<li><b>RASH 終了画面</b> ${endCards || 'まだ見ていません'}</li>`,
             `<li><b>ふるカワ</b> ${furukawa || 'まだ設定のことは言っていません'}</li>`
         ].join('');
     }
