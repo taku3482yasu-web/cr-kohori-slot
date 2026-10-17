@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=915d3917">
+    <link rel="stylesheet" href="css/style.css?v=09d2ea4e">
 </head>
 <body>
     <div class="game-container">
@@ -181,6 +181,13 @@
                 </label>
             </section>
             <section class="modal-section">
+                <h3>アップデート情報</h3>
+                <label class="sound-row">
+                    <input id="updates-enabled" type="checkbox" checked> 更新されたら、開いたときに表示する
+                </label>
+                <button id="show-updates-button" class="modal-button">アップデート情報を見る</button>
+            </section>
+            <section class="modal-section">
                 <h3>データ</h3>
                 <p id="save-info" class="modal-note"></p>
                 <button id="reset-data-button" class="modal-button">ゲームをリセット</button>
@@ -262,6 +269,18 @@
         </div>
     </div>
 
+    <!-- アップデート情報 (文章は js/updates.js) -->
+    <div id="updates-modal" class="modal" hidden>
+        <div class="modal-content updates-content" role="dialog" aria-modal="true" aria-labelledby="updates-title">
+            <h2 id="updates-title">アップデート情報</h2>
+            <div id="updates-list" class="updates-list"></div>
+            <label id="updates-hide-row" class="sound-row updates-hide">
+                <input id="updates-hide" type="checkbox"> 次から表示しない
+            </label>
+            <button id="close-updates-button" class="modal-button modal-close">閉じる</button>
+        </div>
+    </div>
+
     <!-- 実績解除の通知 -->
     <div id="achievement-toast" class="achievement-toast" role="status" aria-live="polite" hidden></div>
 
@@ -306,7 +325,8 @@
     <script src="js/lcd/ending-view.js?v=3c9c7b55"></script>
     <script src="js/lcd.js?v=206acfe2"></script>
     <script src="js/profiles.js?v=4a4867b2"></script>
-    <script src="js/ui.js?v=825c5ac4"></script>
-    <script src="js/main.js?v=a57af231"></script>
+    <script src="js/updates.js?v=46186433"></script>
+    <script src="js/ui.js?v=7b4084bc"></script>
+    <script src="js/main.js?v=a30afed2"></script>
 </body>
 </html>

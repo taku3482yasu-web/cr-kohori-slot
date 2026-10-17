@@ -1,0 +1,95 @@
+// =====================================================================
+// アップデート情報 (ゲームを更新したあと、開いたときに一度だけ表示する)
+// ---------------------------------------------------------------------
+// 更新を公開するときは UPDATES の先頭に1件足す (id は前のものと違えばよい。日付-その日の番号)。
+// 前に見た id をブラウザに覚えておき、それより新しいものがあれば起動時に表示する。
+// - はじめて遊ぶとき (保存データがないとき) は表示せず、見たことにする (オープニングを流すため)
+// - この仕組みより前から遊んでいる人 (見た id がない) には、いちばん新しい1件だけ表示する
+// - 「表示しない」にしているときも見たことにする (あとで表示に戻しても、たまった分は出さない)
+// =====================================================================
+
+const UPDATES = [
+    {
+        id: '2026-10-18-2',
+        date: '2026-10-18',
+        title: 'スマホでもっと遊びやすく',
+        items: [
+            'スマホのホーム画面に追加できるようになりました。アイコンから全画面で起動し、一度開いたあとはネットにつながっていなくても遊べます',
+            'スマホの縦画面で、レバーまで1画面に収まるようにしました',
+            'スマホを横にすると、左に液晶・右にリールとレバーが並ぶ画面になります',
+            '回っているリールそのものを押しても止められるようになりました',
+            'ゲームが更新されたら、開いたときにアップデート情報を表示するようにしました（SETTINGS で表示しないこともできます）',
+            'オープニングのタイトルが「こおりくんの大冒険 〜おにおにの野望〜」になりました',
+            '遊び方の「内定の時」の説明を「10ゲームの真剣勝負」に変えました'
+        ]
+    },
+    {
+        id: '2026-10-18-1',
+        date: '2026-10-18',
+        title: 'ともいし救出のエンディング',
+        items: [
+            'SUPERおにおにRASH 中におにおにを倒すと、ともいしを助け出すエンディングが流れるようになりました',
+            'リセット・台移動のあとにもオープニングが流れるようになりました',
+            '復活したゲームは 7揃い確定になりました',
+            'SUPER 中は3体倒しても「おにおにが現れる…!?」が出なくなりました（いつでも出てくるため）'
+        ]
+    },
+    {
+        id: '2026-10-17-1',
+        date: '2026-10-17',
+        title: 'ともいし・図鑑のキャラクター説明',
+        items: [
+            'こおりくんのお母さん「ともいし」と、オープニングを追加しました',
+            '図鑑でキャラクターの説明が見られるようになりました',
+            'ふるカワがキャラクターの話をするようになりました'
+        ]
+    }
+];
+
+const UpdateNotes = (() => {
+    const SEEN_KEY = 'koori-updates-seen';
+    const SHOW_KEY = 'koori-updates-show';
+
+    function read(key) {
+        try {
+            return localStorage.getItem(key);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function write(key, value) {
+        try {
+            localStorage.setItem(key, value);
+        } catch (e) {
+            // 保存できない環境では毎回初期値
+        }
+    }
+
+    // lastSeenId より新しい更新 (新しい順)。lastSeenId が一覧にないときは、いちばん新しい1件
+    function newerThan(updates, lastSeenId) {
+        const i = updates.findIndex(u => u.id === lastSeenId);
+        return i >= 0 ? updates.slice(0, i) : updates.slice(0, 1);
+    }
+
+    function isEnabled() {
+        return read(SHOW_KEY) !== 'off';
+    }
+
+    function setEnabled(on) {
+        write(SHOW_KEY, on ? 'on' : 'off');
+    }
+
+    function markSeen() {
+        if (UPDATES.length) write(SEEN_KEY, UPDATES[0].id);
+    }
+
+    // 起動時に表示する更新 (表示しないときは空)。呼ぶと見たことになる
+    function takePending(firstVisit) {
+        const pending = firstVisit || !isEnabled() ? [] : newerThan(UPDATES, read(SEEN_KEY));
+        markSeen();
+        return pending;
+    }
+
+    return { newerThan, isEnabled, setEnabled, takePending, all: () => UPDATES };
+})();

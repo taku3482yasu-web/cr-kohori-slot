@@ -248,6 +248,9 @@
     } else if (savedState) {
         opening.then(() => Lcd.showMessage('CONTINUE!', '#9fe6ff', 2000));
     }
+    // ゲームが更新されていたら、アップデート情報を表示する (はじめて遊ぶとき・表示しない設定のときは出さない。updates.js)
+    const updates = UpdateNotes.takePending(!savedState);
+    opening.then(() => UI.showUpdates(updates));
 
     // ホーム画面に追加したときにネットなしでも遊べるようにする (sw.js)。
     // 公開先 (https) だけで動かす: ファイルを直接開いたときは使えず、

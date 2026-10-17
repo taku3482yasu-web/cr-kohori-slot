@@ -91,12 +91,20 @@ const UI = (() => {
             achievementToast: $('achievement-toast'),
             dcEstimate: $('dc-estimate'),
             dcEstimateBars: $('dc-estimate-bars'),
-            dcEstimateFacts: $('dc-estimate-facts')
+            dcEstimateFacts: $('dc-estimate-facts'),
+            updatesModal: $('updates-modal'),
+            updatesList: $('updates-list'),
+            updatesHideRow: $('updates-hide-row'),
+            updatesHide: $('updates-hide'),
+            updatesClose: $('close-updates-button'),
+            updatesEnabled: $('updates-enabled'),
+            showUpdates: $('show-updates-button')
         };
         initAudioSettings();
         initDataReset();
         initMachineMove();
         initCollection();
+        initUpdates();
         els.dcEstimate.addEventListener('toggle', () => {
             if (gameState) renderEstimate(gameState);
         });
@@ -323,6 +331,10 @@ const UI = (() => {
             return;
         }
         // ダイアログを開いている間はゲーム操作を受け付けない (Esc で閉じる)
+        if (!els.updatesModal.hidden) {
+            if (e.code === 'Escape') closeUpdates();
+            return;
+        }
         if (!els.resetModal.hidden) {
             if (e.code === 'Escape') closeResetDialog();
             return;
@@ -415,7 +427,8 @@ const UI = (() => {
 
     // ----- リセット (確認ダイアログで「リセットする」を押したときだけ) -----
     function isDialogOpen() {
-        return !els.modal.hidden || !els.resetModal.hidden || !els.moveModal.hidden || !els.collectionModal.hidden || !els.profileModal.hidden;
+        return !els.modal.hidden || !els.resetModal.hidden || !els.moveModal.hidden || !els.collectionModal.hidden || !els.profileModal.hidden ||
+            !els.updatesModal.hidden;
     }
 
     function openResetDialog() {
@@ -444,6 +457,55 @@ const UI = (() => {
             SaveData.requestOpening();
             location.reload();
         });
+    }
+
+    // ----- アップデート情報 (文章と「前に見た更新」の記録は updates.js) -----
+    function initUpdates() {
+        els.updatesEnabled.checked = UpdateNotes.isEnabled();
+        els.updatesEnabled.addEventListener('change', () => UpdateNotes.setEnabled(els.updatesEnabled.checked));
+        els.updatesHide.addEventListener('change', () => {
+            UpdateNotes.setEnabled(!els.updatesHide.checked);
+            els.updatesEnabled.checked = !els.updatesHide.checked;
+        });
+        els.showUpdates.addEventListener('click', () => showUpdates(UpdateNotes.all(), false));
+        els.updatesClose.addEventListener('click', closeUpdates);
+        els.updatesModal.addEventListener('click', (e) => {
+            if (e.target === els.updatesModal) closeUpdates();
+        });
+    }
+
+    // updates: 表示する更新 (新しい順)。atStartup のときは「次から表示しない」を出す (設定画面から開いたときは出さない)
+    function showUpdates(updates, atStartup = true) {
+        if (!updates.length) return;
+        if (!els.modal.hidden) closeSettings();
+        els.updatesList.innerHTML = '';
+        updates.forEach(update => {
+            const section = document.createElement('section');
+            section.className = 'updates-entry';
+            const head = document.createElement('h3');
+            head.textContent = update.title;
+            const date = document.createElement('span');
+            date.className = 'updates-date';
+            date.textContent = update.date;
+            head.appendChild(date);
+            const list = document.createElement('ul');
+            update.items.forEach(text => {
+                const li = document.createElement('li');
+                li.textContent = text;
+                list.appendChild(li);
+            });
+            section.append(head, list);
+            els.updatesList.appendChild(section);
+        });
+        els.updatesHideRow.hidden = !atStartup;
+        els.updatesHide.checked = !UpdateNotes.isEnabled();
+        els.updatesModal.hidden = false;
+        els.updatesClose.focus({ preventScroll: true });
+        els.updatesModal.querySelector('.modal-content').scrollTop = 0;
+    }
+
+    function closeUpdates() {
+        els.updatesModal.hidden = true;
     }
 
     // ----- 図鑑・実績 -----
@@ -772,5 +834,5 @@ const UI = (() => {
         });
     }
 
-    return { init, update, bindDebugActions, showAchievements };
+    return { init, update, bindDebugActions, showAchievements, showUpdates };
 })();

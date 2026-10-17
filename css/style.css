@@ -1085,6 +1085,46 @@ button.col-enemy:focus-visible {
     }
 }
 
+/* アップデート情報 */
+.updates-content {
+    max-width: 460px;
+}
+
+.updates-entry + .updates-entry {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #555;
+}
+
+.updates-entry h3 {
+    margin: 0 0 6px;
+    color: var(--gold);
+    font-size: 1rem;
+}
+
+.updates-date {
+    margin-left: 8px;
+    color: #8a93a8;
+    font-size: 0.75rem;
+    font-weight: normal;
+}
+
+.updates-entry ul {
+    margin: 0;
+    padding-left: 1.2em;
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+.updates-entry li + li {
+    margin-top: 4px;
+}
+
+.updates-hide {
+    margin-top: 14px;
+    color: #aaa;
+}
+
 /* 実績解除の通知 */
 .achievement-toast {
     position: fixed;

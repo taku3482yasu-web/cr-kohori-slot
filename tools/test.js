@@ -18,7 +18,7 @@ const path = require('path');
 const vm = require('vm');
 
 const JS_DIR = path.join(__dirname, '..', 'js');
-const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'save.js', 'furukawa.js'];
+const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'save.js', 'furukawa.js', 'updates.js'];
 
 // ----- 引数 -----
 const args = process.argv.slice(2);
@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, UpdateNotes, UPDATES, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -574,6 +574,29 @@ test('保存データ: 以前の形式 (履歴・台番号なし) も読み込�
     assertEqual(loaded.machineNo, 1, '台番号');
     assertEqual(loaded.collection.records.games, 0, '図鑑・実績が初期値');
     assertEqual(loaded.estimate.normalGames, 0, '設定推測の材料が初期値');
+});
+
+test('アップデート情報: 更新されたときだけ1回表示し、はじめて遊ぶとき・表示しない設定のときは出さない', () => {
+    const ids = loadGame(1).UPDATES.map(u => u.id);
+    assertEqual(new Set(ids).size, ids.length, 'id が重複している');
+    // はじめて遊ぶ: 出さずに見たことにする → 次に開いても出ない
+    let g = loadGame(1);
+    assertEqual(g.UpdateNotes.takePending(true).length, 0, 'はじめて遊ぶときに表示した');
+    assertEqual(g.UpdateNotes.takePending(false).length, 0, '同じ版で2回表示した');
+    // この仕組みより前から遊んでいる人 (見た記録がない): いちばん新しい1件だけ
+    g = loadGame(1);
+    const first = g.UpdateNotes.takePending(false);
+    assertEqual(first.length, 1, '前から遊んでいる人に出す件数');
+    assertEqual(first[0].id, ids[0], 'いちばん新しい更新を出していない');
+    assertEqual(g.UpdateNotes.takePending(false).length, 0, '見たあとにまた表示した');
+    // 2回分たまっていたら、新しい順に2件
+    assertEqual(g.UpdateNotes.newerThan(g.UPDATES, ids[2]).map(u => u.id).join(), [ids[0], ids[1]].join(), '見ていない分');
+    // 表示しない設定: 出さないが見たことにする
+    g = loadGame(1);
+    g.UpdateNotes.setEnabled(false);
+    assertEqual(g.UpdateNotes.takePending(false).length, 0, '表示しない設定なのに表示した');
+    g.UpdateNotes.setEnabled(true);
+    assertEqual(g.UpdateNotes.takePending(false).length, 0, '表示に戻したら、たまった分を出した');
 });
 
 // ----- 結果 -----
