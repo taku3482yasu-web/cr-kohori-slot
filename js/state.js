@@ -34,7 +34,7 @@ const MODE_LABELS = {
 
 // 許可する遷移 (これ以外の遷移はエラーにする)
 const ALLOWED_TRANSITIONS = {
-    NORMAL: ['CASTLE_CHALLENGE', 'RASH'],   // RASH へはロングフリーズで直行
+    NORMAL: ['CASTLE_CHALLENGE', 'RASH', 'SUPER_RASH'],   // RASH へはロングフリーズで直行、SUPER へはリベンジチャンスで復帰
     CASTLE_CHALLENGE: ['RASH', 'NORMAL'],
     RASH: ['SUPER_RASH', 'NORMAL', 'CASTLE_CHALLENGE'],   // 城突入チャレンジへは内定の時ゾーンの失敗で戻る
     SUPER_RASH: ['NORMAL']
@@ -151,6 +151,7 @@ function createInitialState(config, rng = Math.random) {
             chancePoint: 0,
             castleWaitRemaining: 0, // SE城前でチャレンジ発生までの残りゲーム数
             revengeGames: 0,       // リベンジチャンスの残りゲーム数 (RASH 終了後)
+            revengeCarry: null,    // リベンジで引き継ぐもの { defeatCount, oniUnlocked, wasSuper } (終わった RASH のもの)
             dance: null            // ダンシングステージ { games, gamesRemaining, points, zone }
         },
 
@@ -454,16 +455,25 @@ const GameFlow = {
         if (normal.revengeGames > 0) {
             normal.revengeGames--;
             if (outcome.isChance) {
+                // 終わった RASH の撃破数を引き継ぎ、SUPER だったら SUPER に戻る (ユーザー指定)
+                const carry = normal.revengeCarry;
                 normal.revengeGames = 0;
-                events.push({ type: 'revengeSuccess' });
-                events.push(StateMachine.transition(state, MODES.RASH));
+                events.push({ type: 'revengeSuccess', super: Boolean(carry && carry.wasSuper), defeatCount: carry ? carry.defeatCount : 0 });
+                events.push(StateMachine.transition(state, carry && carry.wasSuper ? MODES.SUPER_RASH : MODES.RASH));
                 state.rash = createRashState();
+                if (carry) {
+                    state.rash.defeatCount = carry.defeatCount;
+                    state.rash.oniUnlocked = carry.oniUnlocked;
+                }
                 this.recordHit(state, config, 'revenge');
                 events.push({ type: 'rashStart' });
                 return events;
             }
             events.push({ type: 'revengeGame', remaining: normal.revengeGames });
-            if (normal.revengeGames === 0) events.push({ type: 'revengeEnd' });
+            if (normal.revengeGames === 0) {
+                normal.revengeCarry = null;
+                events.push({ type: 'revengeEnd' });
+            }
         }
         const inRevenge = events.some(e => e.type === 'revengeGame');
 
@@ -698,8 +708,9 @@ const GameFlow = {
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
         events.push(this.changeMap(state, config.map.loop[state.normal.loopIndex]));
-        // 通常時に戻ったらリベンジチャンス
+        // 通常時に戻ったらリベンジチャンス (撃破数と SUPER だったかを覚えておく)
         state.normal.revengeGames = config.revenge.games;
+        state.normal.revengeCarry = { defeatCount: rash.defeatCount, oniUnlocked: rash.oniUnlocked, wasSuper: events[0].wasSuper };
         events.push({ type: 'revengeStart', games: config.revenge.games });
         return events;
     },
@@ -708,6 +719,7 @@ const GameFlow = {
     // RASH 突入: 当選までのゲーム数と契機を記録 (trigger: castle / sevenBar / freeze / revenge)
     recordHit(state, config, trigger) {
         state.rashCount++;
+        state.normal.revengeCarry = null;
         state.challenge.chanceBoost = false;   // ロングフリーズなどで SE城前から直接 RASH に入ったときも、突入率UPは終わり
         for (const hit of state.hitHistory) hit.active = false;
         state.hitHistory.unshift({
@@ -857,5 +869,27 @@ const DebugState = {
     lastGame(state) {
         if (state.rash.phase === RASH_PHASES.BATTLE) state.rash.gamesRemaining = 1;
         return [{ type: 'debugQuiet' }];
+    },
+    // 復活演出を見る: RASH の「？？」にして、次のゲームで必ず負けて復活待ちにする
+    // (レバー ON で負け → もう一度レバー ON で復活演出)。RASH でなければ始め、相手がいなければおかがっぱにする
+    toRevival(state, config) {
+        if (!StateMachine.isRashMode(state)) {
+            state.mode = MODES.RASH;
+            state.normal.dance = null;
+            state.rash = createRashState();
+        }
+        const rash = state.rash;
+        if (!rash.enemyId || rash.phase === RASH_PHASES.NAITEI) {
+            const enemy = config.enemies[0];
+            rash.enemyId = enemy.id;
+            rash.enemyHp = enemy.hp;
+            rash.enemyMaxHp = enemy.hp;
+        }
+        rash.phase = RASH_PHASES.QUESTION;
+        rash.gamesRemaining = 0;
+        rash.setWillWin = false;
+        rash.winGuaranteed = false;
+        rash.debugForceRevival = true;
+        return [{ type: 'debug', label: '次の？？で負けて復活' }];
     }
 };

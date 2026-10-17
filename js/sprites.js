@@ -45,7 +45,13 @@ const SPRITES = {
                 '.obbbbbbbbbbbdo.',
                 '.oooooooooooooo.'
             ];
+            // 負けたとき: 目が × になる
+            const down = [...body];
+            down[4] = '.owckckcckckbbo.';
+            down[5] = '.occckcccckccbo.';
+            down[6] = '.occkckcckckcbo.';
             return {
+                down: [...down, '...odo....odo...', '...ooo....ooo...', '................'],
                 walk1: [...body, '...odo....odo...', '...ooo....ooo...', '................'],
                 walk2: [...body, '....odo..odo....', '....ooo..ooo....', '................']
             };

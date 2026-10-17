@@ -207,6 +207,7 @@
         dance: debugAction(() => DebugState.forceDance(state)),
         revenge: debugAction(() => DebugState.startRevenge(state, config)),
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),
+        revival: debugAction(() => DebugState.toRevival(state, config)),
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },
         forceGold: debugAction(() => DebugState.forceEnemy(state, config.goldDog.id)),
         coins: debugAction(() => { state.coins += 1000; })

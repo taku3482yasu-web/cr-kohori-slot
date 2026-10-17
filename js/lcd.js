@@ -125,6 +125,7 @@ const Lcd = (() => {
         displayMap = state.normal.map;
         revival = null;
         defeatDim = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL;
+        down = defeatDim ? { start: -10000 } : null;   // 復活待ちで読み込んだら倒れたまま
         kooriAura = Boolean(state.challenge.chanceBoost) && !StateMachine.isRashMode(state);
         letterboxTarget = 0;
         bubbles = null;
@@ -313,8 +314,50 @@ const Lcd = (() => {
             const x = kooriX + 8 - COMPANION_GAP * (k + 1);
             ctx.fillStyle = 'rgba(0,0,0,0.25)';
             ctx.fillRect(x - 8, groundY - 2, 16, 3);
+            if (down && scene === 'rash') {
+                // 負けて仲間もダウン (少しずつ遅れて倒れる)
+                const { w, h } = Characters.size(id);
+                const fall = ease((time - down.start - 120 * (k + 1)) / 350);
+                ctx.save();
+                ctx.translate(x, groundY - (h + (w - h) * fall) * scale / 2);
+                ctx.rotate(-Math.PI / 2 * fall);
+                Characters.drawCompanion(ctx, id, 0, h * scale / 2, { scale, frame: 0 });
+                ctx.restore();
+                if (fall >= 1) drawDizzy(time + k * 300, x - h * scale / 2 + 4, groundY - w * scale - 2);
+                return;
+            }
             Characters.drawCompanion(ctx, id, x, groundY + bob + valueAt(jumpOf(id), time), { scale, frame });
         });
+    }
+
+    // ----- 負けてダウン: こおりくんの目が × になって後ろに倒れ、仲間も倒れる -----
+    let down = null;   // { start }
+
+    function knockDown() {
+        down = { start: performance.now() };
+    }
+
+    function drawKooriDown(time, x, groundY) {
+        const size = 16 * KOORI_SCALE;
+        const fall = ease((time - down.start) / 350);
+        ctx.save();
+        ctx.translate(x + size / 2, groundY - size / 2);
+        ctx.rotate(-Math.PI / 2 * fall);
+        drawSprite(ctx, SPRITES.koori, 'down', -size / 2, -size / 2, KOORI_SCALE);
+        ctx.restore();
+        if (fall >= 1) drawDizzy(time, x + 4, groundY - size - 4);
+    }
+
+    // 目を回している: 頭の上を星がくるくる回る
+    function drawDizzy(time, cx, cy) {
+        for (let i = 0; i < 3; i++) {
+            const a = time / 300 + (i / 3) * Math.PI * 2;
+            const sx = Math.round(cx + Math.cos(a) * 9);
+            const sy = Math.round(cy + Math.sin(a) * 3);
+            ctx.fillStyle = '#ffe45a';
+            ctx.fillRect(sx - 1, sy, 3, 1);
+            ctx.fillRect(sx, sy - 1, 1, 3);
+        }
     }
 
     function drawVisitor(time, groundY) {
@@ -638,7 +681,8 @@ const Lcd = (() => {
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.fillRect(x + 4, hall.groundY - 2, 24, 3);
             const hurtBlink = time < koori.hurtUntil && Math.floor(time / 70) % 2 === 0;
-            if (!hurtBlink) drawSprite(ctx, SPRITES.koori, frame, x, hall.groundY - 16 * KOORI_SCALE, KOORI_SCALE);
+            if (down) drawKooriDown(time, x, hall.groundY);
+            else if (!hurtBlink) drawSprite(ctx, SPRITES.koori, frame, x, hall.groundY - 16 * KOORI_SCALE, KOORI_SCALE);
         }
 
         // 「？？」の間は敵が必殺技を溜める (赤いオーラが脈打つ)
@@ -1743,14 +1787,18 @@ const Lcd = (() => {
         await sleep(2000);
     }
 
-    async function revengeSuccess() {
+    async function revengeSuccess(event) {
         revenge = null;
         letterboxTarget = 1;
-        startFlash('#ffffff', 500);
+        startFlash(event.super ? SUPER_COLOR : '#ffffff', 500);
         startShake(config.effects.intensity.shakeLarge, 500);
         Sound.fanfare();
-        showTitle('リベンジ成功!!', 'おにおにRASH 再突入!!', '#ff3030', 2000);
+        showTitle('リベンジ成功!!', event.super ? 'SUPERおにおにRASH 復帰!!' : 'おにおにRASH 再突入!!', event.super ? SUPER_COLOR : '#ff3030', 2000);
         await sleep(2000);
+        if (event.defeatCount > 0) {
+            showTitle('撃破数を引き継ぎ', `${event.defeatCount}体から再スタート!!`, '#7fffd4', 1500);
+            await sleep(1500);
+        }
         await playWipe(true, 300);
         letterboxTarget = 0;
     }
@@ -1799,6 +1847,7 @@ const Lcd = (() => {
         if (pendingScene) {
             scene = pendingScene;
             pendingScene = null;
+            down = null;
             koori.visible = true;
             battle.visible = false;
             naiteiZone = false;
@@ -2112,6 +2161,7 @@ const Lcd = (() => {
     async function rashStart() {
         const timing = config.effects.timing;
         scene = 'rash';
+        down = null;
         logoSuper = state.mode === MODES.SUPER_RASH;
         setNow(gate, 0);
         setNow(koori.x, KOORI_BATTLE_X);
@@ -2120,7 +2170,7 @@ const Lcd = (() => {
         battle.visible = false;
         battle.enemyId = null;
         battle.games = null;
-        battle.defeats = 0;
+        battle.defeats = state.rash.defeatCount;   // リベンジで引き継いだ撃破数 (ふつうは 0)
         battle.probUpGames = 0;
         if (wipe) await playWipe(false, 300);
         clearMessage();
@@ -2369,6 +2419,7 @@ const Lcd = (() => {
         }
 
         await enemySpecial(battle.enemyId);
+        knockDown();
         Sound.miss();
         battle.games = null;
         showTitle('突破失敗…', '内定は もらえなかった', '#9fb8d8', 2000);
@@ -2386,6 +2437,7 @@ const Lcd = (() => {
             return;
         }
         naiteiZone = false;
+        down = null;   // SUPER は続くので起き上がる
         startFlash(SUPER_COLOR, 400);
         Sound.fanfare();
         showTitle('SUPER継続!!', '次の相手を決めるぞ', SUPER_COLOR, 1600);
@@ -2490,6 +2542,7 @@ const Lcd = (() => {
             showTitle('継続!!', `BATTLE +${event.games}G`, '#ffd700', 1500);
         } else {
             await enemySpecial(event.enemyId);
+            knockDown();
             Sound.miss();
             showTitle('RASH終了…', null, '#9fb8d8', 1500);
             // 復活が決まっていても通常時には戻らず、暗いまま止まる (次のレバー ON で復活演出)
@@ -2514,6 +2567,7 @@ const Lcd = (() => {
         defeatDim = false;
         await sleep(700);
         revival = { phase: 'glow', start: performance.now() };
+        down = null;
         Sound.rainbow();
         for (let i = 0; i < 3; i++) {
             startFlash('#ffffff', 250);
@@ -2675,7 +2729,7 @@ const Lcd = (() => {
                     if (revenge) revenge.remaining = event.remaining;
                     break;
                 case 'revengeSuccess':
-                    await revengeSuccess();
+                    await revengeSuccess(event);
                     break;
                 case 'revengeEnd':
                     await revengeEnd();

@@ -498,7 +498,10 @@ const Battle = {
     // 「？？」のゲーム: 揃えば継続 (同じ相手・HPのまま新しいセット)、揃わなければ RASH 終了
     questionGame(state, outcome, config, rng) {
         const rash = state.rash;
-        if (outcome.aligned) {
+        // デバッグ「次の？？で復活」: 必ず負けて、肩代わりなしで復活待ちに
+        const forceRevival = Boolean(rash.debugForceRevival);
+        rash.debugForceRevival = false;
+        if (outcome.aligned && !forceRevival) {
             const games = Lottery.weightedPick(config.rash.continueGames, g => g.weight, rng).games;
             rash.gamesRemaining = games;
             rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
@@ -506,7 +509,7 @@ const Battle = {
             return [{ type: 'questionResult', continued: true, games }];
         }
         // 仲間の肩代わり: RASH を続ける
-        const saver = Companions.trySave(state, config, rng);
+        const saver = forceRevival ? null : Companions.trySave(state, config, rng);
         if (saver) {
             const games = Lottery.weightedPick(config.rash.continueGames, g => g.weight, rng).games;
             rash.gamesRemaining = games;
@@ -515,7 +518,7 @@ const Battle = {
             return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId }];
         }
         // 復活: 液晶は RASH 終了に見せたまま止まり、次のゲームで戦っていた敵を撃破して継続
-        if (rng() < this.revivalRate(state, config)) {
+        if (forceRevival || rng() < this.revivalRate(state, config)) {
             rash.phase = RASH_PHASES.REVIVAL;
             return [{ type: 'questionResult', continued: false, enemyId: rash.enemyId, revival: true }];
         }

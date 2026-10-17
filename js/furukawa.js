@@ -55,8 +55,12 @@ const Furukawa = {
     line(state, config, color, rng) {
         const cfg = config.furukawa;
         const pick = list => list[Math.floor(rng() * list.length)];
-        // RASH 中は攻めるセリフ (いけるよ！ / ここがせめどき！ など)
+        // RASH の対戦相手を決めるゲーム・「？？」は専用のセリフ
         const inRash = StateMachine.isRashMode(state);
+        const phase = inRash ? state.rash.phase : null;
+        if (phase === RASH_PHASES.SELECT) return pick(this.selectLines(state, config, color));
+        if (phase === RASH_PHASES.QUESTION) return pick(color >= 4 ? cfg.questionLines.hot : cfg.questionLines.normal);
+        // RASH 中は攻めるセリフ (いけるよ！ / ここがせめどき！ など)
         if (color >= 4) return pick((inRash ? cfg.rashChanceLines : cfg.chanceLines)[color]);
         if (color >= 2 && rng() < 0.5) return pick(inRash ? cfg.rashExpectLines : cfg.expectLines);
         const kinds = cfg.kindWeights;
@@ -67,6 +71,15 @@ const Furukawa = {
             return Lottery.weightedPick(lines, l => l.weights[state.setting], rng).text;
         }
         return pick(this.stageLines(state, config));
+    },
+
+    // 対戦相手を決めるゲーム: 誰が来るかな？ / 熱いとき・強い相手が決まっているときは「強い気配がするよ！」
+    selectLines(state, config, color) {
+        const lines = config.furukawa.selectLines;
+        const forcedId = state.rash.nextForcedEnemy;
+        if (color >= 4 || config.furukawa.strongEnemies.includes(forcedId)) return lines.strong;
+        const forced = forcedId && Battle.findEnemy(config, forcedId);
+        return forced ? [`次の相手は${forced.name}みたい…！`] : lines.normal;
     },
 
     // 今の状況のセリフ (次のステージ・残りゲーム数など)
@@ -80,11 +93,6 @@ const Furukawa = {
         }
         if (StateMachine.isRashMode(state)) {
             const rash = state.rash;
-            if (rash.phase === RASH_PHASES.QUESTION) return ['揃えば継続！ おねがい…！'];
-            if (rash.phase === RASH_PHASES.SELECT) {
-                const forced = rash.nextForcedEnemy && Battle.findEnemy(config, rash.nextForcedEnemy);
-                return [forced ? `次の相手は${forced.name}みたい…！` : '次はだれと戦うのかな？'];
-            }
             const enemy = Battle.findEnemy(config, rash.enemyId);
             const lines = [`残り${rash.gamesRemaining}G、がんばれ〜！`];
             if (enemy) lines.push(`${enemy.name}のHPはあと${rash.enemyHp}！`);
@@ -93,7 +101,10 @@ const Furukawa = {
         }
         const normal = state.normal;
         if (normal.map === config.map.castle) return [`城突入まであと${normal.castleWaitRemaining}G！`, 'ここでチャンス目を引くとパワーアップ！'];
-        if (normal.revengeGames > 0) return ['チャンス目でRASH復活だよ！'];
+        if (normal.revengeGames > 0) {
+            const carry = normal.revengeCarry;
+            return [carry && carry.wasSuper ? 'チャンス目でSUPERに戻れるよ！' : 'チャンス目でRASH復活だよ！'];
+        }
         const next = config.map.loop[(normal.loopIndex + 1) % config.map.loop.length];
         const left = config.map.gamesPerMap - normal.gamesInMap;
         return [

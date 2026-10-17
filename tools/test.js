@@ -110,8 +110,9 @@ function play(setting, games, seed) {
         companionFinishes: 0,
         enemyIdMissing: 0,       // 「？？」の失敗・肩代わりに敵の id がない
         questionFails: 0,
+        revenge: { success: 0, toSuper: 0, fromSuper: 0, carried: 0, wrong: 0 },
         revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0 },
-        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), rainbowNotSure: 0, sureSilent: 0, empty: 0 }
+        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0 }
     };
     let pendingGuaranteed = false;
     for (let g = 0; g < games; g++) {
@@ -122,6 +123,7 @@ function play(setting, games, seed) {
         const breakBefore = rash.breakActive;
         const guaranteedBefore = wasBattle && rash.winGuaranteed;
         const outcome = Lottery.draw(state, config);
+        const carry = state.normal.revengeCarry;
         // ふるカワ (レバー ON の直後、状態を更新する前に呼ぶ)
         const f = log.furukawa;
         const canTalk = Furukawa.canAppear(state, config);
@@ -132,6 +134,7 @@ function play(setting, games, seed) {
             f.byHeat[talk.heat] = (f.byHeat[talk.heat] || 0) + 1;
             f.byColor[talk.color] = (f.byColor[talk.color] || 0) + 1;
             (mode === MODES.RASH || mode === MODES.SUPER_RASH ? f.rashLines : f.lines).add(talk.text);
+            if (mode === MODES.RASH || mode === MODES.SUPER_RASH) (f.phaseLines[rash.phase] = f.phaseLines[rash.phase] || new Set()).add(talk.text);
             if (talk.color === 6 && talk.heat !== 6) f.rainbowNotSure++;
             if (!talk.text) f.empty++;
         } else if (heat === 6) {
@@ -152,6 +155,15 @@ function play(setting, games, seed) {
                 } else {
                     log.revival.ends++;
                 }
+            }
+            // リベンジ成功: 撃破数を引き継ぎ、SUPER だったら SUPER に戻る
+            if (e.type === 'revengeSuccess') {
+                log.revenge.success++;
+                if (carry && carry.wasSuper) log.revenge.fromSuper++;
+                if (state.mode === MODES.SUPER_RASH) log.revenge.toSuper++;
+                if (carry && carry.defeatCount > 0) log.revenge.carried++;
+                const wantMode = carry && carry.wasSuper ? MODES.SUPER_RASH : MODES.RASH;
+                if (!carry || state.rash.defeatCount !== carry.defeatCount || state.mode !== wantMode) log.revenge.wrong++;
             }
             if (e.type === 'revival') {
                 log.revival.revived++;
@@ -391,6 +403,15 @@ test('ふるカワ: たまに出てきて、虹は確定のときだけ、設定
         assert(f.rashLines.has('いけるよ！') && f.rashLines.has('ここがせめどき！'), `設定${setting} の RASH で「いけるよ！」「ここがせめどき！」を言わない`);
         const normalChance = [...Object.values(cfg.chanceLines).flat(), ...cfg.expectLines];
         assert(!normalChance.some(t => f.rashLines.has(t)), `設定${setting} の RASH で通常時のチャンスのセリフを言った`);
+        // 対戦相手を決めるゲームと「？？」は専用のセリフだけ
+        const select = f.phaseLines[base.RASH_PHASES.SELECT];
+        const question = f.phaseLines[base.RASH_PHASES.QUESTION];
+        assert(select.has('誰が来るかな？') && select.has('強い気配がするよ！'), `設定${setting} の相手を決めるゲームで「誰が来るかな？」「強い気配がするよ！」を言わない`);
+        assert(question.has('おねがい！続いて！'), `設定${setting} の「？？」で「おねがい！続いて！」を言わない`);
+        const selectAll = [...Object.values(cfg.selectLines).flat()];
+        assert([...select].every(t => selectAll.includes(t) || t.startsWith('次の相手は')), `設定${setting} の相手を決めるゲームでほかのセリフ`);
+        const questionAll = [...Object.values(cfg.questionLines).flat()];
+        assert([...question].every(t => questionAll.includes(t)), `設定${setting} の「？？」でほかのセリフ`);
     }
 });
 
@@ -403,6 +424,16 @@ test('復活: 「？？」の負けの一部で復活が決まり、次のゲー
         assert(r.revived === r.pending || r.revived === r.pending - 1, `設定${setting} で復活待ちのあと復活していない`);
         assertEqual(r.noDefeat, 0, `設定${setting} で復活したのに敵を撃破していない`);
         assertEqual(state.collection.records.revival, r.revived, `設定${setting} の図鑑の復活の回数`);
+    }
+});
+
+test('リベンジチャンス: 成功すると前の RASH の撃破数を引き継ぎ、SUPER だったら SUPER に戻る', () => {
+    for (const { setting, log } of runs) {
+        const r = log.revenge;
+        assert(r.success > 0 && r.carried > 0, `設定${setting} で撃破数を引き継いだリベンジがない`);
+        assert(r.fromSuper > 0, `設定${setting} で SUPER のあとのリベンジ成功がない`);
+        assertEqual(r.toSuper, r.fromSuper, `設定${setting} で SUPER に戻った回数`);
+        assertEqual(r.wrong, 0, `設定${setting} で引き継ぎがおかしいリベンジ`);
     }
 });
 

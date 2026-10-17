@@ -21,12 +21,12 @@ window.GAME_CONFIG = {
     machine: {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
-            1: { chance: 0.91, castleEntry: 0.94, pointBig: 0.93 },
-            2: { chance: 0.96, castleEntry: 0.97, pointBig: 0.97 },
+            1: { chance: 0.93, castleEntry: 0.95, pointBig: 0.94 },
+            2: { chance: 0.97, castleEntry: 0.98, pointBig: 0.98 },
             3: { chance: 1.00, castleEntry: 1.00, pointBig: 1.00 },
             4: { chance: 1.34, castleEntry: 1.25, pointBig: 1.28 },
-            5: { chance: 1.90, castleEntry: 1.80, pointBig: 1.65 },
-            6: { chance: 3.00, castleEntry: 3.00, pointBig: 2.25 }
+            5: { chance: 1.85, castleEntry: 1.76, pointBig: 1.62 },
+            6: { chance: 2.75, castleEntry: 2.75, pointBig: 2.15 }
         }
     },
 
@@ -237,8 +237,8 @@ window.GAME_CONFIG = {
         // presetRate:   セット開始時に「勝ちセット」にする確率 (先決め)。
         //               負けセットでもガード崩し・ブレイク・仲間の肩代わり・復活で続くぶん、continueRate より低くしてある。
         //               ダメージ・確率・ブレイク率を変えたら、シミュレーションで continueRate に合うよう調整する
-        normal: { continueRate: 0.70, presetRate: 0.390 },   // おにおにRASH
-        super: { continueRate: 0.93, presetRate: 0.853 },    // SUPERおにおにRASH
+        normal: { continueRate: 0.70, presetRate: 0.380 },   // おにおにRASH
+        super: { continueRate: 0.93, presetRate: 0.848 },    // SUPERおにおにRASH
         // BATTLE開始時のゲーム数 (重み付き抽選)
         initialGames: [
             { games: 5, weight: 45 },
@@ -574,6 +574,16 @@ window.GAME_CONFIG = {
             6: ['ぜったいいける！！！', 'もう勝ったも同然！！！']
         },
         rashExpectLines: ['いけるかも…？', 'そろそろせめどき…？'],
+        // RASH の対戦相手を決めるゲームと「？？」は、色に関係なくこちら (ユーザー指定)。色が赤以上なら strong / hot
+        selectLines: {
+            normal: ['誰が来るかな？', 'どんな相手でもがんばろう！'],
+            strong: ['強い気配がするよ！', 'すごい相手が来そう…！']
+        },
+        strongEnemies: ['onioni', 'goldDog'],   // 次の相手に決まっていると「強い気配がするよ！」
+        questionLines: {
+            normal: ['おねがい！続いて！', '揃って…！', 'まだ終わりたくない…！'],
+            hot: ['おねがい！続いて！！', 'いける…いけるよ！']
+        },
         kindWeights: { hint: 30, stage: 40, setting: 30 },
         hints: [
             'チャンス目はスイカ崩れ・BAR崩れ・7崩れの3つだよ',
