@@ -21,7 +21,7 @@ const RASH_PHASES = Object.freeze({
     BATTLE: 'BATTLE',     // BATTLE中
     QUESTION: 'QUESTION', // 残りゲーム数「？？」: 揃えば継続、揃わなければ終了
     TREASURE: 'TREASURE', // 宝物庫ゾーン: BATTLE を中断し、揃った柄で次の BATTLE のゲーム数を上乗せ
-    NAITEI: 'NAITEI',     // 内定の時ゾーン: SELECT で 7揃い・7・7・BAR → シーシャ・ナイテイ・ナイナイと1対1
+    NAITEI: 'NAITEI',     // 内定の時ゾーン: SELECT で 7揃い・7・7・BAR → シーシャ・ナイテイ・ナイナイと真剣勝負
     REVIVAL: 'REVIVAL'    // 復活待ち: 「？？」で負けたが復活が決まった。次のゲームで戦っていた敵を撃破して継続
 });
 

@@ -324,7 +324,7 @@ const Battle = {
         return 1 - Math.pow(1 - this.naiteiGameWinRate(config), config.naitei.games);
     },
 
-    // 突入: 仲間抽選 → シーシャ・ナイテイ・ナイナイと games ゲームの1対1。突破は1ゲームごとに出目で抽選 (winRates)
+    // 突入: 仲間抽選 → シーシャ・ナイテイ・ナイナイと games ゲームの真剣勝負。突破は1ゲームごとに出目で抽選 (winRates)
     startNaitei(state, config, rng) {
         const cfg = config.naitei;
         const rash = state.rash;

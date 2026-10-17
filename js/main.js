@@ -249,6 +249,13 @@
         opening.then(() => Lcd.showMessage('CONTINUE!', '#9fe6ff', 2000));
     }
 
+    // ホーム画面に追加したときにネットなしでも遊べるようにする (sw.js)。
+    // 公開先 (https) だけで動かす: ファイルを直接開いたときは使えず、
+    // 手元のサーバー (http://localhost) では版番号を付け直す前の js が古いまま残って紛らわしいため
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+        navigator.serviceWorker.register('sw.js').catch(err => console.warn('サービスワーカーを登録できません:', err));
+    }
+
     // テスト・デバッグ用に公開
     window.__game = { state, config };
 })();

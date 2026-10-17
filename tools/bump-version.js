@@ -17,7 +17,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
-const HTML_FILES = ['index.html', 'howto.html', 'tools/simulate.html'];
+const HTML_FILES = ['index.html', 'howto.html', 'tools/simulate.html', 'tools/make-icons.html'];
 const check = process.argv.includes('--check');
 
 // src="js/a.js" / href="css/style.css" / src="../js/a.js" (外部の URL は対象外)

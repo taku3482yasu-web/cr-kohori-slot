@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0d1220">
+    <!-- ホーム画面に追加 (PWA。manifest.webmanifest / sw.js) -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="こおりくん">
     <title>遊び方 - CRこおりくんの大冒険 ～おにおにの野望～</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -149,6 +157,7 @@
             <li><b>LEVER ON</b> を押すとリールが回ります（1ゲーム <span id="spin-cost"></span> 枚）</li>
             <li>左・中・右の <b>STOP</b> で1本ずつリールを止めます。止める順番は自由です。回っているリールそのものを押しても止まります</li>
             <li>スマホは縦でも横でも遊べます。横にすると液晶が大きくなり、右手側にリール・STOP・レバーが並びます</li>
+            <li>スマホのホーム画面に追加すると、アイコンから全画面で遊べます。一度開いたあとはネットにつながっていなくても遊べます（Android: メニューの「アプリをインストール」、iPhone: 共有ボタン →「ホーム画面に追加」。iPhone ではホーム画面のアプリと Safari で保存データが別になります）</li>
             <li>パソコンではキーボードでも遊べます: レバー <kbd>Space</kbd>、STOP <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd>（⚙ SETTINGS で変更できます）</li>
             <li>コインがなくなったら <b>BUY COINS</b>（<span id="package"></span>）</li>
             <li>データは1ゲームごとに自動で保存され、次に開いたときは続きから遊べます</li>
@@ -321,12 +330,12 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js?v=11ee6995"></script>
+<script src="js/config.js?v=b464ff05"></script>
 <script src="js/sprites.js?v=056d5554"></script>
 <script src="js/characters.js?v=8d314eb2"></script>
-<script src="js/state.js?v=a367a3ca"></script>
+<script src="js/state.js?v=11900945"></script>
 <script src="js/lottery.js?v=ef41b4a7"></script>
-<script src="js/battle.js?v=cefcf8c5"></script>
+<script src="js/battle.js?v=186d9931"></script>
 <script>
     // 表示する数値はすべて js/config.js から作る (数値を調整してもこのページは自動で追従する)
     const c = window.GAME_CONFIG;
@@ -486,7 +495,7 @@
     const nz = c.naitei;
     const companionRateText = c.companions.members.map(m => `${m.name} ${pct(nz.companionRates[m.id] || 0)}`).join('・');
     $('naitei-text').innerHTML = `おにおにRASH・SUPER で<b>対戦相手とゲーム数を決める1ゲーム</b>に ${nz.triggerRoles.map(r => roleView(r)).join(' / ')} が揃うと突入。` +
-        `画面が暗転し「ここから先」、<span class="red">「内定を持たぬものは通す事は出来ない」</span>の文字のあと、<b>${nz.enemy.name}</b> と <b>${nz.games}ゲーム</b>の1対1！`;
+        `画面が暗転し「ここから先」、<span class="red">「内定を持たぬものは通す事は出来ない」</span>の文字のあと、<b>${nz.enemy.name}</b> と <b>${nz.games}ゲーム</b>の真剣勝負！`;
     table('special-table', ['キャラ', '必殺技', '出るとき'], [
         ['こおりくん', c.specials.koori, 'とどめを刺したとき'],
         ['こおりくん', c.specials.kooriKill, '一撃必殺（BAR揃い・7揃い・7・7・BAR）でとどめ'],
