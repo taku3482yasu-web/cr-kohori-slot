@@ -83,6 +83,7 @@
         // ふるカワ: そのゲームの熱さに応じて出てきて、しゃべる
         const talk = Furukawa.talk(state, outcome, config);
         if (talk) Lcd.showFurukawa(talk);
+        if (talk && talk.settingLine != null) SettingEstimate.countFurukawa(state, talk.settingLine);
 
         const stopOrder = [];
         let reach = null;

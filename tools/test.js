@@ -92,7 +92,7 @@ const pct = v => (v * 100).toFixed(1) + '%';
 // ----- 自動プレイして、テストに使う記録を集める -----
 function play(setting, games, seed) {
     const game = loadGame(seed);
-    const { createInitialState, Lottery, GameFlow, Furukawa, MODES, RASH_PHASES, config } = game;
+    const { createInitialState, Lottery, GameFlow, Furukawa, SettingEstimate, MODES, RASH_PHASES, config } = game;
     const state = createInitialState(config);
     state.setting = setting;
     const log = {
@@ -129,6 +129,7 @@ function play(setting, games, seed) {
         const canTalk = Furukawa.canAppear(state, config);
         const heat = canTalk ? Furukawa.heat(state, outcome, config) : null;
         const talk = Furukawa.talk(state, outcome, config);
+        if (talk && talk.settingLine != null) SettingEstimate.countFurukawa(state, talk.settingLine);   // main.js と同じ
         if (talk) {
             f.talks++;
             f.byHeat[talk.heat] = (f.byHeat[talk.heat] || 0) + 1;
@@ -342,6 +343,21 @@ test('SE城前のチャンス目: 突入率UP (オーラ) のチャレンジが�
         const plain = state.estimate.challenges['1'];
         assert(boosted && boosted.tries > 0, `設定${setting} で突入率UPのチャレンジがない`);
         assert(boosted.wins / boosted.tries > plain.wins / plain.tries, `設定${setting} で突入率UPのほうが成功率が低い`);
+    }
+});
+
+test('設定推測: ふるカワの設定示唆のセリフの割合が計算値と合い、言わないはずのセリフは数えられていない', () => {
+    for (const { setting, state, game } of runs) {
+        const counts = state.estimate.furukawa;
+        const total = Object.values(counts).reduce((a, b) => a + b, 0);
+        assert(total > 100, `設定${setting} で設定示唆のセリフが少ない: ${total}`);
+        game.config.furukawa.settingLines.forEach((line, i) => {
+            const p = game.SettingEstimate.furukawaRate(game.config, setting, i);
+            const n = counts[i] || 0;
+            if (p === 0) return assertEqual(n, 0, `設定${setting} で「${line.short}」`);
+            const sd = Math.sqrt(p * (1 - p) / total);
+            assertBetween(n / total, p - 4 * sd, p + 4 * sd, `設定${setting} の「${line.short}」の割合`);
+        });
     }
 });
 

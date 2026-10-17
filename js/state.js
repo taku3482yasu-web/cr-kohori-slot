@@ -128,7 +128,8 @@ function createInitialState(config, rng = Math.random) {
             normalGames: 0,    // 通常時のゲーム数 (ロングフリーズを除く)
             normalChance: 0,   // そのうちチャンス目が出た回数
             challenges: {},    // 城突入チャレンジの結果 { 突入率の倍率 (仲間・SE城前のチャンス目): { tries, wins } }
-            trophies: {}       // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
+            trophies: {},      // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
+            furukawa: {}       // ふるカワの設定示唆のセリフごとの回数 { settingLines の番号: 回数 }
         },
 
         // 図鑑・実績 (台移動しても引き継ぐ。Collection で集める)
@@ -190,7 +191,7 @@ function createRashState() {
     };
 }
 
-// 設定推測: この台で見た「通常時のチャンス目の出現率」「城突入チャレンジの成功率」「トロフィーの色」から、
+// 設定推測: この台で見た「通常時のチャンス目の出現率」「城突入チャレンジの成功率」「トロフィーの色」「ふるカワの設定示唆のセリフ」から、
 // 設定1〜6それぞれの可能性を計算する (ベイズ推定。最初の可能性は台の設定の抽選の重み machine.weights)。
 // 初当たり確率はこの3つから決まる結果なので、二重に数えないよう材料には入れない
 const SettingEstimate = {
@@ -208,6 +209,19 @@ const SettingEstimate = {
 
     countTrophy(state, level) {
         state.estimate.trophies[level] = (state.estimate.trophies[level] || 0) + 1;
+    },
+
+    // ふるカワの設定示唆のセリフ (main.js がしゃべらせたときに数える)
+    countFurukawa(state, index) {
+        const counts = state.estimate.furukawa || (state.estimate.furukawa = {});
+        counts[index] = (counts[index] || 0) + 1;
+    },
+
+    // 設定ごとの、ふるカワの設定示唆のセリフがその番号 (index) になる確率
+    furukawaRate(config, setting, index) {
+        const lines = config.furukawa.settingLines;
+        const total = lines.reduce((a, l) => a + l.weights[setting], 0);
+        return lines[index].weights[setting] / total;
     },
 
     // 設定ごとの、通常時のチャンス目の確率
@@ -253,6 +267,7 @@ const SettingEstimate = {
                 log += logOf(c.wins, rate) + logOf(c.tries - c.wins, 1 - rate);
             }
             for (const [level, n] of Object.entries(e.trophies)) log += logOf(n, this.trophyRate(config, setting, Number(level)));
+            for (const [index, n] of Object.entries(e.furukawa || {})) log += logOf(n, this.furukawaRate(config, setting, Number(index)));
             logs[setting] = log;
         }
         const max = Math.max(...Object.values(logs));

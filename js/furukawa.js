@@ -10,7 +10,8 @@
 // =====================================================================
 
 const Furukawa = {
-    // しゃべる内容 { text, color, heat } を返す。出てこないゲームは null
+    // しゃべる内容 { text, color, heat, settingLine } を返す。出てこないゲームは null
+    // settingLine: 設定示唆のセリフを言ったときは config.furukawa.settingLines の番号 (設定推測の材料。それ以外は null)
     talk(state, outcome, config, rng = Math.random) {
         const cfg = config.furukawa;
         if (!this.canAppear(state, config)) return null;
@@ -18,7 +19,7 @@ const Furukawa = {
         if (rng() >= cfg.appearRates[heat]) return null;
         const weights = cfg.colorWeights[heat];
         const color = Number(Lottery.weightedPick(Object.keys(weights), c => weights[c], rng));
-        return { text: this.line(state, config, color, rng), color, heat };
+        return { ...this.line(state, config, color, rng), color, heat };
     },
 
     // 出てくる場面: 通常時 (ダンシングステージ以外)・SE城前・城突入チャレンジ・RASH の BATTLE / 「？？」 / 対戦相手を決めるゲーム
@@ -51,10 +52,10 @@ const Furukawa = {
         return heat.normal[role] || 0;
     },
 
-    // セリフを選ぶ
+    // セリフを選ぶ { text, settingLine }
     line(state, config, color, rng) {
         const cfg = config.furukawa;
-        const pick = list => list[Math.floor(rng() * list.length)];
+        const pick = list => ({ text: list[Math.floor(rng() * list.length)], settingLine: null });
         // RASH の対戦相手を決めるゲーム・「？？」は専用のセリフ
         const inRash = StateMachine.isRashMode(state);
         const phase = inRash ? state.rash.phase : null;
@@ -67,8 +68,8 @@ const Furukawa = {
         const kind = Lottery.weightedPick(Object.keys(kinds), k => kinds[k], rng);
         if (kind === 'hint') return pick(cfg.hints);
         if (kind === 'setting') {
-            const lines = cfg.settingLines.filter(l => l.weights[state.setting]);
-            return Lottery.weightedPick(lines, l => l.weights[state.setting], rng).text;
+            const index = Number(Lottery.weightedPick(Object.keys(cfg.settingLines), i => cfg.settingLines[i].weights[state.setting], rng));
+            return { text: cfg.settingLines[index].text, settingLine: index };
         }
         return pick(this.stageLines(state, config));
     },

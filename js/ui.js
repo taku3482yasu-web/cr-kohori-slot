@@ -73,6 +73,14 @@ const UI = (() => {
             collectionClose: $('close-collection-button'),
             colAchievementCount: $('col-achievement-count'),
             colAchievements: $('col-achievements'),
+            colAllies: $('col-allies'),
+            profileModal: $('profile-modal'),
+            profileCanvas: $('profile-canvas'),
+            profileName: $('profile-name'),
+            profileTitle: $('profile-title'),
+            profileFacts: $('profile-facts'),
+            profileText: $('profile-text'),
+            profileClose: $('close-profile-button'),
             colEnemyCount: $('col-enemy-count'),
             colEnemies: $('col-enemies'),
             colSpecialCount: $('col-special-count'),
@@ -222,6 +230,9 @@ const UI = (() => {
         const tries = Object.values(e.challenges).reduce((a, c) => a + c.tries, 0);
         const wins = Object.values(e.challenges).reduce((a, c) => a + c.wins, 0);
         const challengeRate = s => `${Math.round(SettingEstimate.challengeRate(config, s, 1) * 100)}%`;
+        const furukawaSeen = e.furukawa || {};
+        const furukawa = config.furukawa.settingLines.map((line, i) => [line, furukawaSeen[i]])
+            .filter(([, n]) => n).map(([line, n]) => `「${line.short}」×${n}`).join(' ');
         const trophies = Object.keys(config.trophy.colors).filter(level => e.trophies[level])
             .map(level => `${trophySwatch(Number(level))}${config.trophy.colors[level].name}×${e.trophies[level]}`).join(' ');
         els.dcEstimateFacts.innerHTML = [
@@ -229,7 +240,8 @@ const UI = (() => {
                 `<span class="dc-note">目安 設定${low} ${odds(SettingEstimate.chanceRate(config, low))} 〜 設定${high} ${odds(SettingEstimate.chanceRate(config, high))}</span></li>`,
             `<li><b>城突入チャレンジ</b> ${wins} / ${tries}回成功${tries ? `（${Math.round(wins / tries * 100)}%）` : ''}` +
                 `<span class="dc-note">目安 設定${low} ${challengeRate(low)} 〜 設定${high} ${challengeRate(high)}（仲間なし）</span></li>`,
-            `<li><b>トロフィー</b> ${trophies || 'まだ出ていません'}</li>`
+            `<li><b>トロフィー</b> ${trophies || 'まだ出ていません'}</li>`,
+            `<li><b>ふるカワ</b> ${furukawa || 'まだ設定のことは言っていません'}</li>`
         ].join('');
     }
 
@@ -319,6 +331,10 @@ const UI = (() => {
             if (e.code === 'Escape') closeMoveDialog();
             return;
         }
+        if (!els.profileModal.hidden) {
+            if (e.code === 'Escape') closeProfile();
+            return;
+        }
         if (!els.collectionModal.hidden) {
             if (e.code === 'Escape') closeCollection();
             return;
@@ -394,7 +410,7 @@ const UI = (() => {
 
     // ----- リセット (確認ダイアログで「リセットする」を押したときだけ) -----
     function isDialogOpen() {
-        return !els.modal.hidden || !els.resetModal.hidden || !els.moveModal.hidden || !els.collectionModal.hidden;
+        return !els.modal.hidden || !els.resetModal.hidden || !els.moveModal.hidden || !els.collectionModal.hidden || !els.profileModal.hidden;
     }
 
     function openResetDialog() {
@@ -431,6 +447,10 @@ const UI = (() => {
         els.collectionModal.addEventListener('click', (e) => {
             if (e.target === els.collectionModal) closeCollection();
         });
+        els.profileClose.addEventListener('click', closeProfile);
+        els.profileModal.addEventListener('click', (e) => {
+            if (e.target === els.profileModal) closeProfile();
+        });
     }
 
     function openCollection() {
@@ -438,7 +458,9 @@ const UI = (() => {
         if (!els.modal.hidden) closeSettings();
         renderCollection(gameState.collection);
         els.collectionModal.hidden = false;
-        els.collectionClose.focus();
+        // 一番下の「閉じる」にフォーカスしても、表示は上から
+        els.collectionClose.focus({ preventScroll: true });
+        els.collectionModal.querySelector('.modal-content').scrollTop = 0;
     }
 
     function closeCollection() {
@@ -462,24 +484,17 @@ const UI = (() => {
                 `<span class="col-name">${a.name}</span><span class="col-desc">${a.desc}</span>${progress}</li>`;
         }).join('');
 
-        // 敵: 撃破した敵はドット絵と撃破数、まだの敵はシルエット
+        // キャラクター (こおりくん・仲間・ふるカワ): 押すと説明
+        els.colAllies.innerHTML = '';
+        for (const ally of allies()) els.colAllies.append(characterCard(ally.id, ally.name, false));
+
+        // 敵: 撃破した敵はドット絵と撃破数、まだの敵はシルエット。押すと説明
         const defeated = entries.enemies.filter(e => c.defeats[e.id]);
         els.colEnemyCount.textContent = count(defeated.length, entries.enemies.length);
         els.colEnemies.innerHTML = '';
         for (const enemy of entries.enemies) {
             const n = c.defeats[enemy.id] || 0;
-            const card = document.createElement('div');
-            card.className = 'col-enemy' + (n ? '' : ' col-unknown');
-            const canvas = document.createElement('canvas');
-            // 2倍で描いて、CSS で枠に収まる大きさに縮める
-            const size = Characters.size(enemy.id);
-            canvas.width = size.w * 2;
-            canvas.height = size.h * 2;
-            Characters.drawEnemy(canvas.getContext('2d'), enemy.id, size.w, size.h * 2, { silhouette: !n });
-            const label = document.createElement('span');
-            label.textContent = n ? `${enemy.name} ×${n.toLocaleString()}` : '？？？';
-            card.append(canvas, label);
-            els.colEnemies.append(card);
+            els.colEnemies.append(characterCard(enemy.id, n ? `${enemy.name} ×${n.toLocaleString()}` : '？？？', !n));
         }
 
         // 必殺技: 見た技は名前と回数、まだの技は ？？？ (誰の技かは出す)
@@ -514,6 +529,98 @@ const UI = (() => {
             ['1回の RASH の最多撃破', `${r.bestDefeats || 0}体`]
         ];
         els.colRecords.innerHTML = records.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+    }
+
+    // ----- 図鑑: キャラクターの説明 -----
+    // こおりくん・仲間・ふるカワ (図鑑の「キャラクター」の欄の並び)
+    function allies() {
+        return [
+            { id: 'koori', name: 'こおりくん' },
+            ...config.companions.members.map(m => ({ id: m.id, name: m.name })),
+            { id: 'furukawa', name: config.furukawa.name }
+        ];
+    }
+
+    // キャラクターのドット絵を scale 倍で描いた canvas (silhouette: まだ撃破していない敵)
+    function characterCanvas(id, scale, silhouette = false) {
+        const canvas = document.createElement('canvas');
+        const sprite = { koori: 'walk1', furukawa: 'idle' }[id];
+        if (sprite) {
+            const rows = SPRITES[id].frames[sprite];
+            canvas.width = rows[0].length * scale;
+            canvas.height = rows.length * scale;
+            drawSprite(canvas.getContext('2d'), SPRITES[id], sprite, 0, 0, scale);
+            return canvas;
+        }
+        const size = Characters.size(id);
+        canvas.width = size.w * scale;
+        canvas.height = size.h * scale;
+        const draw = Characters.isCompanion(id) ? Characters.drawCompanion : Characters.drawEnemy;
+        draw(canvas.getContext('2d'), id, canvas.width / 2, canvas.height, { scale, silhouette });
+        return canvas;
+    }
+
+    // 図鑑のカード (押すと説明)
+    function characterCard(id, label, unknown) {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'col-enemy' + (unknown ? ' col-unknown' : '');
+        const name = document.createElement('span');
+        name.textContent = label;
+        card.append(characterCanvas(id, 2, unknown), name);   // 2倍で描いて、CSS で枠に収まる大きさに縮める
+        card.addEventListener('click', () => openProfile(id, unknown));
+        return card;
+    }
+
+    function openProfile(id, unknown) {
+        const c = gameState.collection;
+        const enemies = [...config.enemies, config.goldDog, config.naitei.enemy];
+        const enemy = enemies.find(e => e.id === id);
+        const member = config.companions.members.find(m => m.id === id);
+        const ally = allies().find(a => a.id === id);
+        const profile = (window.CHARACTER_PROFILES || {})[id] || {};
+
+        // ドット絵 (大きく)
+        const canvas = characterCanvas(id, 4, unknown);
+        els.profileCanvas.width = canvas.width;
+        els.profileCanvas.height = canvas.height;
+        els.profileCanvas.getContext('2d').drawImage(canvas, 0, 0);
+
+        els.profileName.textContent = unknown ? '？？？' : (enemy ? enemy.name : ally.name);
+        els.profileTitle.textContent = unknown ? '' : (profile.title || '');
+        els.profileTitle.hidden = unknown || !profile.title;
+
+        // 名前以外の情報: 必殺技・撃破数など (config.js から)
+        const facts = [];
+        if (id === 'koori') {
+            facts.push(['必殺技', [config.specials.koori, config.specials.kooriKill, config.specials.kooriNaitei].join(' / ')]);
+        } else if (member) {
+            facts.push(['必殺技', member.special]);
+            facts.push(['仲間の力', `城突入率 ×${member.castleEntry}・追撃 +${member.extraDamage}`]);
+        } else if (enemy && !unknown) {
+            facts.push(['必殺技', enemy.special]);
+            facts.push(['HP', String(enemy.hp)]);
+            facts.push(['撃破数', `${(c.defeats[id] || 0).toLocaleString()}回`]);
+        }
+        els.profileFacts.innerHTML = facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHtml(v)}</dd></div>`).join('');
+        els.profileFacts.hidden = facts.length === 0;
+
+        // 説明 (空行で段落を分ける)
+        const textBody = unknown ? '撃破すると説明が見られます。' : (profile.text || '説明はまだありません。');
+        els.profileText.innerHTML = textBody.split(/\n\s*\n/)
+            .map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`).join('');
+        els.profileText.classList.toggle('profile-empty', unknown || !profile.text);
+
+        els.profileModal.hidden = false;
+        els.profileClose.focus();
+    }
+
+    function closeProfile() {
+        els.profileModal.hidden = true;
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     }
 
     // 実績解除の通知 (液晶の演出が終わってから、1つずつ順に)

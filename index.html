@@ -95,7 +95,7 @@
                 <summary>設定推測 <span class="dc-note">（開くとネタばらし）</span></summary>
                 <div id="dc-estimate-bars" class="dc-estimate-bars"></div>
                 <ul id="dc-estimate-facts" class="dc-estimate-facts"></ul>
-                <p class="dc-empty">この台で見たチャンス目・城突入・トロフィーから計算しています。打ち始めは、台の設定の出やすさ（設定1がいちばん多い）に近い値です。</p>
+                <p class="dc-empty">この台で見たチャンス目・城突入・トロフィー・ふるカワのセリフから計算しています。打ち始めは、台の設定の出やすさ（設定1がいちばん多い）に近い値です。</p>
             </details>
         </section>
 
@@ -207,8 +207,8 @@
         <div class="modal-content collection-content" role="dialog" aria-modal="true" aria-labelledby="collection-title">
             <h2 id="collection-title">図鑑・実績</h2>
             <section class="modal-section">
-                <h3>実績 <span id="col-achievement-count" class="col-count"></span></h3>
-                <ul id="col-achievements" class="col-achievements"></ul>
+                <h3>キャラクター <span class="col-count col-hint">押すと説明が見られます</span></h3>
+                <div id="col-allies" class="col-enemies"></div>
             </section>
             <section class="modal-section">
                 <h3>撃破した敵 <span id="col-enemy-count" class="col-count"></span></h3>
@@ -223,11 +223,31 @@
                 <div id="col-trophies" class="col-trophies"></div>
             </section>
             <section class="modal-section">
+                <h3>実績 <span id="col-achievement-count" class="col-count"></span></h3>
+                <ul id="col-achievements" class="col-achievements"></ul>
+            </section>
+            <section class="modal-section">
                 <h3>記録</h3>
                 <dl id="col-records" class="col-records"></dl>
             </section>
             <p class="modal-note">図鑑・実績は台移動しても残ります（リセットすると消えます）</p>
             <button id="close-collection-button" class="modal-button modal-close">閉じる</button>
+        </div>
+    </div>
+
+    <!-- 図鑑: キャラクターの説明 (文章は js/profiles.js) -->
+    <div id="profile-modal" class="modal profile-modal" hidden>
+        <div class="modal-content profile-content" role="dialog" aria-modal="true" aria-labelledby="profile-name">
+            <div class="profile-head">
+                <canvas id="profile-canvas" class="profile-canvas"></canvas>
+                <div>
+                    <h2 id="profile-name" class="profile-name"></h2>
+                    <p id="profile-title" class="profile-title"></p>
+                </div>
+            </div>
+            <dl id="profile-facts" class="profile-facts"></dl>
+            <div id="profile-text" class="profile-text"></div>
+            <button id="close-profile-button" class="modal-button modal-close">図鑑に戻る</button>
         </div>
     </div>
 
@@ -265,7 +285,13 @@
     <script src="js/save.js"></script>
     <script src="js/bgm.js"></script>
     <script src="js/reels.js"></script>
+    <script src="js/lcd/kit.js"></script>
+    <script src="js/lcd/special-fx.js"></script>
+    <script src="js/lcd/chance-fx.js"></script>
+    <script src="js/lcd/trophy-view.js"></script>
+    <script src="js/lcd/furukawa-view.js"></script>
     <script src="js/lcd.js"></script>
+    <script src="js/profiles.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/main.js"></script>
 </body>
