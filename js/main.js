@@ -49,6 +49,11 @@
 
     async function playGame() {
         startAudio();
+        // オープニング中のレバーはスキップ
+        if (Lcd.openingActive()) {
+            Lcd.skipOpening();
+            return;
+        }
         const cost = config.coins.spinCost;
         if (state.coins < cost) {
             Lcd.showMessage('NO COINS!', '#ff8080');
@@ -83,6 +88,7 @@
         // ふるカワ: そのゲームの熱さに応じて出てきて、しゃべる
         const talk = Furukawa.talk(state, outcome, config);
         if (talk) Lcd.showFurukawa(talk);
+        if (talk) Collection.meet(state, 'furukawa');   // 図鑑のふるカワの説明が見られるようになる
         if (talk && talk.settingLine != null) SettingEstimate.countFurukawa(state, talk.settingLine);
 
         const stopOrder = [];
@@ -209,6 +215,7 @@
         revenge: debugAction(() => DebugState.startRevenge(state, config)),
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),
         revival: debugAction(() => DebugState.toRevival(state, config)),
+        opening: () => { if (!Reels.isSpinning() && !spinButton.disabled) Lcd.playOpening(); },
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },
         forceGold: debugAction(() => DebugState.forceEnemy(state, config.goldDog.id)),
         coins: debugAction(() => { state.coins += 1000; })
@@ -216,6 +223,10 @@
     document.querySelectorAll('[data-next-role]').forEach(btn => {
         btn.addEventListener('click', () => { debugNextRole = btn.dataset.nextRole; });
     });
+
+    // オープニング: はじめて遊ぶとき (保存データがないとき) に流す。液晶かレバーを押すとスキップ
+    document.getElementById('lcd').addEventListener('click', () => Lcd.skipOpening());
+    if (!savedState) Lcd.playOpening();
 
     refresh();
     if (state.justMoved) {

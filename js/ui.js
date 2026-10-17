@@ -484,9 +484,12 @@ const UI = (() => {
                 `<span class="col-name">${a.name}</span><span class="col-desc">${a.desc}</span>${progress}</li>`;
         }).join('');
 
-        // キャラクター (こおりくん・仲間・ふるカワ): 押すと説明
+        // キャラクター (こおりくん・ともいし・仲間・ふるカワ): 会ったキャラクターは押すと説明、まだのキャラクターはシルエット
         els.colAllies.innerHTML = '';
-        for (const ally of allies()) els.colAllies.append(characterCard(ally.id, ally.name, false));
+        for (const ally of allies()) {
+            const unlocked = Collection.isUnlocked(c, ally.id, config);
+            els.colAllies.append(characterCard(ally.id, unlocked ? ally.name : '？？？', !unlocked));
+        }
 
         // 敵: 撃破した敵はドット絵と撃破数、まだの敵はシルエット。押すと説明
         const defeated = entries.enemies.filter(e => c.defeats[e.id]);
@@ -494,7 +497,8 @@ const UI = (() => {
         els.colEnemies.innerHTML = '';
         for (const enemy of entries.enemies) {
             const n = c.defeats[enemy.id] || 0;
-            els.colEnemies.append(characterCard(enemy.id, n ? `${enemy.name} ×${n.toLocaleString()}` : '？？？', !n));
+            const unlocked = Collection.isUnlocked(c, enemy.id, config);
+            els.colEnemies.append(characterCard(enemy.id, unlocked ? `${enemy.name} ×${n.toLocaleString()}` : '？？？', !unlocked));
         }
 
         // 必殺技: 見た技は名前と回数、まだの技は ？？？ (誰の技かは出す)
@@ -532,24 +536,32 @@ const UI = (() => {
     }
 
     // ----- 図鑑: キャラクターの説明 -----
-    // こおりくん・仲間・ふるカワ (図鑑の「キャラクター」の欄の並び)
+    // こおりくん・ともいし・仲間・ふるカワ (図鑑の「キャラクター」の欄の並び)
     function allies() {
         return [
             { id: 'koori', name: 'こおりくん' },
+            { id: 'tomoishi', name: config.tomoishi.name },
             ...config.companions.members.map(m => ({ id: m.id, name: m.name })),
             { id: 'furukawa', name: config.furukawa.name }
         ];
     }
 
-    // キャラクターのドット絵を scale 倍で描いた canvas (silhouette: まだ撃破していない敵)
+    // キャラクターのドット絵を scale 倍で描いた canvas (silhouette: まだ説明が見られないキャラクター)
     function characterCanvas(id, scale, silhouette = false) {
         const canvas = document.createElement('canvas');
-        const sprite = { koori: 'walk1', furukawa: 'idle' }[id];
+        const sprite = { koori: 'walk1', tomoishi: 'idle', furukawa: 'idle' }[id];
         if (sprite) {
             const rows = SPRITES[id].frames[sprite];
             canvas.width = rows[0].length * scale;
             canvas.height = rows.length * scale;
-            drawSprite(canvas.getContext('2d'), SPRITES[id], sprite, 0, 0, scale);
+            const g = canvas.getContext('2d');
+            drawSprite(g, SPRITES[id], sprite, 0, 0, scale);
+            if (silhouette) {
+                // 描いたところだけを影の色で塗りつぶす (敵・仲間のシルエットと同じ色)
+                g.globalCompositeOperation = 'source-in';
+                g.fillStyle = '#101018';
+                g.fillRect(0, 0, canvas.width, canvas.height);
+            }
             return canvas;
         }
         const size = Characters.size(id);
@@ -606,13 +618,21 @@ const UI = (() => {
         els.profileFacts.hidden = facts.length === 0;
 
         // 説明 (空行で段落を分ける)
-        const textBody = unknown ? '撃破すると説明が見られます。' : (profile.text || '説明はまだありません。');
+        const textBody = unknown ? unlockHint(id) : (profile.text || '説明はまだありません。');
         els.profileText.innerHTML = textBody.split(/\n\s*\n/)
             .map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`).join('');
         els.profileText.classList.toggle('profile-empty', unknown || !profile.text);
 
         els.profileModal.hidden = false;
         els.profileClose.focus();
+    }
+
+    // まだ説明が見られないキャラクターの、解禁のしかた
+    function unlockHint(id) {
+        if (id === 'tomoishi') return 'SUPERおにおにRASHに到達すると説明が見られます。';
+        if (id === 'furukawa') return `${config.furukawa.name}に会うと説明が見られます。`;
+        if (config.companions.members.some(m => m.id === id)) return '仲間になると説明が見られます。';
+        return '撃破すると説明が見られます。';
     }
 
     function closeProfile() {

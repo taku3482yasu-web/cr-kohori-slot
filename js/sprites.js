@@ -58,6 +58,52 @@ const SPRITES = {
         })()
     },
 
+    // ともいし (16x18): こおりくんのお母さん。パーマ頭の石に黄色いエプロン。idle と shout (口を開けて叫ぶ) の2コマ
+    tomoishi: {
+        palette: {
+            o: '#2a2a30',  // 輪郭
+            h: '#7a4ab0',  // パーマの髪
+            H: '#a87ad8',  // 髪のつや
+            G: '#d0d0da',  // 石 (明)
+            g: '#a0a0ac',  // 石
+            d: '#70707c',  // 石 (影)
+            k: '#10162a',  // 目
+            p: '#ff9eb5',  // ほっぺ
+            m: '#c03048',  // 口
+            a: '#ffe08a',  // エプロン
+            A: '#d8a840',  // エプロンの影
+            f: '#4a4a54'   // 足
+        },
+        frames: (() => {
+            const top = [
+                '...hHhhHhhHh....',
+                '..hhhhhhhhhhhh..',
+                '.hHhhhHhhhhHhhh.',
+                '.hoooooooooooohh',
+                '.oGGGgggggggggo.',
+                'oGGgggggggggggdo',
+                'oGgggkgggggkggdo',
+                'oggggkgggggkggdo',
+                'ogpgggggggggpgdo'
+            ];
+            // エプロン (肩ひもつき)
+            const apron = [
+                'oggaggggggggaddo',
+                'oggaaaaaaaaaaddo',
+                'odgaaaappaaaAddo',
+                '.oddAAAAAAAAddo.',
+                '..oooooooooooo..',
+                '...ofo....ofo...',
+                '...ooo....ooo...'
+            ];
+            return {
+                idle: [...top, 'oggggggmmgggggdo', 'oggggggggggggddo', ...apron],
+                // 口を縦に開けて叫ぶ
+                shout: [...top, 'oggggmmmmmggggdo', 'oggggmmkmmgggddo', ...apron]
+            };
+        })()
+    },
+
     // ふるカワ (16x20): リボンのボブヘアの女の子。idle と talk (口が開く) の2コマ
     furukawa: {
         palette: {

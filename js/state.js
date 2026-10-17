@@ -138,7 +138,8 @@ function createInitialState(config, rng = Math.random) {
             specials: {},      // 見た必殺技ごとの回数 { 敵・仲間の id / こおりくんは koori・kooriKill: 回数 }
             trophies: {},      // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
             records: { games: 0, rash: 0, super: 0, naitei: 0, freeze: 0, moves: 0, revival: 0, bestCoins: 0, bestDefeats: 0 },
-            achievements: {}   // 解除した実績 { 実績の id: 解除したときの合計ゲーム数 }
+            achievements: {},  // 解除した実績 { 実績の id: 解除したときの合計ゲーム数 }
+            met: {}            // 会ったキャラクター (図鑑の説明の解禁) { id: 1 }
         },
 
         // 仲間 (加わった順の id。members の並びが弱い順)
@@ -291,7 +292,13 @@ const Collection = {
         for (const e of events) {
             switch (e.type) {
                 case 'rashStart': r.rash++; break;
-                case 'superStart': r.super++; break;
+                case 'superStart':
+                    r.super++;
+                    this.meet(state, 'tomoishi');   // SUPER でともいしが出てくる
+                    break;
+                case 'companionChallenge':
+                    if (e.success) this.meet(state, e.memberId);
+                    break;
                 case 'revival': r.revival = (r.revival || 0) + 1; break;
                 case 'defeat': add(c.defeats, e.enemyId); break;
                 case 'damage':
@@ -320,6 +327,21 @@ const Collection = {
             }
         }
         return this.unlock(state, config);
+    },
+
+    // キャラクターに会った (図鑑の説明が見られるようになる)
+    meet(state, id) {
+        const c = state.collection;
+        (c.met || (c.met = {}))[id] = 1;
+    },
+
+    // 図鑑の説明が見られるか: こおりくんは最初から、敵は撃破したら、それ以外は会ったら
+    // (ともいしは SUPER 到達、仲間は仲間になる、ふるカワは出てくる。会った記録がない古いデータは記録・必殺技から判断)
+    isUnlocked(c, id, config) {
+        if (id === 'koori' || (c.met && c.met[id])) return true;
+        if (id === 'tomoishi') return (c.records.super || 0) > 0;
+        if (config.companions.members.some(m => m.id === id)) return (c.specials[id] || 0) > 0;
+        return (c.defeats[id] || 0) > 0;
     },
 
     // こおりくんのとどめの必殺技 (内定の時の突破はばりきつよめのレクイエム)

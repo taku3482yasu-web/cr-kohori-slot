@@ -5,7 +5,7 @@
 // 1. そのゲームの熱さ (0〜6) を役・場面から決める (城突入チャレンジは突入率、RASH の「？？」は継続するか)
 // 2. 熱さに応じた確率 (appearRates) で出現する
 // 3. 吹き出しの文字の色 (0:白 1:青 2:緑 3:紫 4:赤 5:金 6:虹) を熱さごとの重み (colorWeights) で選ぶ
-// 4. 色が赤以上ならチャンスのセリフ、それ以外はヒント・今の状況 (次のステージなど)・設定示唆から選ぶ
+// 4. 色が赤以上ならチャンスのセリフ、それ以外はヒント・今の状況 (次のステージなど)・設定示唆・キャラクターの話から選ぶ
 // state は読むだけで書き換えない。
 // =====================================================================
 
@@ -67,6 +67,7 @@ const Furukawa = {
         const kinds = cfg.kindWeights;
         const kind = Lottery.weightedPick(Object.keys(kinds), k => kinds[k], rng);
         if (kind === 'hint') return pick(cfg.hints);
+        if (kind === 'chat') return pick(this.chatLines(state, config));
         if (kind === 'setting') {
             const index = Number(Lottery.weightedPick(Object.keys(cfg.settingLines), i => cfg.settingLines[i].weights[state.setting], rng));
             return { text: cfg.settingLines[index].text, settingLine: index };
@@ -81,6 +82,17 @@ const Furukawa = {
         if (color >= 4 || config.furukawa.strongEnemies.includes(forcedId)) return lines.strong;
         const forced = forcedId && Battle.findEnemy(config, forcedId);
         return forced ? [`次の相手は${forced.name}みたい…！`] : lines.normal;
+    },
+
+    // キャラクターの話: RASH 中は戦っている相手 (SUPER ならともいしも)、通常時はこおりくん・仲間・ふるカワ自身
+    chatLines(state, config) {
+        const chat = config.furukawa.chatLines;
+        if (StateMachine.isRashMode(state)) {
+            const lines = [...(chat.enemies[state.rash.enemyId] || [])];
+            if (state.mode === MODES.SUPER_RASH) lines.push(...chat.super);
+            if (lines.length) return lines;
+        }
+        return [...chat.normal, ...state.companions.flatMap(id => chat.companions[id] || [])];
     },
 
     // 今の状況のセリフ (次のステージ・残りゲーム数など)

@@ -92,7 +92,7 @@ const pct = v => (v * 100).toFixed(1) + '%';
 // ----- 自動プレイして、テストに使う記録を集める -----
 function play(setting, games, seed) {
     const game = loadGame(seed);
-    const { createInitialState, Lottery, GameFlow, Furukawa, SettingEstimate, MODES, RASH_PHASES, config } = game;
+    const { createInitialState, Lottery, GameFlow, Furukawa, SettingEstimate, Collection, MODES, RASH_PHASES, config } = game;
     const state = createInitialState(config);
     state.setting = setting;
     const log = {
@@ -111,6 +111,7 @@ function play(setting, games, seed) {
         enemyIdMissing: 0,       // 「？？」の失敗・肩代わりに敵の id がない
         questionFails: 0,
         revenge: { success: 0, toSuper: 0, fromSuper: 0, carried: 0, wrong: 0 },
+        joined: new Set(),       // 仲間になった仲間の id
         revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0 },
         furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0 }
     };
@@ -129,7 +130,8 @@ function play(setting, games, seed) {
         const canTalk = Furukawa.canAppear(state, config);
         const heat = canTalk ? Furukawa.heat(state, outcome, config) : null;
         const talk = Furukawa.talk(state, outcome, config);
-        if (talk && talk.settingLine != null) SettingEstimate.countFurukawa(state, talk.settingLine);   // main.js と同じ
+        if (talk) Collection.meet(state, 'furukawa');   // main.js と同じ
+        if (talk && talk.settingLine != null) SettingEstimate.countFurukawa(state, talk.settingLine);
         if (talk) {
             f.talks++;
             f.byHeat[talk.heat] = (f.byHeat[talk.heat] || 0) + 1;
@@ -166,6 +168,7 @@ function play(setting, games, seed) {
                 const wantMode = carry && carry.wasSuper ? MODES.SUPER_RASH : MODES.RASH;
                 if (!carry || state.rash.defeatCount !== carry.defeatCount || state.mode !== wantMode) log.revenge.wrong++;
             }
+            if (e.type === 'companionChallenge' && e.success) log.joined.add(e.memberId);
             if (e.type === 'revival') {
                 log.revival.revived++;
                 if (!events.some(d => d.type === 'defeat' && d.enemyId === e.enemyId)) log.revival.noDefeat++;
@@ -428,6 +431,39 @@ test('ふるカワ: たまに出てきて、虹は確定のときだけ、設定
         assert([...select].every(t => selectAll.includes(t) || t.startsWith('次の相手は')), `設定${setting} の相手を決めるゲームでほかのセリフ`);
         const questionAll = [...Object.values(cfg.questionLines).flat()];
         assert([...question].every(t => questionAll.includes(t)), `設定${setting} の「？？」でほかのセリフ`);
+    }
+});
+
+test('図鑑の解禁: ともいしは SUPER 到達、仲間は仲間になる、ふるカワは出てくる、敵は撃破で説明が見られる', () => {
+    for (const { setting, state, log, game } of runs) {
+        const { Collection, config } = game;
+        const c = state.collection;
+        const unlocked = id => Collection.isUnlocked(c, id, config);
+        assert(unlocked('koori'), `設定${setting}: こおりくんが解禁されていない`);
+        assertEqual(unlocked('tomoishi'), state.superCount > 0, `設定${setting}: ともいしの解禁`);
+        assertEqual(Boolean(c.met.tomoishi), state.superCount > 0, `設定${setting}: ともいしに会った記録`);
+        assertEqual(unlocked('furukawa'), log.furukawa.talks > 0, `設定${setting}: ふるカワの解禁`);
+        for (const m of config.companions.members) assertEqual(unlocked(m.id), log.joined.has(m.id), `設定${setting}: ${m.name}の解禁`);
+        for (const e of Collection.entries(config).enemies) assertEqual(unlocked(e.id), (c.defeats[e.id] || 0) > 0, `設定${setting}: ${e.name}の解禁`);
+    }
+    // 会った記録のない古いデータでも、SUPER の記録・仲間の必殺技から解禁される
+    const { Collection, config, createInitialState } = base;
+    const old = createInitialState(config).collection;
+    delete old.met;
+    assert(!Collection.isUnlocked(old, 'tomoishi', config) && !Collection.isUnlocked(old, 'yasu', config), '古いデータで最初から解禁されている');
+    old.records.super = 1;
+    old.specials.yasu = 1;
+    assert(Collection.isUnlocked(old, 'tomoishi', config) && Collection.isUnlocked(old, 'yasu', config), '古いデータで解禁されない');
+});
+
+test('ふるカワ: キャラクターの話をする (通常時・仲間・戦っている敵・SUPER のともいし)', () => {
+    for (const { setting, log, game } of runs) {
+        const chat = game.config.furukawa.chatLines;
+        const f = log.furukawa;
+        assert(chat.normal.some(t => f.lines.has(t)), `設定${setting} の通常時にキャラクターの話をしない`);
+        assert(Object.values(chat.companions).flat().some(t => f.lines.has(t)), `設定${setting} で仲間の話をしない`);
+        for (const id of ['okagappa', 'onioni']) assert(chat.enemies[id].some(t => f.rashLines.has(t)), `設定${setting} で ${id} の話をしない`);
+        assert(chat.super.some(t => f.rashLines.has(t)), `設定${setting} の SUPER でともいしの話をしない`);
     }
 });
 

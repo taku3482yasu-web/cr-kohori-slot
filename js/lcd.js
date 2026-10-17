@@ -185,6 +185,10 @@ const Lcd = (() => {
     }
 
     function draw(time) {
+        if (OpeningView.active()) {
+            OpeningView.draw(time);
+            return;
+        }
         if (freeze) {
             drawFreeze(time);
             return;
@@ -921,6 +925,8 @@ const Lcd = (() => {
         }
         if (cutIn.who === 'koori') {
             drawSprite(ctx, SPRITES.koori, 'walk1', 14, y + 6, 4);
+        } else if (cutIn.who === 'tomoishi') {
+            drawSprite(ctx, SPRITES.tomoishi, 'shout', 14, y + 4, 4);
         } else if (Characters.isCompanion(cutIn.who)) {
             Characters.drawCompanion(ctx, cutIn.who, 52, y + h - 2, { scale: 3 });
         } else {
@@ -2101,6 +2107,9 @@ const Lcd = (() => {
         };
         await sleep(timing.superMovie);
         bigLogo = null;
+        // 母・ともいしが見ている (図鑑のともいしもここで解禁)
+        const tomo = config.tomoishi;
+        await playCutIn('tomoishi', tomo.superLines[Math.floor(Math.random() * tomo.superLines.length)], '#7a4ab0', 1800, tomo.name);
         letterboxTarget = 0;
     }
 
@@ -2357,6 +2366,9 @@ const Lcd = (() => {
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
         reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout,
+        playOpening: () => OpeningView.play(),
+        skipOpening: () => OpeningView.skip(),
+        openingActive: () => OpeningView.active(),
         hideTrophy: () => TrophyView.hide(),
         showFurukawa: talk => FurukawaView.show(talk),
         hideFurukawa: () => FurukawaView.hide()
