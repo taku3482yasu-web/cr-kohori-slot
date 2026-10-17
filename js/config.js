@@ -330,6 +330,7 @@ window.GAME_CONFIG = {
         enemy: {
             id: 'naitei', name: 'シーシャ・ナイテイ・ナイナイ',
             special: '不採用の裁き',   // 突破できなかったときの必殺技
+            lines: { special: 'お前に内定はない！' },
             hp: 200,
             bonus: { type: 'coins', value: 300 }
         },
@@ -371,29 +372,35 @@ window.GAME_CONFIG = {
     // weight: 通常RASHでの出現の重み / superWeight: SUPER中の重み
     // bonus.type: 'coins' (コイン獲得) / 'games' (ゲーム数上乗せ) / 'probUp' (柄揃い確率アップ)
     // special: 必殺技の名前 (「？？」で継続できなかったとき、カットインとともに打ってくる)
+    // lines: 吹き出しのセリフ (ユーザー指定)。intro: 出てきたとき / special: 必殺技を打つ前。ないものは言わない
     enemies: [
         {
             id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
+            lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！' },
             weight: 50, superWeight: 40, hp: 60,
             bonus: { type: 'coins', value: 35 }
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
+            lines: { intro: '響きです。', special: 'これが４DXだ！' },
             weight: 30, superWeight: 25, hp: 90,
             bonus: { type: 'games', value: 5 }
         },
         {
             id: 'shibata', name: 'シバター', special: 'シバタードライバー',
+            lines: { intro: 'ぶんぶん！', special: 'バーイ！' },
             weight: 15, superWeight: 15, hp: 120,
             bonus: { type: 'probUp', value: 1.5, games: 10 }
         },
         {
             id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
+            lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。' },
             weight: 8, superWeight: 12, hp: 150,
             bonus: { type: 'coins', value: 120 }
         },
         {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
+            lines: { special: '金返せ！' },
             weight: 16, superWeight: 15, hp: 200,
             bonus: { type: 'coins', value: 200 },
             requiresUnlock: true          // 撃破数が oniUnlockDefeats に達するまで出ない
@@ -403,6 +410,7 @@ window.GAME_CONFIG = {
     // ----- ゴールド金面犬 (SUPER中のみ) -----
     goldDog: {
         id: 'goldDog', name: 'ゴールド金面犬', special: 'ゴールドかみまっくす',
+        lines: { intro: 'ワン！（自信ありげ）', special: 'ワン！（邪悪な笑み）' },
         prob: 1 / 100,        // SUPER中の対戦相手抽選ごとの出現確率
         hp: 250,
         bonus: { type: 'coins', value: 2000 },
@@ -443,6 +451,7 @@ window.GAME_CONFIG = {
             castleMovie: 3000,
             rashStartMovie: 3000,
             battleIntro: 2000,
+            enemyTalk: 1100,  // 敵のセリフの吹き出し (出てきたとき・必殺技の前)
             hitStop: 150,
             defeatMovie: 2500,
             questionDisplay: 1500,

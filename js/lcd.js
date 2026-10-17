@@ -46,6 +46,7 @@ const Lcd = (() => {
     let preview = 0;           // 先読みの雪 (0: なし / 1: 白 / 2: 金)
     let cutIn = null;          // カットイン { who, text, color, start, duration }
     let bubbles = null;        // ポイントチャンスの吹き出し { values: [左, 右], cursor, chosen, decided }
+    let enemyTalk = null;      // 敵のセリフの吹き出し { text, until }
     let freeze = null;         // ロングフリーズ { phase: 'still' | 'noise' | 'black' | 'rainbow', snapshot, start }
     let party = [];            // 表示中の仲間 (加わった順の id)
     const partyJump = {};      // 仲間ごとのジャンプ (アニメーション値)
@@ -690,6 +691,7 @@ const Lcd = (() => {
 
         drawSpecialFx(time, hall.groundY);
         drawRashHud(time);
+        drawEnemyTalk(time, hall.groundY);
         drawDamageNumbers(time);
     }
 
@@ -1031,13 +1033,35 @@ const Lcd = (() => {
         if (kind === 'requiem') startFlash('#ffd700', 400);
     }
 
-    // 敵の必殺技 (「？？」で継続できなかったとき・内定の時ゾーンの失敗): カットイン → 技ごとのエフェクト
+    // 敵のセリフ (config の lines。key: 'intro' 出てきたとき / 'special' 必殺技の前)。言い終わるまで待つ
+    async function enemySay(enemyId, key) {
+        const enemy = enemyId && Battle.findEnemy(config, enemyId);
+        const line = enemy && enemy.lines && enemy.lines[key];
+        if (!line) return;
+        const duration = config.effects.timing.enemyTalk;
+        Sound.talk();
+        enemyTalk = { text: line, until: performance.now() + duration };
+        await sleep(duration);
+        enemyTalk = null;
+    }
+
+    // 敵の顔の左に吹き出しを出す
+    function drawEnemyTalk(time, groundY) {
+        if (!enemyTalk || time > enemyTalk.until || !battle.visible || !battle.enemyId) return;
+        const { w, h } = Characters.size(battle.enemyId);
+        const left = valueAt(battle.x, time) - w;   // 敵は2倍で描いている
+        const top = groundY + valueAt(battle.drop, time) - h * 2;
+        StoryView.bubble(enemyTalk.text, Math.round(left + 6), Math.round(top + 18));
+    }
+
+    // 敵の必殺技 (「？？」で継続できなかったとき・内定の時ゾーンの失敗): セリフ → カットイン → 技ごとのエフェクト
     //   hitKoori: false のときはこおりくんに当たらない (仲間がかばう)
     async function enemySpecial(enemyId, { hitKoori = true } = {}) {
         const enemy = enemyId && Battle.findEnemy(config, enemyId);
         if (!enemy || !enemy.special) return;
         const intensity = config.effects.intensity;
         const kind = SPECIAL_FX[enemyId] || 'beam';
+        await enemySay(enemyId, 'special');
         startFlash('#ff2020', 300);
         Sound.bigHit();
         await playCutIn(enemyId, enemy.special, '#5a0a0a', 1600, `${enemy.name}の必殺技!!`);
@@ -1802,6 +1826,7 @@ const Lcd = (() => {
         } else if (event.isGoldDog) {
             await playCutIn(event.enemyId, '金…!!', '#8a6a00', 1300);
         }
+        await enemySay(event.enemyId, 'intro');
         const sub = event.bonusGames > 0 ? `BATTLE ${event.games}G（+${event.bonusGames}G）` : `BATTLE ${event.games}G`;
         if (event.isGoldDog) {
             startFlash('#ffd700', 800);

@@ -253,6 +253,18 @@ test('config.js: トロフィーの色の重みは、台の設定以下の色だ
     }
 });
 
+test('config.js: 敵のセリフは出てきたとき (intro)・必殺技の前 (special) だけで、文字がある', () => {
+    const { config } = base;
+    for (const enemy of [...config.enemies, config.goldDog, config.naitei.enemy]) {
+        if (!enemy.lines) continue;
+        for (const [key, line] of Object.entries(enemy.lines)) {
+            assert(key === 'intro' || key === 'special', `${enemy.name} のセリフの種類「${key}」`);
+            assert(typeof line === 'string' && line.length > 0, `${enemy.name} の ${key} が空`);
+        }
+    }
+    assert(config.enemies.every(e => e.lines && e.lines.special), '必殺技の前のセリフがない敵がいる');
+});
+
 test('config.js: 敵・仲間に必殺技の名前がある', () => {
     const c = base.config;
     for (const e of [...c.enemies, c.goldDog, c.naitei.enemy]) assert(e.special, `${e.name} の special がない`);
