@@ -10,6 +10,7 @@
 
     const spinButton = document.getElementById('spin-button');
     const buyCoinsButton = document.getElementById('buy-coins-button');
+    const fsBuyButton = document.getElementById('fs-buy-button');
     const stopButtons = [1, 2, 3].map(n => document.getElementById(`stop-button-${n}`));
     const reelElements = [1, 2, 3].map(n => document.getElementById(`reel${n}`));
     let debugNextRole = null;   // デバッグ: 次のゲームの役を指定
@@ -59,6 +60,7 @@
         if (state.coins < cost) {
             Lcd.showMessage('NO COINS!', '#ff8080');
             buyCoinsButton.classList.add('attention');
+            fsBuyButton.classList.add('attention');
             refresh();
             return;
         }
@@ -159,6 +161,7 @@
         state.totalSpent += config.coins.packagePrice;
         state.coins += config.coins.packageAmount;
         buyCoinsButton.classList.remove('attention');
+        fsBuyButton.classList.remove('attention');
         Lcd.showMessage('COINS ADDED!');
         refresh();
         SaveData.save(state);
@@ -181,6 +184,7 @@
 
     spinButton.addEventListener('click', playGame);
     buyCoinsButton.addEventListener('click', buyCoins);
+    fsBuyButton.addEventListener('click', buyCoins);   // 全画面のときの BUY
     // STOP は指・マウスが触れた瞬間に止める (離したときの click を待たない)。
     // キーボード・支援技術からの click でも止められるよう両方受け付ける (2回目は無視される)
     // スマホでは回っているリールそのものを押しても止められる (STOP より大きくて押しやすい)。

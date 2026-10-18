@@ -91,5 +91,10 @@ const FurukawaView = (() => {
         ctx.globalAlpha = 1;
     }
 
-    return { show, hide, draw };
+    // しゃべっている (吹き出しが出ている) か。CP ゲージは吹き出しと重ならないよう、その間は上に出す
+    function isTalking(time) {
+        return Boolean(furukawa) && time <= furukawa.until;
+    }
+
+    return { show, hide, draw, isTalking };
 })();

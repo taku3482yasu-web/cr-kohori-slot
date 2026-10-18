@@ -470,6 +470,41 @@ body[data-phase="QUESTION"] #spin-button:not(:disabled) {
 
 .controls {
     margin-top: 14px;
+    position: relative;
+}
+
+/* 全画面のときだけ、レバーの左にコイン枚数と BUY を出す */
+.fs-coins {
+    display: none;
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    align-items: center;
+    gap: 6px;
+    color: #aaa;
+    font-size: 0.75rem;
+}
+
+#fs-coin-display {
+    color: #7fffd4;
+    font-size: 1.1rem;
+}
+
+#fs-buy-button {
+    padding: 4px 8px;
+    background: linear-gradient(to bottom, #666, #444);
+    color: white;
+    border: 1px solid #888;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.7rem;
+}
+
+#fs-buy-button.attention {
+    border-color: var(--gold);
+    animation: attention-blink 0.6s infinite alternate;
 }
 
 #spin-button {
@@ -1585,6 +1620,22 @@ button {
     }
 }
 
+/* 幅も高さも小さいスマホ (320x568 など): タイトルを隠し、リールのコマを小さくしてレバーまで1画面に収める */
+@media (max-width: 360px) and (max-height: 600px) {
+    :root {
+        --symbol-height: 38px;
+    }
+
+    .symbol-img {
+        width: 32px;
+        height: 32px;
+    }
+
+    .game-title {
+        display: none;
+    }
+}
+
 /* =====================================================================
    スマホの横画面 (高さ 500px 以下)
    上: ボタンとステータスを1段 / 下: 左に液晶、右にリール・STOP・レバー
@@ -1904,4 +1955,8 @@ body.layout-full .slot-machine {
 
 body.layout-full .exit-fullscreen-button {
     display: block;
+}
+
+body.layout-full .fs-coins {
+    display: flex;
 }

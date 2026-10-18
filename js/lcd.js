@@ -459,11 +459,12 @@ const Lcd = (() => {
         drawCpGauge(time);
     }
 
-    // チャンスポイントのゲージ (右下)。value で表示する値を指定できる (ダンシングステージは結果発表まで増やさない)
+    // チャンスポイントのゲージ (右下。ふるカワがしゃべっている間は吹き出しと重ならないよう右上)。
+    // value で表示する値を指定できる (ダンシングステージは結果発表まで増やさない)
     function drawCpGauge(time, value = state.normal.chancePoint) {
         const threshold = config.chancePoint.threshold;
         const cp = Math.min(value, threshold);
-        const gx = W - 104, gy = H - 14, gw = 80, gh = 6;
+        const gx = W - 104, gy = FurukawaView.isTalking(time) ? 9 : H - 14, gw = 80, gh = 6;
         box(gx - 22, gy - 5, gw + 28, 16);
         text('CP', gx - 18, gy - 4, { color: '#9fe6ff', size: 10, outline: null });
         ctx.fillStyle = '#1a2a3a';
