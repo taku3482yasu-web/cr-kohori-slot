@@ -90,6 +90,8 @@ const UI = (() => {
             colRecords: $('col-records'),
             colEndCardCount: $('col-endcard-count'),
             colEndCards: $('col-endcards'),
+            colFurukawaCount: $('col-furukawa-count'),
+            colFurukawaLines: $('col-furukawa-lines'),
             endCardModal: $('endcard-modal'),
             endCardCanvas: $('endcard-canvas'),
             endCardName: $('endcard-name'),
@@ -654,6 +656,22 @@ const UI = (() => {
             item.append(label);
             els.colEndCards.append(item);
         }
+
+        // ふるカワのセリフ: 分類ごとに折りたたみ。聞いたセリフは回数、まだのセリフは ？？？
+        const heard = c.furukawaLines || {};
+        const groups = Furukawa.catalog(config);
+        const allLines = groups.flatMap(g => g.lines);
+        els.colFurukawaCount.textContent = count(allLines.filter(t => heard[t]).length, allLines.length);
+        els.colFurukawaLines.innerHTML = groups.map(g => {
+            const items = g.lines.map(t => {
+                const n = heard[t] || 0;
+                return `<li class="${n ? '' : 'col-unknown'}"><span class="col-name">${n ? escapeHtml(t) : '？？？'}</span>` +
+                    `<span class="col-times">${n ? `×${n.toLocaleString()}` : ''}</span></li>`;
+            }).join('');
+            const seen = g.lines.filter(t => heard[t]).length;
+            return `<details class="col-lines"><summary>${g.name} <span class="col-count">${count(seen, g.lines.length)}</span></summary>` +
+                `<ul class="col-specials">${items}</ul></details>`;
+        }).join('');
 
         const r = c.records;
         const records = [

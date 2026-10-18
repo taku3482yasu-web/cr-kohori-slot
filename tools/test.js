@@ -115,7 +115,7 @@ function play(setting, games, seed) {
         ending: { count: 0, notSuperOni: 0, twiceInSet: 0, supers: 0 },   // エンディング (SUPER 中のおにおに撃破で、SUPER 1回につき1回)     // SUPER 中に「おにおにが現れる…!?」が出た回数 (出てはいけない)
         joined: new Set(),       // 仲間になった仲間の id
         revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0, notSeven: 0, paid: 0 },
-        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0, intro: { games: 0, said: 0, wrong: 0, hot: 0, hotIntroLine: 0, naitei: 0 } }
+        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0, intro: { games: 0, said: 0, wrong: 0, hot: 0, hotIntroLine: 0, naitei: 0 }, events: { reply: 0, defeat: 0, naitei: 0, missing: 0, wrong: 0 } }
     };
     let pendingGuaranteed = false;
     let endingInSet = false;   // この RASH でエンディングが出たか
@@ -133,7 +133,7 @@ function play(setting, games, seed) {
         const canTalk = Furukawa.canAppear(state, config);
         const heat = canTalk ? Furukawa.heat(state, outcome, config) : null;
         const talk = Furukawa.talk(state, outcome, config);
-        if (talk) Collection.meet(state, 'furukawa');   // main.js と同じ
+        if (talk) Collection.hearFurukawa(state, talk.text, config);   // main.js と同じ
         if (talk && talk.settingLine != null) SettingEstimate.countFurukawa(state, talk.settingLine);
         if (talk) {
             f.talks++;
@@ -166,6 +166,18 @@ function play(setting, games, seed) {
         if (wasBattle && outcome.role === 'chance' && !breakBefore && !outcome.isFreeze) {
             log.chanceBreak.eligible++;
             if (events.some(e => e.type === 'break')) log.chanceBreak.broke++;
+        }
+        // ふるカワの返事 (敵が出てきたとき)・撃破のひとこと: 言うセリフがあれば必ず付く
+        for (const e of events) {
+            const fc = config.furukawa;
+            const lines = e.type === 'battleStart' ? fc.replies[e.enemyId]
+                : e.type === 'defeat' ? fc.defeatLines[e.enemyId]
+                : e.type === 'naiteiResult' && e.win ? fc.defeatLines[config.naitei.enemy.id] : null;
+            if (!lines) continue;
+            const ev = log.furukawa.events;
+            if (!e.furukawa) ev.missing++;
+            else if (!lines.includes(e.furukawa.text)) ev.wrong++;
+            else ev[e.type === 'battleStart' ? 'reply' : e.type === 'defeat' ? 'defeat' : 'naitei']++;
         }
         // 復活: 「？？」の負けで決まったら RASH のまま復活待ち、次のゲームで敵を撃破
         for (const e of events) {
@@ -534,6 +546,34 @@ test('ふるカワ: 敵と戦いはじめて1ゲーム目 (内定の時ゾーン
         assert(i.naitei > 0, `設定${setting} で内定の時ゾーンのはじめに話をしない`);
         // 内定の時ゾーンの中 (2ゲーム目以降も) に出てくる
         assert(log.furukawa.phaseLines[base.RASH_PHASES.NAITEI].size > 2, `設定${setting} で内定の時ゾーンにふるカワが出ない`);
+    }
+});
+
+test('ふるカワ: 敵が出てきたときに返事をし、撃破したとき (内定の時の突破も) にひとこと言う', () => {
+    for (const { setting, log } of runs) {
+        const ev = log.furukawa.events;
+        assert(ev.reply > 0 && ev.defeat > 0 && ev.naitei > 0, `設定${setting} で返事・撃破のひとことがない (${JSON.stringify(ev)})`);
+        assertEqual(ev.missing, 0, `設定${setting} で返事・撃破のひとことが付いていない`);
+        assertEqual(ev.wrong, 0, `設定${setting} でほかの敵のセリフ`);
+    }
+});
+
+test('ふるカワのセリフ図鑑: 図鑑に載るセリフだけ数え、実績の数と合う', () => {
+    for (const { setting, state, game } of runs) {
+        const { Furukawa, Collection, config } = game;
+        const groups = Furukawa.catalog(config);
+        const all = groups.flatMap(g => g.lines);
+        assertEqual(new Set(all).size, all.length, '図鑑のセリフが重複している');
+        assert(groups.every(g => g.lines.length > 0), '空の分類がある');
+        assert(!all.some(t => /\d/.test(t) && t.includes('G')), '数字の入るセリフが図鑑に載っている');
+        const heard = state.collection.furukawaLines;
+        const keys = Object.keys(heard);
+        assert(keys.every(t => all.includes(t)), `設定${setting} で図鑑に載らないセリフを数えた`);
+        assertBetween(keys.length / all.length, 0.8, 1, `設定${setting} で聞いたセリフの割合`);
+        assert(config.furukawa.replies.shibata.some(t => heard[t]) && config.furukawa.defeatLines.naitei.some(t => heard[t]), `設定${setting} で返事・撃破のひとことが図鑑に入っていない`);
+        assertEqual(Collection.stat(state.collection, 'furukawaKinds'), keys.length, `設定${setting} のセリフの種類の数`);
+        const six = config.furukawa.settingLines.find(l => !l.weights[5]).text;
+        assertEqual(Boolean(heard[six]), setting === 6, `設定${setting} で「${six}」`);
     }
 });
 

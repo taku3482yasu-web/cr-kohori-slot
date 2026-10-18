@@ -1827,6 +1827,11 @@ const Lcd = (() => {
             await playCutIn(event.enemyId, '金…!!', '#8a6a00', 1300);
         }
         await enemySay(event.enemyId, 'intro');
+        // ふるカワの返事
+        if (event.furukawa) {
+            FurukawaView.show(event.furukawa);
+            await sleep(config.furukawa.replyWait);
+        }
         const sub = event.bonusGames > 0 ? `BATTLE ${event.games}G（+${event.bonusGames}G）` : `BATTLE ${event.games}G`;
         if (event.isGoldDog) {
             startFlash('#ffd700', 800);
@@ -2015,6 +2020,7 @@ const Lcd = (() => {
             await playNaiteiGet();
             naiteiZone = false;
             showTitle('突破!!', '内定を勝ち取った!!', '#ffd700', 1800);
+            if (event.furukawa) FurukawaView.show(event.furukawa);   // ふるカワの撃破のひとこと
             await sleep(1800);
             Sound.win();
             showTitle('突破ボーナス', bonusText(event.bonus), '#7fffd4', 1600);
@@ -2076,6 +2082,7 @@ const Lcd = (() => {
         animateTo(battle.drop, 20, 800);
         battle.defeats = event.defeatCount;
         showTitle('撃破!!', `${event.name}をたおした！`, '#ffd700', timing.defeatMovie);
+        if (event.furukawa) FurukawaView.show(event.furukawa);   // ふるカワの撃破のひとこと
         await sleep(timing.defeatMovie);
         battle.visible = false;
         battle.enemyId = null;

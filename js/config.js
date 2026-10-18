@@ -626,6 +626,27 @@ window.GAME_CONFIG = {
         // 敵と戦いはじめて1ゲーム目は必ず出てきて、その敵の話 (chatLines.enemies) をする (ユーザー指定)
         //   skipHeat: そのゲームの熱さがこれ以上 (チャンス目・BAR・7揃いなど) なら、ふだんどおりにする / color: 文字の色
         battleIntro: { skipHeat: 4, color: 0 },
+        // 敵が出てきたときのセリフ (おにおにはカットインの「来たな…!!」) への返事と、撃破したときのひとこと (ユーザー指定)
+        // 液晶の演出の中で必ず言う (レバー ON のときとは別)。eventColor: 文字の色 / replyWait: 返事を言ってから次の演出までの時間 (ミリ秒)
+        eventColor: 0,
+        replyWait: 1200,
+        replies: {
+            okagappa: ['まだ何も始まってないよ…？', 'ノリで来たでしょ、ぜったい…'],
+            hibikimakuri: ['…うん、響いてるね', '自己紹介、それだけ…？'],
+            shibata: ['ぶんぶん…？ おはしばたじゃないの？', 'ぶんぶんって、なに…？'],
+            sasaki: ['自分で言っちゃうんだ…', 'しご出来なのに、目の下にクマが…'],
+            onioni: ['来ちゃった…！ お金はあとで返すから！', 'こわい…でも負けないよ！'],
+            goldDog: ['かわいい…けど、さわっちゃダメ！', 'すっごく自信ありげ…！']
+        },
+        defeatLines: {
+            okagappa: ['おかがっぱ、川にお帰り〜！', 'お皿、割れてないといいね♪'],
+            hibikimakuri: ['やっと静かになった…！', '最後まで響いてたね…'],
+            shibata: ['シバター、バーイ！', 'いまの、動画にしないでね！'],
+            sasaki: ['SASAKIさん、ゆっくり休んでね…', 'すごいです。やばいです。…うつっちゃった'],
+            onioni: ['おにおにを倒した！ すごいよ！', 'お金のことは…また今度ね！'],
+            goldDog: ['ワンちゃん、金庫にお帰り〜！', '黄金にならなくてよかった…！'],
+            naitei: ['こおりくん、内定おめでとう！', 'これで内定持ちだね…ふーん♪']
+        },
         kindWeights: { hint: 25, stage: 30, setting: 25, chat: 20 },
         hints: [
             'チャンス目はスイカ崩れ・BAR崩れ・7崩れの3つだよ',
@@ -711,7 +732,7 @@ window.GAME_CONFIG = {
     //   bestCoins / bestDefeats: 1回の RASH での最高 (獲得枚数・撃破数)
     //   defeat:<敵の id>: その敵の撃破数 / trophy:<色>: その色のトロフィーが出た回数
     //   endCard:<絵の id>: その RASH 終了画面の絵を見た回数
-    //   enemyKinds / specialKinds / trophyKinds / endCardKinds: 図鑑の埋まった数 (value: 'all' は全部)
+    //   enemyKinds / specialKinds / trophyKinds / endCardKinds / furukawaKinds: 図鑑の埋まった数 (value: 'all' は全部)
     collection: {
         achievements: [
             { id: 'firstRash', name: 'はじめてのRASH', desc: 'おにおにRASHに突入する', stat: 'rash', value: 1 },
@@ -728,6 +749,8 @@ window.GAME_CONFIG = {
             { id: 'allTrophies', name: 'トロフィーコレクター', desc: 'トロフィーを全色出す', stat: 'trophyKinds', value: 'all' },
             { id: 'everyone', name: 'みんなで記念撮影', desc: 'RASH 終了画面で集合絵を見る', stat: 'endCard:everyone', value: 1 },
             { id: 'allEndCards', name: '思い出アルバム', desc: 'RASH 終了画面の絵をすべて見る', stat: 'endCardKinds', value: 'all' },
+            { id: 'furukawa30', name: 'ふるカワとおしゃべり', desc: 'ふるカワのセリフを30種類聞く', stat: 'furukawaKinds', value: 30 },
+            { id: 'allFurukawa', name: 'ふるカワ博士', desc: 'ふるカワのセリフをすべて聞く', stat: 'furukawaKinds', value: 'all' },
             { id: 'allEnemies', name: '全員撃破', desc: 'すべての敵を撃破する', stat: 'enemyKinds', value: 'all' },
             { id: 'allSpecials', name: '必殺技マスター', desc: 'すべての必殺技を見る', stat: 'specialKinds', value: 'all' },
             { id: 'moves5', name: '台選び上手', desc: '台移動を合計5回する', stat: 'moves', value: 5 },

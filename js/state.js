@@ -139,6 +139,7 @@ function createInitialState(config, rng = Math.random) {
             specials: {},      // 見た必殺技ごとの回数 { 敵・仲間の id / こおりくんは koori・kooriKill: 回数 }
             trophies: {},      // 出たトロフィーの色ごとの回数 { 示す設定: 回数 }
             endCards: {},      // 見た RASH 終了画面の絵ごとの回数 { 絵の id: 回数 }
+            furukawaLines: {}, // 聞いたふるカワのセリフごとの回数 { セリフ: 回数 } (Furukawa.catalog に載っているものだけ)
             records: { games: 0, rash: 0, super: 0, naitei: 0, freeze: 0, moves: 0, revival: 0, ending: 0, bestCoins: 0, bestDefeats: 0 },
             achievements: {},  // 解除した実績 { 実績の id: 解除したときの合計ゲーム数 }
             met: {}            // 会ったキャラクター (図鑑の説明の解禁) { id: 1 }
@@ -322,7 +323,7 @@ const SettingEstimate = {
     }
 };
 
-// 図鑑・実績: 1ゲームのイベントから、撃破した敵・見た必殺技・トロフィー・RASH 終了画面の絵・記録を集める。
+// 図鑑・実績: 1ゲームのイベントから、撃破した敵・見た必殺技・トロフィー・RASH 終了画面の絵・ふるカワのセリフ・記録を集める。
 // 新しく解除した実績は { type: 'achievement' } のイベントとして返す
 const Collection = {
     record(state, outcome, events, config) {
@@ -333,6 +334,7 @@ const Collection = {
         r.games++;
         if (outcome.isFreeze) r.freeze++;
         for (const e of events) {
+            if (e.furukawa) this.hearFurukawa(state, e.furukawa.text, config);
             switch (e.type) {
                 case 'rashStart': r.rash++; break;
                 case 'superStart':
@@ -374,6 +376,15 @@ const Collection = {
         return this.unlock(state, config);
     },
 
+    // ふるカワのセリフを聞いた (図鑑の「ふるカワのセリフ」。数字などが入る、図鑑に載らないセリフは数えない)
+    hearFurukawa(state, text, config) {
+        this.meet(state, 'furukawa');
+        if (!Furukawa.catalogSet(config).has(text)) return;
+        const c = state.collection;
+        const lines = c.furukawaLines || (c.furukawaLines = {});
+        lines[text] = (lines[text] || 0) + 1;
+    },
+
     // キャラクターに会った (図鑑の説明が見られるようになる)
     meet(state, id) {
         const c = state.collection;
@@ -406,7 +417,7 @@ const Collection = {
         return events;
     },
 
-    // 図鑑の項目: 敵・必殺技・トロフィーの色・RASH 終了画面の絵
+    // 図鑑の項目: 敵・必殺技・トロフィーの色・RASH 終了画面の絵 (ふるカワのセリフは Furukawa.catalog)
     entries(config) {
         const enemies = [...config.enemies, config.goldDog, config.naitei.enemy];
         return {
@@ -435,6 +446,7 @@ const Collection = {
             case 'specialKinds': return kinds(c.specials);
             case 'trophyKinds': return kinds(c.trophies);
             case 'endCardKinds': return kinds(c.endCards || {});
+            case 'furukawaKinds': return Object.keys(c.furukawaLines || {}).length;   // 聞いたセリフだけが入っている (毎ゲーム呼ばれるので軽く)
             default: return c.records[kind] || 0;
         }
     },
@@ -442,6 +454,7 @@ const Collection = {
     // 実績の目標の値 ('all' は図鑑の項目の数)
     target(config, a) {
         if (a.value !== 'all') return a.value;
+        if (a.stat === 'furukawaKinds') return Furukawa.catalogSet(config).size;   // 毎ゲーム呼ばれるので一覧を作らない
         const e = this.entries(config);
         return {
             enemyKinds: e.enemies.length, specialKinds: e.specials.length, trophyKinds: e.trophies.length, endCardKinds: e.endCards.length
@@ -488,6 +501,7 @@ const StateMachine = {
 const GameFlow = {
     onGameEnd(state, outcome, config, rng = Math.random) {
         const events = this.playGame(state, outcome, config, rng);
+        Furukawa.attachEventTalks(events, config, rng);   // 敵への返事・撃破のひとこと (液晶はイベントの furukawa を出す)
         events.push(...Collection.record(state, outcome, events, config));
         return events;
     },

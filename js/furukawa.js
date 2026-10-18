@@ -7,6 +7,7 @@
 // 3. 吹き出しの文字の色 (0:白 1:青 2:緑 3:紫 4:赤 5:金 6:虹) を熱さごとの重み (colorWeights) で選ぶ
 // 4. 色が赤以上ならチャンスのセリフ、それ以外はヒント・今の状況 (次のステージなど)・設定示唆・キャラクターの話から選ぶ
 // ただし敵と戦いはじめて1ゲーム目 (内定の時ゾーンも) は、熱い役でなければ必ず出てきてその敵の話をする (battleIntro)
+// 敵が出てきたときの返事と撃破したときのひとことは、ゲームの結果のイベントに付ける (attachEventTalks)。
 // state は読むだけで書き換えない。
 // =====================================================================
 
@@ -112,6 +113,49 @@ const Furukawa = {
             if (lines.length) return lines;
         }
         return [...chat.normal, ...state.companions.flatMap(id => chat.companions[id] || [])];
+    },
+
+    // ゲームの結果のイベントに、ふるカワのセリフ { text, color } を e.furukawa として付ける (液晶はそれを出すだけ)
+    //   battleStart: 敵が出てきたときのセリフへの返事 (replies)
+    //   defeat / 内定の時ゾーンの突破: 撃破したときのひとこと (defeatLines)
+    attachEventTalks(events, config, rng = Math.random) {
+        const cfg = config.furukawa;
+        const pick = list => (list && list.length ? { text: list[Math.floor(rng() * list.length)], color: cfg.eventColor } : null);
+        for (const e of events) {
+            let talk = null;
+            if (e.type === 'battleStart') talk = pick(cfg.replies[e.enemyId]);
+            else if (e.type === 'defeat') talk = pick(cfg.defeatLines[e.enemyId]);
+            else if (e.type === 'naiteiResult' && e.win) talk = pick(cfg.defeatLines[config.naitei.enemy.id]);
+            if (talk) e.furukawa = talk;
+        }
+        return events;
+    },
+
+    // 図鑑の「ふるカワのセリフ」に載せるセリフ [{ name: 分類, lines: [セリフ] }]。数字などが入るセリフ (今の状況・次の相手) は載せない
+    catalog(config) {
+        const cfg = config.furukawa;
+        const chat = cfg.chatLines;
+        const enemyIds = [...config.enemies, config.goldDog, config.naitei.enemy].map(e => e.id);
+        const byEnemy = map => enemyIds.flatMap(id => map[id] || []);
+        const seen = new Set();
+        const unique = lines => lines.filter(t => !seen.has(t) && seen.add(t));
+        return [
+            { name: '敵への返事', lines: byEnemy(cfg.replies) },
+            { name: '撃破したとき', lines: byEnemy(cfg.defeatLines) },
+            { name: 'キャラクターの話', lines: [...chat.normal, ...Object.values(chat.companions).flat(), ...byEnemy(chat.enemies), ...chat.super] },
+            { name: 'チャンス', lines: [...cfg.expectLines, ...Object.values(cfg.chanceLines).flat(), ...cfg.rashExpectLines, ...Object.values(cfg.rashChanceLines).flat()] },
+            { name: '対戦相手・「？？」', lines: [...Object.values(cfg.selectLines).flat(), ...Object.values(cfg.questionLines).flat()] },
+            { name: 'ヒント', lines: cfg.hints },
+            { name: '台の設定', lines: cfg.settingLines.map(l => l.text) }
+        ].map(group => ({ name: group.name, lines: unique(group.lines) }));
+    },
+
+    // catalog のセリフの集まり (config ごとに1回だけ作る)
+    catalogSet(config) {
+        if (!this._catalog || this._catalog.config !== config) {
+            this._catalog = { config, set: new Set(this.catalog(config).flatMap(g => g.lines)) };
+        }
+        return this._catalog.set;
     },
 
     // 今の状況のセリフ (次のステージ・残りゲーム数など)

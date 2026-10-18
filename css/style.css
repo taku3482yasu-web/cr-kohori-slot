@@ -1028,6 +1028,16 @@ button.col-enemy:focus-visible {
     font-variant-numeric: tabular-nums;
 }
 
+.col-lines summary {
+    cursor: pointer;
+    padding: 4px 0;
+    font-size: 0.85rem;
+}
+
+.col-lines .col-specials {
+    margin-bottom: 6px;
+}
+
 .col-trophies {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
