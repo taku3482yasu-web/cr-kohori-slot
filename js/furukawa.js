@@ -118,6 +118,9 @@ const Furukawa = {
     // ゲームの結果のイベントに、ふるカワのセリフ { text, color } を e.furukawa として付ける (液晶はそれを出すだけ)
     //   battleStart: 敵が出てきたときのセリフへの返事 (replies)
     //   defeat / 内定の時ゾーンの突破: 撃破したときのひとこと (defeatLines)
+    //   rashEnd / 内定の時ゾーンの失敗で RASH 終了: 結果に合わせたひとこと (rashEndLines)
+    //   superStart: ともいしのセリフ (e.tomoishiLine) を選び、それへの返事 (tomoishiReplies)
+    //   ending: エンディングのあとのひとこと (endingLines)
     attachEventTalks(events, config, rng = Math.random) {
         const cfg = config.furukawa;
         const pick = list => (list && list.length ? { text: list[Math.floor(rng() * list.length)], color: cfg.eventColor } : null);
@@ -126,9 +129,25 @@ const Furukawa = {
             if (e.type === 'battleStart') talk = pick(cfg.replies[e.enemyId]);
             else if (e.type === 'defeat') talk = pick(cfg.defeatLines[e.enemyId]);
             else if (e.type === 'naiteiResult' && e.win) talk = pick(cfg.defeatLines[config.naitei.enemy.id]);
+            else if (e.type === 'rashEnd' || (e.type === 'naiteiResult' && e.toCastle)) talk = pick(this.rashEndLines(e, config));
+            else if (e.type === 'ending') talk = pick(cfg.endingLines);
+            else if (e.type === 'superStart') {
+                const lines = config.tomoishi.superLines;
+                const index = Math.floor(rng() * lines.length);
+                e.tomoishiLine = lines[index];
+                talk = pick(cfg.tomoishiReplies[index]);
+            }
             if (talk) e.furukawa = talk;
         }
         return events;
+    },
+
+    // RASH 終了のひとこと: SUPER まで行った → いっぱい倒した → 1体も倒せなかった → それ以外 の順に選ぶ
+    rashEndLines(e, config) {
+        const lines = config.furukawa.rashEndLines;
+        if (e.wasSuper) return lines.super;
+        if (e.defeatCount >= lines.manyDefeats) return lines.many;
+        return e.defeatCount > 0 ? lines.normal : lines.zero;
     },
 
     // 図鑑の「ふるカワのセリフ」に載せるセリフ [{ name: 分類, lines: [セリフ] }]。数字などが入るセリフ (今の状況・次の相手) は載せない
@@ -142,6 +161,8 @@ const Furukawa = {
         return [
             { name: '敵への返事', lines: byEnemy(cfg.replies) },
             { name: '撃破したとき', lines: byEnemy(cfg.defeatLines) },
+            { name: 'RASH 終了', lines: [...cfg.rashEndLines.super, ...cfg.rashEndLines.many, ...cfg.rashEndLines.normal, ...cfg.rashEndLines.zero] },
+            { name: 'ともいし・エンディング', lines: [...cfg.tomoishiReplies.flat(), ...cfg.endingLines] },
             { name: 'キャラクターの話', lines: [...chat.normal, ...Object.values(chat.companions).flat(), ...byEnemy(chat.enemies), ...chat.super] },
             { name: 'チャンス', lines: [...cfg.expectLines, ...Object.values(cfg.chanceLines).flat(), ...cfg.rashExpectLines, ...Object.values(cfg.rashChanceLines).flat()] },
             { name: '対戦相手・「？？」', lines: [...Object.values(cfg.selectLines).flat(), ...Object.values(cfg.questionLines).flat()] },

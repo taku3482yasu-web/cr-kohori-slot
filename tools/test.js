@@ -115,7 +115,7 @@ function play(setting, games, seed) {
         ending: { count: 0, notSuperOni: 0, twiceInSet: 0, supers: 0 },   // エンディング (SUPER 中のおにおに撃破で、SUPER 1回につき1回)     // SUPER 中に「おにおにが現れる…!?」が出た回数 (出てはいけない)
         joined: new Set(),       // 仲間になった仲間の id
         revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0, notSeven: 0, paid: 0 },
-        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0, intro: { games: 0, said: 0, wrong: 0, hot: 0, hotIntroLine: 0, naitei: 0 }, events: { reply: 0, defeat: 0, naitei: 0, missing: 0, wrong: 0 } }
+        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0, intro: { games: 0, said: 0, wrong: 0, hot: 0, hotIntroLine: 0, naitei: 0 }, events: { reply: 0, defeat: 0, naitei: 0, rashEnd: 0, super: 0, ending: 0, rashEndLines: new Set(), missing: 0, wrong: 0 } }
     };
     let pendingGuaranteed = false;
     let endingInSet = false;   // この RASH でエンディングが出たか
@@ -170,14 +170,23 @@ function play(setting, games, seed) {
         // ふるカワの返事 (敵が出てきたとき)・撃破のひとこと: 言うセリフがあれば必ず付く
         for (const e of events) {
             const fc = config.furukawa;
+            const tomoIndex = e.type === 'superStart' ? config.tomoishi.superLines.indexOf(e.tomoishiLine) : -1;
             const lines = e.type === 'battleStart' ? fc.replies[e.enemyId]
                 : e.type === 'defeat' ? fc.defeatLines[e.enemyId]
-                : e.type === 'naiteiResult' && e.win ? fc.defeatLines[config.naitei.enemy.id] : null;
+                : e.type === 'naiteiResult' && e.win ? fc.defeatLines[config.naitei.enemy.id]
+                : e.type === 'rashEnd' || (e.type === 'naiteiResult' && e.toCastle) ? Furukawa.rashEndLines(e, config)
+                : e.type === 'superStart' ? fc.tomoishiReplies[tomoIndex] || []
+                : e.type === 'ending' ? fc.endingLines : null;
             if (!lines) continue;
             const ev = log.furukawa.events;
+            const kind = { battleStart: 'reply', defeat: 'defeat', rashEnd: 'rashEnd', superStart: 'super', ending: 'ending' }[e.type]
+                || (e.win ? 'naitei' : 'rashEnd');
             if (!e.furukawa) ev.missing++;
             else if (!lines.includes(e.furukawa.text)) ev.wrong++;
-            else ev[e.type === 'battleStart' ? 'reply' : e.type === 'defeat' ? 'defeat' : 'naitei']++;
+            else {
+                ev[kind] = (ev[kind] || 0) + 1;
+                if (kind === 'rashEnd') ev.rashEndLines.add(e.furukawa.text);
+            }
         }
         // 復活: 「？？」の負けで決まったら RASH のまま復活待ち、次のゲームで敵を撃破
         for (const e of events) {
@@ -554,10 +563,13 @@ test('ふるカワ: 敵と戦いはじめて1ゲーム目 (内定の時ゾーン
     }
 });
 
-test('ふるカワ: 敵が出てきたときに返事をし、撃破したとき (内定の時の突破も) にひとこと言う', () => {
-    for (const { setting, log } of runs) {
+test('ふるカワ: 敵・ともいしへの返事、撃破・RASH 終了・エンディングのひとことが必ず付く', () => {
+    for (const { setting, log, game } of runs) {
         const ev = log.furukawa.events;
-        assert(ev.reply > 0 && ev.defeat > 0 && ev.naitei > 0, `設定${setting} で返事・撃破のひとことがない (${JSON.stringify(ev)})`);
+        assert(ev.reply > 0 && ev.defeat > 0 && ev.naitei > 0 && ev.rashEnd > 0 && ev.super > 0 && ev.ending > 0, `設定${setting} で返事・ひとことがない (${JSON.stringify(ev)})`);
+        // RASH 終了は結果に合わせて4種類とも出る
+        const end = game.config.furukawa.rashEndLines;
+        for (const kind of ['super', 'many', 'normal', 'zero']) assert(end[kind].some(t => ev.rashEndLines.has(t)), `設定${setting} で RASH 終了の ${kind} のセリフが出ない`);
         assertEqual(ev.missing, 0, `設定${setting} で返事・撃破のひとことが付いていない`);
         assertEqual(ev.wrong, 0, `設定${setting} でほかの敵のセリフ`);
     }

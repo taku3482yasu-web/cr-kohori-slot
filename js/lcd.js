@@ -2046,6 +2046,7 @@ const Lcd = (() => {
         if (event.toCastle) {
             TrophyView.show(event.trophy);
             showTitle('おにおにRASH 終了', `獲得 ${event.coinsWon}枚　撃破 ${event.defeatCount}体`, RASH_COLOR, 2500);
+            if (event.furukawa) FurukawaView.show(event.furukawa);   // ふるカワの「おつかれさま！」など
             await sleep(2500);
             await EndCardView.show(event.endCard);   // 設定示唆の1枚絵
             showTitle('SE城突入ゾーンへ戻る', 'もう一度 城を目指せ!!', '#ff8080', 1600);
@@ -2124,7 +2125,7 @@ const Lcd = (() => {
     }
 
     // SUPERおにおにRASH へ移行 (背景とロゴが金色に)
-    async function superStart() {
+    async function superStart(event) {
         const timing = config.effects.timing;
         letterboxTarget = 1;
         startFlash('#ffffff', 400);
@@ -2141,10 +2142,12 @@ const Lcd = (() => {
         };
         await sleep(timing.superMovie);
         bigLogo = null;
-        // 母・ともいしが見ている (図鑑のともいしもここで解禁)
+        // 母・ともいしが見ている (図鑑のともいしもここで解禁)。セリフは GameFlow が選ぶ (デバッグの強制遷移ではここで選ぶ)
         const tomo = config.tomoishi;
-        await playCutIn('tomoishi', tomo.superLines[Math.floor(Math.random() * tomo.superLines.length)], '#7a4ab0', 1800, tomo.name);
+        const tomoLine = event.tomoishiLine || tomo.superLines[Math.floor(Math.random() * tomo.superLines.length)];
+        await playCutIn('tomoishi', tomoLine, '#7a4ab0', 1800, tomo.name);
         letterboxTarget = 0;
+        if (event.furukawa) FurukawaView.show(event.furukawa);   // ふるカワの返事
     }
 
     async function question() {
@@ -2249,16 +2252,18 @@ const Lcd = (() => {
     }
 
     // エンディング (SUPER 中におにおにを撃破。js/lcd/ending-view.js)
-    async function ending() {
+    async function ending(event) {
         clearMessage();
         titleCard = null;
         await StoryView.play('ending');
+        if (event.furukawa) FurukawaView.show(event.furukawa);   // ふるカワのひとこと
     }
 
     async function rashEnd(event) {
         const name = event.wasSuper ? 'SUPERおにおにRASH' : 'おにおにRASH';
         TrophyView.show(event.trophy);
         showTitle(`${name} 終了`, `獲得 ${event.coinsWon}枚　撃破 ${event.defeatCount}体`, logoColor(), 2500);
+        if (event.furukawa) FurukawaView.show(event.furukawa);   // ふるカワの「おつかれさま！」など
         await sleep(2500);
         if (event.companionNames && event.companionNames.length) {
             showTitle('仲間たちは帰っていった', `${event.companionNames.join('・')} ありがとう！`, '#7fffd4', 1800);
@@ -2391,10 +2396,10 @@ const Lcd = (() => {
                     await oniUnlocked();
                     break;
                 case 'superStart':
-                    await superStart();
+                    await superStart(event);
                     break;
                 case 'ending':
-                    await ending();
+                    await ending(event);
                     break;
                 case 'debug':
                     syncWithState();
