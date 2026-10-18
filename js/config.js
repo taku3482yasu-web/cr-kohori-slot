@@ -591,6 +591,8 @@ window.GAME_CONFIG = {
             battle: { sevenBar: 6, seven: 5, bar: 5, chance: 4, melon: 2, cherry: 1, diamond: 1 },
             entrySteps: [0.1, 0.3, 0.5, 0.8, 1.0],
             naiteiSteps: [0.05, 0.15, 0.25, 0.5, 0.55],   // 内定の時ゾーンの突破率の段階 (必ず突破する役は 6)
+            danceSteps: [0.05, 0.2, 0.3, 0.5, 0.6],       // ダンシングステージのチャンスゾーン突入率の段階 (確定は 6、突入済みなら 0)
+            treasure: { seven: 5, chance: 5, bar: 4, sevenBar: 4, melon: 3, cherry: 2, diamond: 2, bell: 1 },   // 宝物庫ゾーン: 上乗せの多い役ほど熱い
             questionWin: 5
         },
         colorWeights: [
@@ -622,6 +624,15 @@ window.GAME_CONFIG = {
             strong: ['強い気配がするよ！', 'すごい相手が来そう…！']
         },
         strongEnemies: ['onioni', 'goldDog'],   // 次の相手に決まっていると「強い気配がするよ！」
+        // ダンシングステージ・宝物庫ゾーンも、色に関係なくこちら (ユーザー指定)。色が赤以上なら hot
+        danceLines: {
+            normal: ['こおりくん、ノリノリだね♪', 'ステップ、なかなかうまいじゃん！', 'ひびきまくりも踊ってる…！', 'おかがっぱ、リズム感あるね'],
+            hot: ['チャンスゾーン、来るかも！！', 'いいノリ！ このまま行っちゃえ！']
+        },
+        treasureLines: {
+            normal: ['宝物庫だ！ いっぱい上乗せしよ！', '金貨がいっぱい…うちの実家くらいあるかも♪', '次のBATTLEが長くなるよ！'],
+            hot: ['大量上乗せのチャンス！！', 'いっぱいもらっちゃお！！']
+        },
         questionLines: {
             normal: ['おねがい！続いて！', '揃って…！', 'まだ終わりたくない…！'],
             hot: ['おねがい！続いて！！', 'いける…いけるよ！']

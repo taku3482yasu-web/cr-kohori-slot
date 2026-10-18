@@ -141,6 +141,7 @@ function play(setting, games, seed) {
             f.byColor[talk.color] = (f.byColor[talk.color] || 0) + 1;
             (mode === MODES.RASH || mode === MODES.SUPER_RASH ? f.rashLines : f.lines).add(talk.text);
             if (mode === MODES.RASH || mode === MODES.SUPER_RASH) (f.phaseLines[rash.phase] = f.phaseLines[rash.phase] || new Set()).add(talk.text);
+            if (mode === MODES.NORMAL && state.normal.dance) (f.phaseLines.dance = f.phaseLines.dance || new Set()).add(talk.text);
             if (talk.color === 6 && talk.heat !== 6) f.rainbowNotSure++;
             if (!talk.text) f.empty++;
         } else if (heat === 6) {
@@ -525,6 +526,12 @@ test('ふるカワ: たまに出てきて、虹は確定のときだけ、設定
         assert([...select].every(t => selectAll.includes(t) || t.startsWith('次の相手は')), `設定${setting} の相手を決めるゲームでほかのセリフ`);
         const questionAll = [...Object.values(cfg.questionLines).flat()];
         assert([...question].every(t => questionAll.includes(t)), `設定${setting} の「？？」でほかのセリフ`);
+        // ダンシングステージ・宝物庫ゾーンも専用のセリフだけ (ふだんのセリフと熱いときのセリフの両方が出る)
+        for (const [key, lines] of [['dance', cfg.danceLines], [base.RASH_PHASES.TREASURE, cfg.treasureLines]]) {
+            const said = f.phaseLines[key] || new Set();
+            assert(lines.normal.some(t => said.has(t)) && lines.hot.some(t => said.has(t)), `設定${setting} の ${key} でふるカワが出ない`);
+            assert([...said].every(t => [...lines.normal, ...lines.hot].includes(t)), `設定${setting} の ${key} でほかのセリフ`);
+        }
     }
 });
 

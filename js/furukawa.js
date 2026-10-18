@@ -27,12 +27,13 @@ const Furukawa = {
         return { ...this.line(state, config, color, rng), color, heat };
     },
 
-    // 出てくる場面: 通常時 (ダンシングステージ以外)・SE城前・城突入チャレンジ・RASH の BATTLE / 「？？」 / 対戦相手を決めるゲーム / 内定の時ゾーン
+    // 出てくる場面: 通常時 (ダンシングステージも)・SE城前・城突入チャレンジ・RASH の BATTLE / 「？？」 / 対戦相手を決めるゲーム / 内定の時ゾーン / 宝物庫ゾーン
     canAppear(state, config) {
-        if (state.mode === MODES.NORMAL) return !state.normal.dance;
+        if (state.mode === MODES.NORMAL) return true;
         if (state.mode === MODES.CASTLE_CHALLENGE) return true;
         const phase = state.rash.phase;
-        return phase === RASH_PHASES.BATTLE || phase === RASH_PHASES.QUESTION || phase === RASH_PHASES.SELECT || phase === RASH_PHASES.NAITEI;
+        return phase === RASH_PHASES.BATTLE || phase === RASH_PHASES.QUESTION || phase === RASH_PHASES.SELECT
+            || phase === RASH_PHASES.NAITEI || phase === RASH_PHASES.TREASURE;
     },
 
     // そのゲームの熱さ (0〜6。6 はロングフリーズ・7・7・BAR などの確定)
@@ -55,7 +56,15 @@ const Furukawa = {
                 const rate = config.naitei.winRates[role] || 0;
                 return rate >= 1 ? 6 : heat.naiteiSteps.filter(step => rate >= step).length;
             }
+            // 宝物庫ゾーン: 上乗せの多い役ほど熱い
+            if (state.rash.phase === RASH_PHASES.TREASURE) return heat.treasure[role] || 0;
             return heat.battle[role] || 0;
+        }
+        // ダンシングステージ: チャンスゾーン突入率で決める (もう突入していたら 0)
+        if (state.normal.dance) {
+            if (state.normal.dance.zone) return 0;
+            const rate = config.dance.zoneRates[role] || 0;
+            return rate >= 1 ? 6 : heat.danceSteps.filter(step => rate >= step).length;
         }
         // リベンジチャンス中のチャンス目は RASH 復活
         if (state.normal.revengeGames > 0 && role === 'chance') return heat.revengeChance;
@@ -71,6 +80,9 @@ const Furukawa = {
         const phase = inRash ? state.rash.phase : null;
         if (phase === RASH_PHASES.SELECT) return pick(this.selectLines(state, config, color));
         if (phase === RASH_PHASES.QUESTION) return pick(color >= 4 ? cfg.questionLines.hot : cfg.questionLines.normal);
+        // ダンシングステージ・宝物庫ゾーンも専用のセリフ
+        const zoneLines = !inRash && state.normal.dance ? cfg.danceLines : phase === RASH_PHASES.TREASURE ? cfg.treasureLines : null;
+        if (zoneLines) return pick(color >= 4 ? zoneLines.hot : zoneLines.normal);
         // RASH 中は攻めるセリフ (いけるよ！ / ここがせめどき！ など)
         if (color >= 4) return pick((inRash ? cfg.rashChanceLines : cfg.chanceLines)[color]);
         if (color >= 2 && rng() < 0.5) return pick(inRash ? cfg.rashExpectLines : cfg.expectLines);
@@ -166,6 +178,7 @@ const Furukawa = {
             { name: 'キャラクターの話', lines: [...chat.normal, ...Object.values(chat.companions).flat(), ...byEnemy(chat.enemies), ...chat.super] },
             { name: 'チャンス', lines: [...cfg.expectLines, ...Object.values(cfg.chanceLines).flat(), ...cfg.rashExpectLines, ...Object.values(cfg.rashChanceLines).flat()] },
             { name: '対戦相手・「？？」', lines: [...Object.values(cfg.selectLines).flat(), ...Object.values(cfg.questionLines).flat()] },
+            { name: 'ダンス・宝物庫', lines: [...Object.values(cfg.danceLines).flat(), ...Object.values(cfg.treasureLines).flat()] },
             { name: 'ヒント', lines: cfg.hints },
             { name: '台の設定', lines: cfg.settingLines.map(l => l.text) }
         ].map(group => ({ name: group.name, lines: unique(group.lines) }));
