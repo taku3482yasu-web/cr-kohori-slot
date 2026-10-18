@@ -351,6 +351,25 @@ const Characters = (() => {
         }
     };
 
+    // シーシャ・ナイテイ・アルアル (ナイナイの兄。ユーザー指定): 見た目は瓜二つで、王冠をかぶっている
+    // ナイナイの絵を 7 ドット下げて描き、上に宝石つきの金の王冠を足す
+    ENEMIES.aruaru = {
+        w: 36, h: 55,
+        draw(r, frame) {
+            const gold = '#ffd700', goldLight = '#fff2a0', goldDark = '#b8860b';
+            ENEMIES.naitei.draw((x, y, w, h, color) => r(x, y + 7, w, h, color), frame);
+            // 王冠 (5つのとがり・宝石)
+            r(11, 4, 14, 5, gold);
+            r(11, 8, 14, 1, goldDark);
+            [11, 14, 17, 20, 23].forEach((x, i) => r(x, i % 2 ? 2 : 0, 2, i % 2 ? 2 : 4, gold));
+            [11, 17, 23].forEach(x => r(x, 0, 2, 1, goldLight));
+            r(12, 5, 12, 1, goldLight);
+            r(13, 6, 2, 2, '#e02040');
+            r(17, 6, 2, 2, '#2060e0');
+            r(21, 6, 2, 2, '#20c060');
+        }
+    };
+
     // ----- 仲間 (16x24 ドット、オリジナルデザイン) -----
     const COMPANIONS = {
         // やすさん: 眼鏡・青いパーカー
@@ -450,14 +469,16 @@ const Characters = (() => {
     }
 
     // 敵を描く。(x, groundY) は足元の中央。hurt で白く光る、silhouette で黒い影、alpha で透明度
-    function drawEnemy(ctx, id, x, groundY, { scale = 2, frame = 0, hurt = false, silhouette = false, alpha = 1 } = {}) {
+    // flip: 左右反転 (右を向く。こおりくんの味方として出すとき)
+    function drawEnemy(ctx, id, x, groundY, { scale = 2, frame = 0, hurt = false, silhouette = false, alpha = 1, flip = false } = {}) {
         const enemy = ENEMIES[id];
         if (!enemy) return;
         const left = Math.round(x - (enemy.w * scale) / 2);
         const top = Math.round(groundY - enemy.h * scale);
         ctx.globalAlpha = alpha;
         enemy.draw((rx, ry, rw, rh, color) => {
-            const x0 = Math.round(left + rx * scale), x1 = Math.round(left + (rx + rw) * scale);
+            const fx = flip ? enemy.w - rx - rw : rx;
+            const x0 = Math.round(left + fx * scale), x1 = Math.round(left + (fx + rw) * scale);
             const y0 = Math.round(top + ry * scale), y1 = Math.round(top + (ry + rh) * scale);
             ctx.fillStyle = silhouette ? '#101018' : hurt ? '#ffffff' : color;
             ctx.fillRect(x0, y0, x1 - x0, y1 - y0);

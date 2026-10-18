@@ -23,7 +23,8 @@ const SpecialFx = (() => {
         sasaki: 'slash',            // ASAスラッシュ
         onioni: 'club',             // 鬼鬼の金棒
         goldDog: 'goldbite',        // ゴールドかみまっくす
-        naitei: 'judge'             // 不採用の裁き
+        naitei: 'judge',            // 不採用の裁き
+        aruaru: 'sevenFlash'        // 採用の祝福 (虹色の光の柱)
     };
     const FX_DURATION = {
         iceBurst: 600, sevenFlash: 1000, requiem: 1300, punch: 500, kick: 500, chop: 500,

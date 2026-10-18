@@ -334,12 +334,12 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js?v=a1fd2131"></script>
+<script src="js/config.js?v=c79d4601"></script>
 <script src="js/sprites.js?v=056d5554"></script>
-<script src="js/characters.js?v=8d314eb2"></script>
-<script src="js/state.js?v=148555bd"></script>
+<script src="js/characters.js?v=5ad35d02"></script>
+<script src="js/state.js?v=f9bbf108"></script>
 <script src="js/lottery.js?v=ef41b4a7"></script>
-<script src="js/battle.js?v=38e14d9b"></script>
+<script src="js/battle.js?v=9cb3ea0d"></script>
 <script>
     // 表示する数値はすべて js/config.js から作る (数値を調整してもこのページは自動で追従する)
     const c = window.GAME_CONFIG;
@@ -500,7 +500,7 @@
     const nz = c.naitei;
     const companionRateText = c.companions.members.map(m => `${m.name} ${pct(nz.companionRates[m.id] || 0)}`).join('・');
     $('naitei-text').innerHTML = `おにおにRASH・SUPER で<b>対戦相手とゲーム数を決める1ゲーム</b>に ${nz.triggerRoles.map(r => roleView(r)).join(' / ')} が揃うと突入。` +
-        `画面が暗転し「ここから先」、<span class="red">「内定を持たぬものは通す事は出来ない」</span>の文字のあと、<b>${nz.enemy.name}</b> と <b>${nz.games}ゲーム</b>の真剣勝負！`;
+        `画面が暗転し「ここから先」、<span class="red">「内定を持たぬものは通す事は出来ない」</span>の文字のあと、<b>${nz.enemy.name}</b> と <b>${nz.games}ゲーム</b>の真剣勝負！突破できなくても、まれに<span class="gold">内定の神</span>が…？`;
     table('special-table', ['キャラ', '必殺技', '出るとき'], [
         ['こおりくん', c.specials.koori, 'とどめを刺したとき'],
         ['こおりくん', c.specials.kooriKill, '一撃必殺（BAR揃い・7揃い・7・7・BAR）でとどめ'],

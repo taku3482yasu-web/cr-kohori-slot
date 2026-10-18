@@ -97,6 +97,7 @@ function play(setting, games, seed) {
     state.setting = setting;
     const log = {
         normalGames: 0,
+        aruaru: { revived: 0, lost: 0, won: 0, notSuper: 0 },   // 内定の時ゾーン: アルアルの復活・負け・ふつうの突破
         rashEnds: [],            // { coinsWon, defeatCount, wasSuper, trophy, hit }
         trophies: { shown: 0, total: 0, byLevel: {} },
         chanceBreak: { eligible: 0, broke: 0 },   // BATTLE 中のチャンス目 (ブレイク前) とブレイクした数
@@ -179,7 +180,7 @@ function play(setting, games, seed) {
             const tomoIndex = e.type === 'superStart' ? config.tomoishi.superLines.indexOf(e.tomoishiLine) : -1;
             const lines = e.type === 'battleStart' ? fc.replies[e.enemyId]
                 : e.type === 'defeat' ? fc.defeatLines[e.enemyId]
-                : e.type === 'naiteiResult' && e.win ? fc.defeatLines[config.naitei.enemy.id]
+                : e.type === 'naiteiResult' && e.win ? fc.defeatLines[e.aruaru ? config.naitei.aruaru.id : config.naitei.enemy.id]
                 : e.type === 'rashEnd' || (e.type === 'naiteiResult' && e.toCastle) ? Furukawa.rashEndLines(e, config)
                 : e.type === 'superStart' ? fc.tomoishiReplies[tomoIndex] || []
                 : e.type === 'ending' ? fc.endingLines : null;
@@ -221,6 +222,14 @@ function play(setting, games, seed) {
                 if (!carry || state.rash.defeatCount !== carry.defeatCount || state.mode !== wantMode) log.revenge.wrong++;
             }
             if (e.type === 'companionChallenge' && e.success) log.joined.add(e.memberId);
+            if (e.type === 'naiteiResult') {
+                if (e.aruaru) {
+                    log.aruaru.revived++;
+                    // 突破と同じ扱い: おにおにRASH なら SUPER へ
+                    if (mode === MODES.RASH && !events.some(x => x.type === 'superStart')) log.aruaru.notSuper++;
+                } else if (e.win) log.aruaru.won++;
+                else log.aruaru.lost++;
+            }
             if (e.type === 'oniUnlocked' && mode === MODES.SUPER_RASH) log.oniUnlockInSuper++;
             if (e.type === 'superStart') log.ending.supers++;
             if (e.type === 'ending') {
@@ -746,6 +755,22 @@ test('アップデート情報: 更新されたときだけ1回表示し、は�
 
 // 出玉シミュレーター: 少ないゲーム数で実際に動かす (ゲームの処理が新しいファイルを使うようになったのに、
 // シミュレーターが読み込んでいないと動かなくなる。ブラウザ版の simulate.html も同じファイルを読み込んでいるか確かめる)
+test('内定の時ゾーン: 負けの約1割でアルアルが復活して突破と同じ扱いになり、図鑑・実績に記録される', () => {
+    for (const { setting, state, log, game } of runs) {
+        const a = log.aruaru;
+        assert(a.revived > 0, `設定${setting} でアルアルが一度も出ない`);
+        assertBetween(a.revived / (a.revived + a.lost), 0.04, 0.18, `設定${setting} のアルアルの割合 (負けのうち)`);
+        assertEqual(a.notSuper, 0, `設定${setting} でアルアルのあと SUPER にならない`);
+        const c = state.collection;
+        const id = game.config.naitei.aruaru.id;
+        assertEqual(c.records.aruaru, a.revived, `設定${setting} のアルアルの回数`);
+        assertEqual(c.specials[id], a.revived, `設定${setting} の「採用の祝福」の回数`);
+        assertEqual(c.records.naitei, a.won + a.revived, `設定${setting} の内定の時の突破の回数 (アルアルも含む)`);
+        assert(game.Collection.isUnlocked(c, id, game.config), `設定${setting} でアルアルの説明が解禁されない`);
+        assert(c.achievements.aruaru != null, `設定${setting} で実績「内定がある！！」が解除されない`);
+    }
+});
+
 test('出玉シミュレーター: Node.js 版が動いて出玉率を出し、ブラウザ版も同じファイルを読み込んでいる', () => {
     const { spawnSync } = require('child_process');
     const sim = path.join(__dirname, 'simulate.js');

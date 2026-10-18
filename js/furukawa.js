@@ -145,7 +145,7 @@ const Furukawa = {
             let talk = null;
             if (e.type === 'battleStart') talk = pick(cfg.replies[e.enemyId]);
             else if (e.type === 'defeat') talk = pick(cfg.defeatLines[e.enemyId]);
-            else if (e.type === 'naiteiResult' && e.win) talk = pick(cfg.defeatLines[config.naitei.enemy.id]);
+            else if (e.type === 'naiteiResult' && e.win) talk = pick(cfg.defeatLines[e.aruaru ? config.naitei.aruaru.id : config.naitei.enemy.id]);
             else if (e.type === 'rashEnd' || (e.type === 'naiteiResult' && e.toCastle)) talk = pick(this.rashEndLines(e, config));
             else if (e.type === 'ending') talk = pick(cfg.endingLines);
             else if (e.type === 'superStart') {
@@ -193,7 +193,7 @@ const Furukawa = {
     catalog(config) {
         const cfg = config.furukawa;
         const chat = cfg.chatLines;
-        const enemyIds = [...config.enemies, config.goldDog, config.naitei.enemy].map(e => e.id);
+        const enemyIds = [...config.enemies, config.goldDog, config.naitei.enemy, config.naitei.aruaru].map(e => e.id);
         const byEnemy = map => enemyIds.flatMap(id => map[id] || []);
         const seen = new Set();
         const unique = lines => lines.filter(t => !seen.has(t) && seen.add(t));

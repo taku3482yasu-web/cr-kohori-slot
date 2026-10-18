@@ -361,6 +361,12 @@ const Collection = {
                     if (e.win) {
                         r.naitei++;
                         add(c.defeats, naiteiId);
+                        // アルアルの復活: 必殺技「採用の祝福」を見て、アルアルに会う
+                        if (e.aruaru) {
+                            r.aruaru = (r.aruaru || 0) + 1;
+                            add(c.specials, config.naitei.aruaru.id);
+                            this.meet(state, config.naitei.aruaru.id);
+                        }
                     } else {
                         add(c.specials, naiteiId);
                     }
@@ -427,7 +433,8 @@ const Collection = {
                 { id: 'kooriKill', who: 'こおりくん', name: config.specials.kooriKill },
                 { id: 'kooriNaitei', who: 'こおりくん', name: config.specials.kooriNaitei },
                 ...config.companions.members.map(m => ({ id: m.id, who: m.name, name: m.special })),
-                ...enemies.map(e => ({ id: e.id, who: e.name, name: e.special }))
+                ...enemies.map(e => ({ id: e.id, who: e.name, name: e.special })),
+                { id: config.naitei.aruaru.id, who: config.naitei.aruaru.name, name: config.naitei.aruaru.special }
             ],
             trophies: Object.keys(config.trophy.colors).map(Number),
             endCards: config.endCard.cards.map(card => card.id)
@@ -941,6 +948,12 @@ const DebugState = {
     forceNaitei(state) {
         const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
         state.rash.debugForceNaitei = true;
+        return events;
+    },
+    // 次の内定の時ゾーンを1ゲーム目で負けさせ、アルアルの復活を起こす
+    forceAruaru(state) {
+        const events = this.forceNaitei(state);
+        state.rash.debugForceAruaru = true;
         return events;
     },
     // 次のゲームでお仲間チャレンジを発生させる (通常時)

@@ -57,6 +57,8 @@ const Lcd = (() => {
     let naiteiZone = false;    // 内定の時ゾーンの場面か
     let gateText = null;       // ゾーン突入の暗転と文字 { start, lines: [{ text, color, size, y, born, shake }], fadeStart }
     let naiteiGet = null;      // ゾーン突破の演出 { phase: 'black' | 'text' | 'rainbow', start }
+    let aruaruIntro = null;    // アルアルの復活の暗転 { phase: 'black' | 'giveup' | 'you' | 'rainbow' | 'have', start }
+    let aruaruAlly = null;     // こおりくんの横に立つアルアル { x }
     let dance = null;          // ダンシングステージ { hype, hypeAt } (hype: 盛り上がり 0〜3、hypeAt: そのゲームの時刻)
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
@@ -196,6 +198,11 @@ const Lcd = (() => {
         }
         if (naiteiGet) {
             drawNaiteiGet(time);
+            drawFlash(time);
+            return;
+        }
+        if (aruaruIntro) {
+            drawAruaruIntro(time);
             drawFlash(time);
             return;
         }
@@ -679,6 +686,13 @@ const Lcd = (() => {
             ctx.fill();
         }
 
+        // アルアル (内定の時ゾーンの復活): 虹色の光をまとって右を向いて立つ
+        if (aruaruAlly) {
+            const ax = valueAt(aruaruAlly.x, time);
+            drawRainbowGlow(ax, hall.groundY - 56, 56, (time / 6) % 360);
+            Characters.drawEnemy(ctx, config.naitei.aruaru.id, ax, hall.groundY, { scale: 2, frame: Math.floor(time / 450) % 2, flip: true });
+        }
+
         // 敵
         if (battle.visible && battle.enemyId) {
             const hurt = time < battle.hurtUntil && Math.floor(time / 60) % 2 === 0;
@@ -733,7 +747,8 @@ const Lcd = (() => {
         }
 
         // 敵の名前と HP (左上の撃破数・確率UPなどと重ならないよう、右側の残りゲーム数の下に置く)
-        if (battle.visible && battle.enemyId) {
+        // アルアルが出ている間は、王冠と顔が隠れないよう出さない
+        if (battle.visible && battle.enemyId && !aruaruAlly) {
             const enemy = Battle.findEnemy(config, battle.enemyId);
             const bw = Math.max(108, textWidth(enemy.name, 10) + textWidth('HP 000', 10) + 18);
             const bx = W - bw - 4, by = 24;
@@ -1237,6 +1252,86 @@ const Lcd = (() => {
         drawRainbowKoori(Math.round(cx - size / 2), Math.round(cy - size / 2), scale, hue, white);
         drawRainbowText('こおりがいただいた！', 8, 18, t, hue);
         drawSparkles(t, hue);
+    }
+
+    // ----- アルアルの復活 (内定の時ゾーンで負けたとき) -----
+    // 暗転 →「あきらめるな」(赤) →「君には」→ 赤が少しずつ虹色に →「内定がある！！」
+    function drawAruaruIntro(time) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        const { phase, start } = aruaruIntro;
+        const t = time - start;
+        if (phase === 'black') return;
+        if (phase === 'have') {
+            const hue = (t / 6) % 360;
+            drawRainbowRays(W / 2, H / 2, hue);
+            drawRainbowGlow(W / 2, H / 2, 70, hue);
+            drawRainbowText('内定がある！！', H / 2 - 14, 26, t, hue);
+            drawSparkles(t, hue);
+            return;
+        }
+        // 赤い文字。'rainbow' のあいだに少しずつ虹色を重ねる
+        const mix = phase === 'rainbow' ? Math.min(1, t / config.naitei.timing.aruRainbow) : 0;
+        const fade = phase === 'giveup' ? Math.min(1, t / 300) : 1;
+        ctx.globalAlpha = fade;
+        drawRedToRainbow('あきらめるな', H / 2 - 36, 24, mix, time);
+        ctx.globalAlpha = 1;
+        if (phase === 'you' || phase === 'rainbow') {
+            ctx.globalAlpha = phase === 'you' ? Math.min(1, t / 300) : 1;
+            drawRedToRainbow('君には', H / 2 + 6, 20, mix, time);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    // 真ん中ぞろえの文字を赤で描き、mix (0〜1) の濃さで1文字ずつ虹色を重ねる
+    function drawRedToRainbow(message, y, size, mix, time) {
+        const widths = [...message].map(ch => textWidth(ch, size));
+        let x = W / 2 - widths.reduce((a, b) => a + b, 0) / 2;
+        const alpha = ctx.globalAlpha;
+        [...message].forEach((ch, i) => {
+            text(ch, x, y, { color: '#ff2a2a', size, outline: '#000' });
+            if (mix > 0) {
+                ctx.globalAlpha = alpha * mix;
+                text(ch, x, y, { color: `hsl(${(time / 4 + i * 40) % 360}, 100%, 62%)`, size, outline: null });
+                ctx.globalAlpha = alpha;
+            }
+            x += widths[i];
+        });
+    }
+
+    // ナイナイの必殺技で倒れたあと: 暗転の文字 → こおりくんが起き上がり、王冠のアルアルが現れて必殺技でナイナイを一撃
+    async function playAruaru() {
+        const timing = config.naitei.timing;
+        const aru = config.naitei.aruaru;
+        const phase = (name, ms) => {
+            aruaruIntro = { phase: name, start: performance.now() };
+            return sleep(ms);
+        };
+        clearMessage();
+        titleCard = null;
+        await phase('black', timing.aruBlack);
+        Sound.bigHit();
+        await phase('giveup', timing.aruGiveUp);
+        Sound.stop(1);
+        await phase('you', timing.aruYou);
+        Sound.chance();
+        await phase('rainbow', timing.aruRainbow);
+        startFlash('#ffffff', 500);
+        Sound.rainbow();
+        setTimeout(Sound.fanfare, 500);
+        await phase('have', timing.aruHave);
+        aruaruIntro = null;
+        down = null;   // こおりくんが起き上がる
+        startFlash('#ffffff', 600);
+        // 王冠のアルアルが左から現れ、こおりくんの前に立つ
+        aruaruAlly = { x: animated(-40) };
+        await animateTo(aruaruAlly.x, 124, 700);
+        await sleep(400);
+        startFlash('#ffd700', 300);
+        Sound.chance();
+        await playCutIn(aru.id, aru.special, '#8a6a00', 1800, `${aru.name}の必殺技!!`);
+        hitFx(SPECIAL_FX[aru.id]);
+        await sleep(1000);
     }
 
     async function playNaiteiGet() {
@@ -2007,6 +2102,14 @@ const Lcd = (() => {
     async function naiteiResult(event) {
         const intensity = config.effects.intensity;
         if (event.win) {
+            // アルアルの復活: いったん負けて (ナイナイの必殺技)、アルアルがナイナイを一撃で倒す
+            if (event.aruaru) {
+                await enemySpecial(battle.enemyId);
+                knockDown();
+                Sound.miss();
+                await sleep(900);
+                await playAruaru();
+            }
             battle.hurtUntil = performance.now() + 800;
             Sound.defeat();
             startFlash('#ffd700', 600);
@@ -2019,6 +2122,7 @@ const Lcd = (() => {
             battle.enemyId = null;
             battle.games = null;
             await playNaiteiGet();
+            aruaruAlly = null;
             naiteiZone = false;
             showTitle('突破!!', '内定を勝ち取った!!', '#ffd700', 1800);
             if (event.furukawa) FurukawaView.show(event.furukawa);   // ふるカワの撃破のひとこと

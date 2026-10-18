@@ -681,6 +681,7 @@ const UI = (() => {
             ['RASH 突入', `${r.rash || 0}回`],
             ['SUPER 突入', `${r.super || 0}回`],
             ['内定の時 突破', `${r.naitei || 0}回`],
+            ['アルアルの復活', `${r.aruaru || 0}回`],
             ['ロングフリーズ', `${r.freeze || 0}回`],
             ['台移動', `${r.moves || 0}回`],
             ['復活', `${r.revival || 0}回`],
@@ -698,7 +699,8 @@ const UI = (() => {
             { id: 'koori', name: 'こおりくん' },
             { id: 'tomoishi', name: config.tomoishi.name },
             ...config.companions.members.map(m => ({ id: m.id, name: m.name })),
-            { id: 'furukawa', name: config.furukawa.name }
+            { id: 'furukawa', name: config.furukawa.name },
+            { id: config.naitei.aruaru.id, name: config.naitei.aruaru.name }
         ];
     }
 
@@ -765,6 +767,9 @@ const UI = (() => {
         } else if (member) {
             facts.push(['必殺技', member.special]);
             facts.push(['仲間の力', `城突入率 ×${member.castleEntry}・追撃 +${member.extraDamage}`]);
+        } else if (id === config.naitei.aruaru.id && !unknown) {
+            facts.push(['必殺技', config.naitei.aruaru.special]);
+            facts.push(['助けてもらった回数', `${(c.records.aruaru || 0).toLocaleString()}回`]);
         } else if (enemy && !unknown) {
             facts.push(['必殺技', enemy.special]);
             facts.push(['HP', String(enemy.hp)]);
@@ -787,6 +792,7 @@ const UI = (() => {
     function unlockHint(id) {
         if (id === 'tomoishi') return 'SUPERおにおにRASHに到達すると説明が見られます。';
         if (id === 'furukawa') return `${config.furukawa.name}に会うと説明が見られます。`;
+        if (id === config.naitei.aruaru.id) return '内定の時ゾーンで、あきらめずに戦っていると…？';
         if (config.companions.members.some(m => m.id === id)) return '仲間になると説明が見られます。';
         return '撃破すると説明が見られます。';
     }

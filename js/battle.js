@@ -356,8 +356,9 @@ const Battle = {
     naiteiGame(state, outcome, config, rng) {
         const rash = state.rash;
         rash.battleIntro = false;
+        if (rash.debugForceAruaru) rash.gamesRemaining = 1;   // デバッグ「次の内定の時で復活」: このゲームで負けてアルアルが出る
         rash.gamesRemaining--;
-        const finisher = rng() < (config.naitei.winRates[outcome.role] || 0);
+        const finisher = !rash.debugForceAruaru && rng() < (config.naitei.winRates[outcome.role] || 0);
         const damage = this.damageFor(outcome.role, config);
         const kill = finisher;
         let companionHits = !finisher && damage !== 'kill' && damage > 0 ? Companions.extraDamage(state, config) : [];
@@ -399,6 +400,15 @@ const Battle = {
     endNaitei(state, config, win, rng = Math.random) {
         const rash = state.rash;
         const enemy = config.naitei.enemy;
+        // 敗北したときの復活: 兄のアルアルが現れてナイナイを一撃で倒す (突破と同じ扱い)
+        const forceAruaru = Boolean(rash.debugForceAruaru);
+        rash.debugForceAruaru = false;
+        if (!win && (forceAruaru || rng() < config.naitei.aruaru.rate)) {
+            rash.enemyHp = 0;
+            const events = this.endNaitei(state, config, true);
+            events[0].aruaru = true;
+            return events;
+        }
         rash.phase = RASH_PHASES.SELECT;
         rash.enemyId = null;
         rash.gamesRemaining = 0;

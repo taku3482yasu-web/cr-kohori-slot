@@ -307,7 +307,8 @@ window.GAME_CONFIG = {
     //   winRates:       突破の抽選。ゾーン中の1ゲームごとに、出目 (役) に応じたこの確率で突破が当たる
     //                   当たると HP に関係なく「とどめだ!!」で撃破。games ゲームで当たらなければ失敗
     //                   ふつうのダメージでは倒しきれない (HP1 でガード)。肩代わりもない
-    //                   突破率は lottery.battle と winRates から計算される (約50%、Battle.naiteiWinRate)
+    //                   突破率は lottery.battle と winRates から計算される (約45%、Battle.naiteiWinRate)。
+    //                   負けの1割はアルアルの復活で突破になるので (aruaru)、合わせて約50% (アルアル追加前と同じ)
     //   おにおにRASH: 突破で SUPER へ / 失敗で RASH 終了 → SE城の城突入チャレンジへ (仲間は残る)
     //   SUPER:        突破で撃破ボーナス / 失敗しても SUPER は継続 (次の相手を決め直す)
     // 突破すると: 暗転 →「内定は」→ 虹色の「こおりがいただいた！」と、虹色に光るこおりくんのドアップ
@@ -320,14 +321,14 @@ window.GAME_CONFIG = {
         winRates: {
             seven: 1.0,
             sevenBar: 1.0,
-            chance: 0.55,
-            bar: 0.5,
-            melon: 0.25,
-            cherry: 0.15,
-            diamond: 0.05,
-            bell: 0.02,
-            replay: 0.01,
-            miss: 0.01
+            chance: 0.45,
+            bar: 0.41,
+            melon: 0.2,
+            cherry: 0.12,
+            diamond: 0.04,
+            bell: 0.016,
+            replay: 0.008,
+            miss: 0.008
         },
         companionRates: { yasu: 0.5, tamu: 0.35, dake: 0.2 },
         enemy: {
@@ -337,13 +338,22 @@ window.GAME_CONFIG = {
             hp: 200,
             bonus: { type: 'coins', value: 300 }
         },
+        // 敗北したときの復活 (ユーザー指定): rate の確率で、兄のシーシャ・ナイテイ・アルアル (王冠) が現れ、
+        // 必殺技でナイナイを一撃で倒す。突破と同じ扱い (突破ボーナス・SUPER へ・図鑑の撃破・実績)
+        //   ナイナイの必殺技 → 暗転 →「あきらめるな」(赤) →「君には」→ 赤が少しずつ虹色に →「内定がある！！」→ アルアル登場 → 必殺技
+        aruaru: { rate: 0.1, id: 'aruaru', name: 'シーシャ・ナイテイ・アルアル', special: '採用の祝福' },
         timing: {             // ミリ秒
             black: 800,       // 暗転
             text1: 1400,      // 「ここから先」
             text2: 2800,      // 「内定を持たぬものは通す事は出来ない」
             getBlack: 700,    // 突破: 暗転
             getText: 1600,    // 突破:「内定は」
-            getRainbow: 3600  // 突破: 虹色の「こおりがいただいた！」とこおりくんのドアップ
+            getRainbow: 3600, // 突破: 虹色の「こおりがいただいた！」とこおりくんのドアップ
+            aruBlack: 900,    // アルアルの復活: 暗転
+            aruGiveUp: 1500,  // 「あきらめるな」(赤)
+            aruYou: 1300,     // 「君には」
+            aruRainbow: 1600, // 赤が少しずつ虹色に
+            aruHave: 2200     // 「内定がある！！」
         }
     },
 
@@ -590,7 +600,7 @@ window.GAME_CONFIG = {
             revengeChance: 5,
             battle: { sevenBar: 6, seven: 5, bar: 5, chance: 4, melon: 2, cherry: 1, diamond: 1 },
             entrySteps: [0.1, 0.3, 0.5, 0.8, 1.0],
-            naiteiSteps: [0.05, 0.15, 0.25, 0.5, 0.55],   // 内定の時ゾーンの突破率の段階 (必ず突破する役は 6)
+            naiteiSteps: [0.04, 0.12, 0.2, 0.41, 0.45],   // 内定の時ゾーンの突破率の段階 (必ず突破する役は 6)
             danceSteps: [0.05, 0.2, 0.3, 0.5, 0.6],       // ダンシングステージのチャンスゾーン突入率の段階 (確定は 6、突入済みなら 0)
             treasure: { seven: 5, chance: 5, bar: 4, sevenBar: 4, melon: 3, cherry: 2, diamond: 2, bell: 1 },   // 宝物庫ゾーン: 上乗せの多い役ほど熱い
             questionWin: 5
@@ -659,7 +669,8 @@ window.GAME_CONFIG = {
             sasaki: ['SASAKIさん、ゆっくり休んでね…', 'すごいです。やばいです。…うつっちゃった'],
             onioni: ['おにおにを倒した！ すごいよ！', 'お金のことは…また今度ね！'],
             goldDog: ['ワンちゃん、金庫にお帰り〜！', '黄金にならなくてよかった…！'],
-            naitei: ['こおりくん、内定おめでとう！', 'これで内定持ちだね…ふーん♪']
+            naitei: ['こおりくん、内定おめでとう！', 'これで内定持ちだね…ふーん♪'],
+            aruaru: ['アルアルさん…かっこいい…！', 'お兄さんのほうは、内定くれるんだ…！']   // アルアルが倒したとき
         },
         // RASH 終了 (「○○RASH 終了」の表示中)。super: SUPER まで行った / many: manyDefeats 体以上撃破 / zero: 1体も倒せなかった / normal: それ以外
         rashEndLines: {
@@ -786,7 +797,8 @@ window.GAME_CONFIG = {
             { id: 'moves5', name: '台選び上手', desc: '台移動を合計5回する', stat: 'moves', value: 5 },
             { id: 'games10000', name: '打ち込み1万G', desc: '合計10,000ゲーム回す', stat: 'games', value: 10000 },
             { id: 'revival', name: 'こおりまだまえる', desc: '復活して敵を撃破する', stat: 'revival', value: 1 },
-            { id: 'ending', name: 'ともいし救出', desc: 'SUPER中におにおにを倒して、エンディングを見る', stat: 'ending', value: 1 }
+            { id: 'ending', name: 'ともいし救出', desc: 'SUPER中におにおにを倒して、エンディングを見る', stat: 'ending', value: 1 },
+            { id: 'aruaru', name: '内定がある！！', desc: '内定の時ゾーンで、シーシャ・ナイテイ・アルアルに助けてもらう', stat: 'aruaru', value: 1 }
         ]
     },
 
