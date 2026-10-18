@@ -21,11 +21,11 @@ window.GAME_CONFIG = {
     machine: {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
-            1: { chance: 0.93, castleEntry: 0.95, pointBig: 0.94 },
-            2: { chance: 0.97, castleEntry: 0.98, pointBig: 0.98 },
-            3: { chance: 1.00, castleEntry: 1.00, pointBig: 1.00 },
-            4: { chance: 1.34, castleEntry: 1.25, pointBig: 1.28 },
-            5: { chance: 1.85, castleEntry: 1.76, pointBig: 1.62 },
+            1: { chance: 0.86, castleEntry: 0.95, pointBig: 0.94 },
+            2: { chance: 0.89, castleEntry: 0.98, pointBig: 0.98 },
+            3: { chance: 0.92, castleEntry: 1.00, pointBig: 1.00 },
+            4: { chance: 1.24, castleEntry: 1.25, pointBig: 1.28 },
+            5: { chance: 1.73, castleEntry: 1.76, pointBig: 1.62 },
             6: { chance: 2.75, castleEntry: 2.75, pointBig: 2.15 }
         }
     },
@@ -230,7 +230,7 @@ window.GAME_CONFIG = {
         entryCutIn: 'こおりばりきつよい！',   // 突入成功時のこおりくんのカットイン
         chanceBoost: 1.5,     // SE城前 (チャレンジ前の待機中) でチャンス目を引いたときの突入率の倍率 (こおりくんが赤いオーラをまとう)
         // 仲間・オーラの倍率がこれより小さいときは、この倍率にする (ユーザー指定: 仲間なし・オーラなしの成功率を少し上げる)。
-        // 仲間なし・オーラなしの設定1で約28% → 約32%。やすさんだけ (×1.15) も同じになり、それ以上の組み合わせは変わらない
+        // 仲間なし・オーラなしの設定1で約28% → 約31% (出玉率を戻すために下げた設定1〜5 のチャンス目の倍率込み)。やすさんだけ (×1.15) も同じになる
         minBoost: 1.3
     },
 
