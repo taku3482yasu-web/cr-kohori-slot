@@ -12,12 +12,30 @@ const FurukawaView = (() => {
     const FURUKAWA_SCALE = 2;
     const BUBBLE_FONT = 10;
     const BUBBLE_LINE = 12;
+    // 1行の幅 (ドット)。こおりくん (液晶の左寄り、地面は y=120 付近) にかからないよう、吹き出しは地面より下の帯に出し、
+    // 1行を長めにして2行になりにくくする (たいていのセリフは1行に収まる)
+    const BUBBLE_WIDTH = 170;
 
     function show(talk) {
         ({ config } = LcdKit.canvas());
         const now = performance.now();
-        furukawa = { ...talk, lines: wrapText(talk.text, BUBBLE_FONT, 150), start: now, until: now + config.furukawa.talkTime };
+        furukawa = { ...talk, lines: wrap(talk.text), start: now, until: now + config.furukawa.talkTime };
         Sound.talk();
+    }
+
+    // 折り返し。2行以上になるときは行の長さをそろえる (「？」だけが次の行に回らないように。吹き出しの幅も狭くなる)
+    function wrap(str) {
+        const lines = wrapText(str, BUBBLE_FONT, BUBBLE_WIDTH);
+        if (lines.length < 2) return lines;
+        const balanced = wrapText(str, BUBBLE_FONT, Math.ceil(textWidth(str, BUBBLE_FONT) / lines.length) + BUBBLE_FONT);
+        // 句読点・「！？…♪」などは行の頭に置かず、前の行の終わりに付ける
+        for (let i = 1; i < balanced.length; i++) {
+            while (/^[、。，．！？!?…♪〜ー）」』]/.test(balanced[i])) {
+                balanced[i - 1] += balanced[i][0];
+                balanced[i] = balanced[i].slice(1);
+            }
+        }
+        return balanced.filter(line => line);
     }
 
     function hide() {
@@ -44,10 +62,10 @@ const FurukawaView = (() => {
             const lines = furukawa.lines;
             const bw = Math.max(...lines.map(l => textWidth(l, BUBBLE_FONT))) + 12;
             const bh = lines.length * BUBBLE_LINE + 8;
-            const bx = x - bw - 6, by = H - bh - 16;
+            const bx = x - bw - 6, by = H - bh - 2;   // 下の端にそろえる (地面より下の帯)
             box(bx, by, bw, bh, 'rgba(12,12,32,0.9)', '#ffffff');
             // しっぽ (ふるカワの顔のほうへ)
-            const ty = by + bh - 10;
+            const ty = Math.max(by + 3, Math.min(by + bh - 10, H - 30));   // ふるカワの顔に近い高さ (吹き出しの中で)
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
             ctx.moveTo(bx + bw - 1, ty);

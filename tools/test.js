@@ -115,7 +115,7 @@ function play(setting, games, seed) {
         ending: { count: 0, notSuperOni: 0, twiceInSet: 0, supers: 0 },   // エンディング (SUPER 中のおにおに撃破で、SUPER 1回につき1回)     // SUPER 中に「おにおにが現れる…!?」が出た回数 (出てはいけない)
         joined: new Set(),       // 仲間になった仲間の id
         revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0, notSeven: 0, paid: 0 },
-        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0, intro: { games: 0, said: 0, wrong: 0, hot: 0, hotIntroLine: 0, naitei: 0 }, events: { reply: 0, defeat: 0, naitei: 0, rashEnd: 0, super: 0, ending: 0, rashEndLines: new Set(), missing: 0, wrong: 0 } }
+        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0, intro: { games: 0, said: 0, wrong: 0, hot: 0, hotIntroLine: 0, naitei: 0 }, events: { reply: 0, defeat: 0, naitei: 0, rashEnd: 0, super: 0, ending: 0, rashEndLines: new Set(), missing: 0, wrong: 0, repeat: 0, lastByKey: {} }, lastText: null, sameInRow: 0 }
     };
     let pendingGuaranteed = false;
     let endingInSet = false;   // この RASH でエンディングが出たか
@@ -134,6 +134,11 @@ function play(setting, games, seed) {
         const heat = canTalk ? Furukawa.heat(state, outcome, config) : null;
         const talk = Furukawa.talk(state, outcome, config);
         if (talk) Collection.hearFurukawa(state, talk.text, config);   // main.js と同じ
+        // ふるカワのセリフが2回続けて同じにならない (レバー ON・演出の中。候補が1つしかないもの・設定示唆は除く)
+        if (talk) {
+            if (talk.text === log.furukawa.lastText && talk.settingLine == null && !/\d/.test(talk.text) && !talk.text.startsWith('次の相手は')) log.furukawa.sameInRow++;
+            log.furukawa.lastText = talk.text;
+        }
         if (talk && talk.settingLine != null) SettingEstimate.countFurukawa(state, talk.settingLine);
         if (talk) {
             f.talks++;
@@ -187,6 +192,13 @@ function play(setting, games, seed) {
             else {
                 ev[kind] = (ev[kind] || 0) + 1;
                 if (kind === 'rashEnd') ev.rashEndLines.add(e.furukawa.text);
+            }
+            if (e.furukawa) log.furukawa.lastText = e.furukawa.text;   // 演出の中のセリフも続けて同じか数える
+            // 同じ候補 (同じ敵への返事など) から続けて同じセリフを選んでいない
+            if (e.furukawa && lines.length > 1) {
+                const key = lines.join();
+                if (ev.lastByKey[key] === e.furukawa.text) ev.repeat++;
+                ev.lastByKey[key] = e.furukawa.text;
             }
         }
         // 復活: 「？？」の負けで決まったら RASH のまま復活待ち、次のゲームで敵を撃破
@@ -579,6 +591,8 @@ test('ふるカワ: 敵・ともいしへの返事、撃破・RASH 終了・エ�
         for (const kind of ['super', 'many', 'normal', 'zero']) assert(end[kind].some(t => ev.rashEndLines.has(t)), `設定${setting} で RASH 終了の ${kind} のセリフが出ない`);
         assertEqual(ev.missing, 0, `設定${setting} で返事・撃破のひとことが付いていない`);
         assertEqual(ev.wrong, 0, `設定${setting} でほかの敵のセリフ`);
+        assertEqual(ev.repeat, 0, `設定${setting} で同じ敵への返事・ひとことが続けて同じ`);
+        assertEqual(log.furukawa.sameInRow, 0, `設定${setting} でふるカワのセリフが2回続けて同じ`);
     }
 });
 

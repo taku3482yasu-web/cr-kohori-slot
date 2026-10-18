@@ -177,6 +177,7 @@
     Lcd.init(document.getElementById('lcd'), config, state);
     Reels.init(config, reelElements, stopButtons);
     UI.init(config, { lever: spinButton, stop1: stopButtons[0], stop2: stopButtons[1], stop3: stopButtons[2] });
+    Layout.init();   // パソコンでの表示 (一覧 / 全画面)
 
     spinButton.addEventListener('click', playGame);
     buyCoinsButton.addEventListener('click', buyCoins);

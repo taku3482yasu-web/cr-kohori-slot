@@ -12,6 +12,9 @@
 // =====================================================================
 
 const Furukawa = {
+    lastText: null,              // 直前に言ったセリフ
+    lastByList: new Map(),       // 候補の一覧 (中身) ごとに、前回そこから選んだセリフ
+
     // しゃべる内容 { text, color, heat, settingLine } を返す。出てこないゲームは null
     // settingLine: 設定示唆のセリフを言ったときは config.furukawa.settingLines の番号 (設定推測の材料。それ以外は null)
     talk(state, outcome, config, rng = Math.random) {
@@ -20,7 +23,7 @@ const Furukawa = {
         const heat = this.heat(state, outcome, config);
         // 戦いはじめの1ゲーム目: その敵の話 (シバターなら「おはしばた！」など)
         const intro = this.introLines(state, config, heat);
-        if (intro) return { text: intro[Math.floor(rng() * intro.length)], settingLine: null, color: cfg.battleIntro.color, heat };
+        if (intro) return { text: this.choose(intro, rng), settingLine: null, color: cfg.battleIntro.color, heat };
         if (rng() >= cfg.appearRates[heat]) return null;
         const weights = cfg.colorWeights[heat];
         const color = Number(Lottery.weightedPick(Object.keys(weights), c => weights[c], rng));
@@ -74,7 +77,7 @@ const Furukawa = {
     // セリフを選ぶ { text, settingLine }
     line(state, config, color, rng) {
         const cfg = config.furukawa;
-        const pick = list => ({ text: list[Math.floor(rng() * list.length)], settingLine: null });
+        const pick = list => ({ text: this.choose(list, rng), settingLine: null });
         // RASH の対戦相手を決めるゲーム・「？？」は専用のセリフ
         const inRash = StateMachine.isRashMode(state);
         const phase = inRash ? state.rash.phase : null;
@@ -92,6 +95,8 @@ const Furukawa = {
         if (kind === 'chat') return pick(this.chatLines(state, config));
         if (kind === 'setting') {
             const index = Number(Lottery.weightedPick(Object.keys(cfg.settingLines), i => cfg.settingLines[i].weights[state.setting], rng));
+            // 設定示唆は設定推測の材料なので、続いても重みどおりに選ぶ (避けない)
+            this.lastText = cfg.settingLines[index].text;
             return { text: cfg.settingLines[index].text, settingLine: index };
         }
         return pick(this.stageLines(state, config));
@@ -135,7 +140,7 @@ const Furukawa = {
     //   ending: エンディングのあとのひとこと (endingLines)
     attachEventTalks(events, config, rng = Math.random) {
         const cfg = config.furukawa;
-        const pick = list => (list && list.length ? { text: list[Math.floor(rng() * list.length)], color: cfg.eventColor } : null);
+        const pick = list => (list && list.length ? { text: this.choose(list, rng), color: cfg.eventColor } : null);
         for (const e of events) {
             let talk = null;
             if (e.type === 'battleStart') talk = pick(cfg.replies[e.enemyId]);
@@ -152,6 +157,28 @@ const Furukawa = {
             if (talk) e.furukawa = talk;
         }
         return events;
+    },
+
+    // 候補から1つ選ぶ。同じセリフが続かないよう、直前に言ったセリフと、この候補から前回選んだセリフは
+    // (ほかに候補があれば) 避ける。同じ敵と続けて戦っても、返事・撃破のひとことが毎回同じにならない
+    choose(list, rng) {
+        // 一覧は毎回作り直すもの (戦っている敵の話など) もあるので、中身で見分ける。
+        // 数字の入る一覧 (残りゲーム数など) は場面ごとに中身が変わるので、前回の記録は使わず直前のセリフだけ避ける
+        const key = list.join('\n');
+        const track = list.length > 1 && !/\d/.test(key);
+        const prev = track ? this.lastByList.get(key) : undefined;
+        let options = list.filter(t => t !== this.lastText && t !== prev);
+        if (!options.length) options = list.filter(t => t !== prev);   // 前回この候補から選んだセリフを避けるほうを優先
+        if (!options.length) options = list;
+        const text = options[Math.floor(rng() * options.length)];
+        this.lastText = text;
+        if (track) {
+            // 最近使った一覧を後ろへ。増えすぎないよう、いちばん古いものから消す
+            this.lastByList.delete(key);
+            this.lastByList.set(key, text);
+            if (this.lastByList.size > 300) this.lastByList.delete(this.lastByList.keys().next().value);
+        }
+        return text;
     },
 
     // RASH 終了のひとこと: SUPER まで行った → いっぱい倒した → 1体も倒せなかった → それ以外 の順に選ぶ
@@ -215,7 +242,7 @@ const Furukawa = {
         if (normal.map === config.map.castle) return [`城突入まであと${normal.castleWaitRemaining}G！`, 'ここでチャンス目を引くとパワーアップ！'];
         if (normal.revengeGames > 0) {
             const carry = normal.revengeCarry;
-            return [carry && carry.wasSuper ? 'チャンス目でSUPERに戻れるよ！' : 'チャンス目でRASH復活だよ！'];
+            return [carry && carry.wasSuper ? 'チャンス目でSUPERに戻れるよ！' : 'チャンス目でRASH復活だよ！', 'リベンジチャンス中！ チャンス目を引いて！'];
         }
         const next = config.map.loop[(normal.loopIndex + 1) % config.map.loop.length];
         const left = config.map.gamesPerMap - normal.gamesInMap;

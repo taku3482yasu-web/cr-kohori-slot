@@ -91,6 +91,41 @@ body {
     border-color: #ff9a3c;
 }
 
+/* 全画面ボタン: パソコン (幅 1100px 以上) だけ出す */
+#fullscreen-button {
+    display: none;
+    padding: 8px 16px;
+    background: #444;
+    color: white;
+    border: 2px solid #9fb8ff;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* 全画面のときだけ右上に出す「戻る」ボタン (ふだんは薄く、マウスを乗せるとはっきり) */
+.exit-fullscreen-button {
+    display: none;
+    position: fixed;
+    top: 10px;
+    right: 12px;
+    z-index: 50;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border: 1px solid #888;
+    border-radius: 16px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0.35;
+    transition: opacity 0.2s;
+}
+
+.exit-fullscreen-button:hover,
+.exit-fullscreen-button:focus-visible {
+    opacity: 1;
+}
+
 .move-warning {
     margin: 0 0 14px;
     padding: 6px 10px;
@@ -1809,4 +1844,64 @@ button {
     .game-title {
         font-size: 1rem;
     }
+}
+
+/* =====================================================================
+   パソコンでの表示モード (js/layout.js)
+   ===================================================================== */
+@media (min-width: 1100px) {
+    #fullscreen-button {
+        display: inline-block;
+    }
+}
+
+/* ふだん (一覧): ページ全体を画面に収まる大きさに拡大・縮小する (倍率は layout.js が transform で付ける) */
+body.layout-fit {
+    height: 100vh;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+body.layout-fit .game-container {
+    width: max-content;
+    transform-origin: top center;
+}
+
+/* データカウンターは左の列 (筐体) の高さに合わせ、あふれた分は中でスクロール (右の列で全体が伸びないように) */
+body.layout-fit .data-counter {
+    max-height: none;
+    height: 0;
+    min-height: 100%;
+    box-sizing: border-box;
+}
+
+/* 全画面: 筐体だけを画面の真ん中に、画面いっぱいの大きさで (倍率は layout.js) */
+body.layout-full {
+    height: 100vh;
+    padding: 0;
+    overflow: hidden;
+}
+
+body.layout-full .game-container {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    max-width: none;
+}
+
+body.layout-full .game-container > :not(.slot-machine) {
+    display: none !important;
+}
+
+body.layout-full .slot-machine {
+    flex-shrink: 0;
+    width: 600px;
+    transform-origin: center;
+}
+
+body.layout-full .exit-fullscreen-button {
+    display: block;
 }

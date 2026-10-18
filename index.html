@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=b658f423">
+    <link rel="stylesheet" href="css/style.css?v=c1b24b52">
 </head>
 <body>
     <div class="game-container">
@@ -31,6 +31,8 @@
             <button id="move-button"><span class="tb-icon">⇄</span> <span class="tb-label">台移動</span></button>
             <button id="reset-button"><span class="tb-icon">↺</span> <span class="tb-label">リセット</span></button>
             <button id="settings-button"><span class="tb-icon">⚙</span> <span class="tb-label">SETTINGS</span></button>
+            <!-- パソコンだけ: 筐体だけを全画面で表示する (js/layout.js) -->
+            <button id="fullscreen-button" title="液晶とリールだけを全画面で遊ぶ（Esc で戻る）"><span class="tb-icon">⛶</span> <span class="tb-label">全画面</span></button>
         </div>
 
         <!-- ステータスパネル -->
@@ -161,6 +163,9 @@
     </div>
 
     <!-- 設定画面 -->
+    <!-- 全画面のときだけ出る「戻る」ボタン -->
+    <button id="exit-fullscreen-button" class="exit-fullscreen-button" title="ふだんの表示に戻る（Esc）">✕ 全画面をやめる</button>
+
     <div id="settings-modal" class="modal" hidden>
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="settings-title">
             <h2 id="settings-title">SETTINGS</h2>
@@ -330,7 +335,7 @@
     <script src="js/state.js?v=148555bd"></script>
     <script src="js/lottery.js?v=ef41b4a7"></script>
     <script src="js/battle.js?v=38e14d9b"></script>
-    <script src="js/furukawa.js?v=06da37ed"></script>
+    <script src="js/furukawa.js?v=1329134e"></script>
     <script src="js/save.js?v=4165304e"></script>
     <script src="js/bgm.js?v=007b4b6e"></script>
     <script src="js/reels.js?v=bf0163a4"></script>
@@ -339,14 +344,15 @@
     <script src="js/lcd/chance-fx.js?v=5bf8dd47"></script>
     <script src="js/lcd/trophy-view.js?v=137424f8"></script>
     <script src="js/lcd/end-card-view.js?v=ba79dd8d"></script>
-    <script src="js/lcd/furukawa-view.js?v=41f6e421"></script>
+    <script src="js/lcd/furukawa-view.js?v=42fe6de3"></script>
     <script src="js/lcd/story-view.js?v=9d4ed5f5"></script>
     <script src="js/lcd/opening-view.js?v=f59a78e2"></script>
     <script src="js/lcd/ending-view.js?v=3c9c7b55"></script>
     <script src="js/lcd.js?v=9b1dfb51"></script>
     <script src="js/profiles.js?v=4a4867b2"></script>
-    <script src="js/updates.js?v=b157f6bd"></script>
+    <script src="js/updates.js?v=ae4bb2b4"></script>
     <script src="js/ui.js?v=9c00ad6c"></script>
-    <script src="js/main.js?v=b8f83b96"></script>
+    <script src="js/layout.js?v=14bd5f38"></script>
+    <script src="js/main.js?v=4c23efea"></script>
 </body>
 </html>
