@@ -26,7 +26,7 @@ const vm = require('vm');
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
 
 const JS_DIR = path.join(__dirname, '..', 'js');
-const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js'];
+const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'furukawa.js'];   // furukawa.js: 1ゲームの処理で敵への返事などを選ぶ
 
 // ゲームのスクリプトをブラウザと同じように1つのグローバル環境に読み込む
 function loadGame(overrides) {
