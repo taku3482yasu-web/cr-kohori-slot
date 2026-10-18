@@ -711,6 +711,25 @@ test('アップデート情報: 更新されたときだけ1回表示し、は�
     assertEqual(g.UpdateNotes.takePending(false).length, 0, '表示に戻したら、たまった分を出した');
 });
 
+// 出玉シミュレーター: 少ないゲーム数で実際に動かす (ゲームの処理が新しいファイルを使うようになったのに、
+// シミュレーターが読み込んでいないと動かなくなる。ブラウザ版の simulate.html も同じファイルを読み込んでいるか確かめる)
+test('出玉シミュレーター: Node.js 版が動いて出玉率を出し、ブラウザ版も同じファイルを読み込んでいる', () => {
+    const { spawnSync } = require('child_process');
+    const sim = path.join(__dirname, 'simulate.js');
+    const res = spawnSync(process.execPath, [sim, '--games', '20000', '--settings', '1,6', '--json'], { encoding: 'utf8', timeout: 60000 });
+    assertEqual(res.status, 0, `simulate.js が失敗した (${(res.stderr || res.stdout || '').trim().split('\n').pop()})`);
+    const rows = JSON.parse(res.stdout);
+    assertEqual(rows.map(r => r.setting).join(), '1,6', 'シミュレーターの設定');
+    for (const r of rows) {
+        assertBetween(r.rtp, 0.7, 1.6, `シミュレーターの設定${r.setting} の出玉率`);
+        assert(r.rashOdds > 0 && r.entryRate > 0, `シミュレーターの設定${r.setting} で RASH・城突入がない`);
+    }
+    // ブラウザ版: simulate.js が読み込むゲームのファイルを、simulate.html もすべて読み込む
+    const files = fs.readFileSync(sim, 'utf8').match(/const GAME_FILES = \[([^\]]*)\]/)[1].match(/'([^']+)'/g).map(s => s.slice(1, -1));
+    const html = fs.readFileSync(path.join(__dirname, 'simulate.html'), 'utf8');
+    for (const file of files) assert(html.includes(`src="../js/${file}`), `simulate.html が ${file} を読み込んでいない`);
+});
+
 // ----- 結果 -----
 for (const r of results) console.log(`${r.ok ? '  ✔' : '  ✘'} ${r.name}${r.ok ? '' : `\n      → ${r.message}`}`);
 const failed = results.filter(r => !r.ok).length;
