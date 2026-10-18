@@ -83,6 +83,7 @@ const Battle = {
         rash.gamesRemaining = baseGames + bonusGames;
         rash.goldDogFlag = enemy.id === config.goldDog.id;
         rash.breakActive = false;
+        rash.battleIntro = true;
         rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
         rash.phase = RASH_PHASES.BATTLE;
         return [{
@@ -122,6 +123,7 @@ const Battle = {
     battleGame(state, outcome, config, rng) {
         const rash = state.rash;
         const events = [];
+        rash.battleIntro = false;
         rash.gamesRemaining--;
         if (rash.probUpGames > 0) rash.probUpGames--;
 

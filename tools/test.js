@@ -115,7 +115,7 @@ function play(setting, games, seed) {
         ending: { count: 0, notSuperOni: 0, twiceInSet: 0, supers: 0 },   // エンディング (SUPER 中のおにおに撃破で、SUPER 1回につき1回)     // SUPER 中に「おにおにが現れる…!?」が出た回数 (出てはいけない)
         joined: new Set(),       // 仲間になった仲間の id
         revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0, notSeven: 0, paid: 0 },
-        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0 }
+        furukawa: { talks: 0, byHeat: {}, byColor: {}, lines: new Set(), rashLines: new Set(), phaseLines: {}, rainbowNotSure: 0, sureSilent: 0, empty: 0, intro: { games: 0, said: 0, wrong: 0, hot: 0, hotIntroLine: 0 } }
     };
     let pendingGuaranteed = false;
     let endingInSet = false;   // この RASH でエンディングが出たか
@@ -145,6 +145,19 @@ function play(setting, games, seed) {
             if (!talk.text) f.empty++;
         } else if (heat === 6) {
             f.sureSilent++;
+        }
+        // 戦いはじめの1ゲーム目: 熱い役でなければ必ずその敵の話 / 熱い役ならふだんどおり
+        if (wasBattle && rash.battleIntro) {
+            const enemyLines = config.furukawa.chatLines.enemies[rash.enemyId] || [];
+            const saidEnemy = Boolean(talk) && enemyLines.includes(talk.text);
+            if (heat < config.furukawa.battleIntro.skipHeat) {
+                f.intro.games++;
+                if (saidEnemy) f.intro.said++;
+                else if (enemyLines.length) f.intro.wrong++;
+            } else {
+                f.intro.hot++;
+                if (saidEnemy && talk.color === config.furukawa.battleIntro.color) f.intro.hotIntroLine++;
+            }
         }
         const events = GameFlow.onGameEnd(state, outcome, config);
 
@@ -507,6 +520,16 @@ test('図鑑の解禁: ともいしは SUPER 到達、仲間は仲間になる�
     old.records.super = 1;
     old.specials.yasu = 1;
     assert(Collection.isUnlocked(old, 'tomoishi', config) && Collection.isUnlocked(old, 'yasu', config), '古いデータで解禁されない');
+});
+
+test('ふるカワ: 敵と戦いはじめて1ゲーム目は、熱い役でなければ必ずその敵の話をする', () => {
+    for (const { setting, log } of runs) {
+        const i = log.furukawa.intro;
+        assert(i.games > 0 && i.said > 0, `設定${setting} で戦いはじめの話をしない`);
+        assertEqual(i.wrong, 0, `設定${setting} で戦いはじめにその敵の話をしなかった`);
+        assert(i.hot > 0, `設定${setting} で戦いはじめに熱い役が一度もない`);
+        assert(i.hotIntroLine < i.hot, `設定${setting} で熱い役なのに戦いはじめの話ばかり`);
+    }
 });
 
 test('ふるカワ: キャラクターの話をする (通常時・仲間・戦っている敵・SUPER のともいし)', () => {

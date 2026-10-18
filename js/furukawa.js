@@ -6,6 +6,7 @@
 // 2. 熱さに応じた確率 (appearRates) で出現する
 // 3. 吹き出しの文字の色 (0:白 1:青 2:緑 3:紫 4:赤 5:金 6:虹) を熱さごとの重み (colorWeights) で選ぶ
 // 4. 色が赤以上ならチャンスのセリフ、それ以外はヒント・今の状況 (次のステージなど)・設定示唆・キャラクターの話から選ぶ
+// ただし敵と戦いはじめて1ゲーム目は、熱い役でなければ必ず出てきてその敵の話をする (battleIntro)
 // state は読むだけで書き換えない。
 // =====================================================================
 
@@ -16,6 +17,9 @@ const Furukawa = {
         const cfg = config.furukawa;
         if (!this.canAppear(state, config)) return null;
         const heat = this.heat(state, outcome, config);
+        // 戦いはじめの1ゲーム目: その敵の話 (シバターなら「おはしばた！」など)
+        const intro = this.introLines(state, config, heat);
+        if (intro) return { text: intro[Math.floor(rng() * intro.length)], settingLine: null, color: cfg.battleIntro.color, heat };
         if (rng() >= cfg.appearRates[heat]) return null;
         const weights = cfg.colorWeights[heat];
         const color = Number(Lottery.weightedPick(Object.keys(weights), c => weights[c], rng));
@@ -73,6 +77,15 @@ const Furukawa = {
             return { text: cfg.settingLines[index].text, settingLine: index };
         }
         return pick(this.stageLines(state, config));
+    },
+
+    // 敵と戦いはじめて1ゲーム目のセリフ (その敵の話)。チャンス目など熱い役のゲームと、話のない敵は null (ふだんどおり)
+    introLines(state, config, heat) {
+        const rash = state.rash;
+        if (!StateMachine.isRashMode(state) || rash.phase !== RASH_PHASES.BATTLE || !rash.battleIntro) return null;
+        if (heat >= config.furukawa.battleIntro.skipHeat) return null;
+        const lines = config.furukawa.chatLines.enemies[rash.enemyId];
+        return lines && lines.length ? lines : null;
     },
 
     // 対戦相手を決めるゲーム: 誰が来るかな？ / 熱いとき・強い相手が決まっているときは「強い気配がするよ！」

@@ -184,6 +184,7 @@ function createRashState() {
         nextForcedEnemy: null,   // 次の対戦相手の確定 (ゴールド金面犬撃破後など)
         goldDogFlag: false,      // ゴールド金面犬と対戦中か
         breakActive: false,      // ブレイク状態 (敵がガードできない)
+        battleIntro: false,      // 敵と戦いはじめて1ゲーム目か (ふるカワがその敵の話をする)
         probUpGames: 0,          // 柄揃い確率アップの残りゲーム数
         probUpMultiplier: 1,
         bonusGames: 0,           // 次の BATTLE に上乗せするゲーム数 (撃破ボーナス・宝物庫ゾーン)

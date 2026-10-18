@@ -622,6 +622,9 @@ window.GAME_CONFIG = {
             normal: ['おねがい！続いて！', '揃って…！', 'まだ終わりたくない…！'],
             hot: ['おねがい！続いて！！', 'いける…いけるよ！']
         },
+        // 敵と戦いはじめて1ゲーム目は必ず出てきて、その敵の話 (chatLines.enemies) をする (ユーザー指定)
+        //   skipHeat: そのゲームの熱さがこれ以上 (チャンス目・BAR・7揃いなど) なら、ふだんどおりにする / color: 文字の色
+        battleIntro: { skipHeat: 4, color: 0 },
         kindWeights: { hint: 25, stage: 30, setting: 25, chat: 20 },
         hints: [
             'チャンス目はスイカ崩れ・BAR崩れ・7崩れの3つだよ',
