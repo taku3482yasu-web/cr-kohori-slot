@@ -420,9 +420,14 @@ test('設定推測: 城突入チャレンジの成功率が計算値と合う', 
 test('SE城前のチャンス目: 突入率UP (オーラ) のチャレンジがあり、成功率が上がる', () => {
     for (const { setting, state, game } of runs) {
         const boosted = state.estimate.challenges[String(game.config.castle.chanceBoost)];
-        const plain = state.estimate.challenges['1'];
+        const plain = state.estimate.challenges[String(game.config.castle.minBoost)];   // 仲間なし・オーラなし (底上げの倍率)
         assert(boosted && boosted.tries > 0, `設定${setting} で突入率UPのチャレンジがない`);
-        assert(boosted.wins / boosted.tries > plain.wins / plain.tries, `設定${setting} で突入率UPのほうが成功率が低い`);
+        // 理論値はオーラのほうが高く、実際の成功率もばらつきの範囲で低くない (設定6 は差が小さい)
+        const rate = boost => game.SettingEstimate.challengeRate(game.config, setting, boost);
+        assert(rate(game.config.castle.chanceBoost) > rate(game.config.castle.minBoost), `設定${setting} で突入率UPの理論値が低い`);
+        const pb = boosted.wins / boosted.tries, pp = plain.wins / plain.tries;
+        const sd = Math.sqrt(pb * (1 - pb) / boosted.tries + pp * (1 - pp) / plain.tries);
+        assert(pb - pp > -3 * sd, `設定${setting} で突入率UPのほうが成功率が低い`);
     }
 });
 

@@ -690,7 +690,8 @@ const GameFlow = {
 
     // 城突入チャレンジの突入率にかかる倍率 (仲間・SE城前のチャンス目)
     castleEntryBoost(state, config) {
-        return Companions.castleEntryMultiplier(state, config) * (state.challenge.chanceBoost ? config.castle.chanceBoost : 1);
+        const boost = Companions.castleEntryMultiplier(state, config) * (state.challenge.chanceBoost ? config.castle.chanceBoost : 1);
+        return Math.max(config.castle.minBoost || 1, boost);   // 仲間なし・オーラなしの底上げ
     },
 
     // 城突入チャレンジ開始

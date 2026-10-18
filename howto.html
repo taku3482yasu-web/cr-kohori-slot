@@ -333,10 +333,10 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js?v=96839fbd"></script>
+<script src="js/config.js?v=9bf514f1"></script>
 <script src="js/sprites.js?v=056d5554"></script>
 <script src="js/characters.js?v=8d314eb2"></script>
-<script src="js/state.js?v=41ed9a8c"></script>
+<script src="js/state.js?v=148555bd"></script>
 <script src="js/lottery.js?v=ef41b4a7"></script>
 <script src="js/battle.js?v=38e14d9b"></script>
 <script>
@@ -449,6 +449,7 @@
     // 城突入
     $('castle-text').innerHTML = `${c.castle.challengeGames}ゲームの間、毎ゲーム出目に応じた確率で突入を判定します。チャレンジ中はチャンス目が <b>${odds(c.lottery.castleChallenge.chance)}</b> と出やすくなっています。`;
     $('castle-text').innerHTML += `<br>SE城前（チャレンジ前の${c.castle.waitGames}G）で <b>チャンス目</b> を引くと、こおりくんが <span class="red">赤いオーラ</span> をまとい、チャレンジの突入率が <b>×${c.castle.chanceBoost}</b> になります。`;
+    $('castle-text').innerHTML += `<br>仲間なし・オーラなしのときも突入率は <b>×${c.castle.minBoost}</b>（仲間・オーラの倍率がこれより小さいときは ×${c.castle.minBoost}）。`;
     $('castle-oni').innerHTML = `チャレンジ中に <b>7・7・BAR</b>（${odds(c.lottery.castleChallenge.sevenBar)}）が揃えば必ず突入し、<span class="red">最初の相手は おにおに</span>！`;
     table('castle-table', ['出目', '突入率'],
         Object.entries(c.castle.entryRate).sort((a, b) => b[1] - a[1])
