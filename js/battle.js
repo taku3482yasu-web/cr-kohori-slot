@@ -338,6 +338,7 @@ const Battle = {
         rash.gamesRemaining = cfg.games;
         rash.goldDogFlag = false;
         rash.breakActive = false;
+        rash.battleIntro = true;
         return [{
             type: 'naiteiStart',
             enemyId: cfg.enemy.id,
@@ -354,6 +355,7 @@ const Battle = {
     // 外れればふつうのダメージ (倒しきれる量でも HP1 でガードされる)
     naiteiGame(state, outcome, config, rng) {
         const rash = state.rash;
+        rash.battleIntro = false;
         rash.gamesRemaining--;
         const finisher = rng() < (config.naitei.winRates[outcome.role] || 0);
         const damage = this.damageFor(outcome.role, config);

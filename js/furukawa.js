@@ -2,11 +2,11 @@
 // ふるカワ: 液晶の右下に出てきて、吹き出しでしゃべるキャラクター
 // ---------------------------------------------------------------------
 // レバー ON でそのゲームの役が決まった直後に talk() を呼ぶ (先読み予告と同じタイミング)。
-// 1. そのゲームの熱さ (0〜6) を役・場面から決める (城突入チャレンジは突入率、RASH の「？？」は継続するか)
+// 1. そのゲームの熱さ (0〜6) を役・場面から決める (城突入チャレンジは突入率、内定の時ゾーンは突破率、RASH の「？？」は継続するか)
 // 2. 熱さに応じた確率 (appearRates) で出現する
 // 3. 吹き出しの文字の色 (0:白 1:青 2:緑 3:紫 4:赤 5:金 6:虹) を熱さごとの重み (colorWeights) で選ぶ
 // 4. 色が赤以上ならチャンスのセリフ、それ以外はヒント・今の状況 (次のステージなど)・設定示唆・キャラクターの話から選ぶ
-// ただし敵と戦いはじめて1ゲーム目は、熱い役でなければ必ず出てきてその敵の話をする (battleIntro)
+// ただし敵と戦いはじめて1ゲーム目 (内定の時ゾーンも) は、熱い役でなければ必ず出てきてその敵の話をする (battleIntro)
 // state は読むだけで書き換えない。
 // =====================================================================
 
@@ -26,12 +26,12 @@ const Furukawa = {
         return { ...this.line(state, config, color, rng), color, heat };
     },
 
-    // 出てくる場面: 通常時 (ダンシングステージ以外)・SE城前・城突入チャレンジ・RASH の BATTLE / 「？？」 / 対戦相手を決めるゲーム
+    // 出てくる場面: 通常時 (ダンシングステージ以外)・SE城前・城突入チャレンジ・RASH の BATTLE / 「？？」 / 対戦相手を決めるゲーム / 内定の時ゾーン
     canAppear(state, config) {
         if (state.mode === MODES.NORMAL) return !state.normal.dance;
         if (state.mode === MODES.CASTLE_CHALLENGE) return true;
         const phase = state.rash.phase;
-        return phase === RASH_PHASES.BATTLE || phase === RASH_PHASES.QUESTION || phase === RASH_PHASES.SELECT;
+        return phase === RASH_PHASES.BATTLE || phase === RASH_PHASES.QUESTION || phase === RASH_PHASES.SELECT || phase === RASH_PHASES.NAITEI;
     },
 
     // そのゲームの熱さ (0〜6。6 はロングフリーズ・7・7・BAR などの確定)
@@ -49,6 +49,11 @@ const Furukawa = {
         if (StateMachine.isRashMode(state)) {
             // 「？？」: 継続するなら熱い
             if (state.rash.phase === RASH_PHASES.QUESTION) return state.rash.setWillWin ? heat.questionWin : 0;
+            // 内定の時ゾーン: 突破率で決める (必ず突破する役は確定の 6)
+            if (state.rash.phase === RASH_PHASES.NAITEI) {
+                const rate = config.naitei.winRates[role] || 0;
+                return rate >= 1 ? 6 : heat.naiteiSteps.filter(step => rate >= step).length;
+            }
             return heat.battle[role] || 0;
         }
         // リベンジチャンス中のチャンス目は RASH 復活
@@ -79,10 +84,11 @@ const Furukawa = {
         return pick(this.stageLines(state, config));
     },
 
-    // 敵と戦いはじめて1ゲーム目のセリフ (その敵の話)。チャンス目など熱い役のゲームと、話のない敵は null (ふだんどおり)
+    // 敵と戦いはじめて1ゲーム目 (内定の時ゾーンも) のセリフ (その敵の話)。チャンス目など熱い役のゲームと、話のない敵は null (ふだんどおり)
     introLines(state, config, heat) {
         const rash = state.rash;
-        if (!StateMachine.isRashMode(state) || rash.phase !== RASH_PHASES.BATTLE || !rash.battleIntro) return null;
+        if (!StateMachine.isRashMode(state) || !rash.battleIntro) return null;
+        if (rash.phase !== RASH_PHASES.BATTLE && rash.phase !== RASH_PHASES.NAITEI) return null;
         if (heat >= config.furukawa.battleIntro.skipHeat) return null;
         const lines = config.furukawa.chatLines.enemies[rash.enemyId];
         return lines && lines.length ? lines : null;
@@ -119,6 +125,8 @@ const Furukawa = {
         }
         if (StateMachine.isRashMode(state)) {
             const rash = state.rash;
+            // 内定の時ゾーンは HP を削っても倒せない (突破の抽選だけ) ので、残りゲーム数だけ
+            if (rash.phase === RASH_PHASES.NAITEI) return [`あと${rash.gamesRemaining}G！ 内定をつかみとって！`, `残り${rash.gamesRemaining}G、チャンス目で突破しやすいよ！`];
             const enemy = Battle.findEnemy(config, rash.enemyId);
             const lines = [`残り${rash.gamesRemaining}G、がんばれ〜！`];
             if (enemy) lines.push(`${enemy.name}のHPはあと${rash.enemyHp}！`);

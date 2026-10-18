@@ -564,7 +564,7 @@ window.GAME_CONFIG = {
 
     // ----- ふるカワ (液晶の右下に出てきて、吹き出しでしゃべる) -----
     // レバー ON でそのゲームの熱さ (0〜6) を決め、appearRates[熱さ] の確率で出現する (js/furukawa.js)
-    //   heat:         熱さの決め方。normal / battle は役ごと、entrySteps は城突入チャレンジの突入率の段階
+    //   heat:         熱さの決め方。normal / battle は役ごと、entrySteps は城突入チャレンジの突入率の段階、naiteiSteps は内定の時ゾーンの突破率の段階
     //                 (突入率がいくつ以上の段を超えたか = 熱さ)、questionWin は「？？」で継続するとき
     //   colorWeights: 熱さごとの、吹き出しの文字の色の重み (0:白 1:青 2:緑 3:紫 4:赤 5:金 6:虹)。虹は確定
     //   chanceLines:  色が赤以上のときのセリフ / expectLines: 緑・紫のとき半分の確率で言うセリフ
@@ -587,6 +587,7 @@ window.GAME_CONFIG = {
             revengeChance: 5,
             battle: { sevenBar: 6, seven: 5, bar: 5, chance: 4, melon: 2, cherry: 1, diamond: 1 },
             entrySteps: [0.1, 0.3, 0.5, 0.8, 1.0],
+            naiteiSteps: [0.05, 0.15, 0.25, 0.5, 0.55],   // 内定の時ゾーンの突破率の段階 (必ず突破する役は 6)
             questionWin: 5
         },
         colorWeights: [
@@ -686,7 +687,8 @@ window.GAME_CONFIG = {
                 ],
                 naitei: [
                     '内定の神さま…！ ここで勝てば内定！',
-                    'こおりくん、ここが正念場だよ！', 'モンゴル支部にもいたんだって…'
+                    'こおりくん、ここが正念場だよ！', 'モンゴル支部にもいたんだって…',
+                    '双子のお兄さんもいるんだって…', 'うちの実家なら、内定くらい用意できるけどね♪'
                 ]
             },
             super: ['ともいしさんが見てるよ！', 'お母さんまで、あと少し！']
