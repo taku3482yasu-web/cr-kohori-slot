@@ -134,17 +134,18 @@ const Furukawa = {
 
     // ゲームの結果のイベントに、ふるカワのセリフ { text, color } を e.furukawa として付ける (液晶はそれを出すだけ)
     //   battleStart: 敵が出てきたときのセリフへの返事 (replies)
-    //   defeat / 内定の時ゾーンの突破: 撃破したときのひとこと (defeatLines)
+    //   defeat / 内定の時ゾーンの突破: 撃破したときのひとこと (defeatLines。とどめの一撃で倒したときは finalBlowLines)
     //   rashEnd / 内定の時ゾーンの失敗で RASH 終了: 結果に合わせたひとこと (rashEndLines)
     //   superStart: ともいしのセリフ (e.tomoishiLine) を選び、それへの返事 (tomoishiReplies)
     //   ending: エンディングのあとのひとこと (endingLines)
     attachEventTalks(events, config, rng = Math.random) {
         const cfg = config.furukawa;
         const pick = list => (list && list.length ? { text: this.choose(list, rng), color: cfg.eventColor } : null);
+        const finalBlow = events.some(e => e.type === 'damage' && e.finalBlow);
         for (const e of events) {
             let talk = null;
             if (e.type === 'battleStart') talk = pick(cfg.replies[e.enemyId]);
-            else if (e.type === 'defeat') talk = pick(cfg.defeatLines[e.enemyId]);
+            else if (e.type === 'defeat') talk = pick(finalBlow ? cfg.finalBlowLines : cfg.defeatLines[e.enemyId]);
             else if (e.type === 'naiteiResult' && e.win) talk = pick(cfg.defeatLines[e.aruaru ? config.naitei.aruaru.id : config.naitei.enemy.id]);
             else if (e.type === 'rashEnd' || (e.type === 'naiteiResult' && e.toCastle)) talk = pick(this.rashEndLines(e, config));
             else if (e.type === 'ending') talk = pick(cfg.endingLines);
@@ -199,7 +200,7 @@ const Furukawa = {
         const unique = lines => lines.filter(t => !seen.has(t) && seen.add(t));
         return [
             { name: '敵への返事', lines: byEnemy(cfg.replies) },
-            { name: '撃破したとき', lines: byEnemy(cfg.defeatLines) },
+            { name: '撃破したとき', lines: [...byEnemy(cfg.defeatLines), ...cfg.finalBlowLines] },
             { name: 'RASH 終了', lines: [...cfg.rashEndLines.super, ...cfg.rashEndLines.many, ...cfg.rashEndLines.normal, ...cfg.rashEndLines.zero] },
             { name: 'ともいし・エンディング', lines: [...cfg.tomoishiReplies.flat(), ...cfg.endingLines] },
             { name: 'キャラクターの話', lines: [...chat.normal, ...Object.values(chat.companions).flat(), ...byEnemy(chat.enemies), ...chat.super] },

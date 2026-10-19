@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -180,7 +180,7 @@ function play(setting, games, seed) {
             const fc = config.furukawa;
             const tomoIndex = e.type === 'superStart' ? config.tomoishi.superLines.indexOf(e.tomoishiLine) : -1;
             const lines = e.type === 'battleStart' ? fc.replies[e.enemyId]
-                : e.type === 'defeat' ? fc.defeatLines[e.enemyId]
+                : e.type === 'defeat' ? (events.some(d => d.type === 'damage' && d.finalBlow) ? fc.finalBlowLines : fc.defeatLines[e.enemyId])
                 : e.type === 'naiteiResult' && e.win ? fc.defeatLines[e.aruaru ? config.naitei.aruaru.id : config.naitei.enemy.id]
                 : e.type === 'rashEnd' || (e.type === 'naiteiResult' && e.toCastle) ? Furukawa.rashEndLines(e, config)
                 : e.type === 'superStart' ? fc.tomoishiReplies[tomoIndex] || []
@@ -420,6 +420,35 @@ test('とどめの一撃: ガードされたリプレイ・ダイヤ・スイカ
         .filter(([role]) => !(role in rates)).reduce((b, [, n]) => b + n, 0), 0);
     assertEqual(others, 0, 'ほかの役でのとどめの一撃');
     assertEqual(runs.reduce((a, r) => a + r.log.finalBlow.wrong, 0), 0, '撃破にならない・こおりくん以外・仲間の追撃ありのとどめの一撃');
+    // 図鑑の記録・実績・ふるカワのひとこと
+    for (const { setting, state, log } of runs) {
+        const blows = Object.values(log.finalBlow.blows).reduce((a, b) => a + b, 0);
+        const c = state.collection;
+        assertEqual(c.records.finalBlow || 0, blows, `設定${setting} の図鑑のとどめの一撃の回数`);
+        assertEqual(c.achievements.finalBlow != null, blows > 0, `設定${setting} の実績「ガード無視!!」`);
+    }
+    const heard = runs.reduce((a, r) => a + base.config.furukawa.finalBlowLines.filter(t => r.state.collection.furukawaLines[t]).length, 0);
+    assert(heard > 0, 'とどめの一撃のふるカワのひとことが図鑑に入っていない');
+});
+
+test('デバッグ「次:とどめの一撃」: 次のリプレイ・ダイヤ・スイカで、HP やセットに関係なくとどめの一撃になる', () => {
+    const g = loadGame(7);
+    const { createInitialState, Lottery, GameFlow, DebugState, StateMachine, RASH_PHASES, config } = g;
+    const state = createInitialState(config);
+    DebugState.forceFinalBlow(state);
+    assert(StateMachine.isRashMode(state), 'RASH に入っていない');
+    let blow = null;
+    for (let i = 0; i < 3000 && !blow; i++) {
+        const battle = state.rash.phase === RASH_PHASES.BATTLE;
+        if (battle) state.rash.setWillWin = true;   // 勝ちセットでも起きる
+        const events = GameFlow.onGameEnd(state, Lottery.draw(state, config), config);
+        if (!StateMachine.isRashMode(state)) DebugState.toRash(state);
+        blow = events.find(e => e.type === 'damage' && e.finalBlow);
+        if (blow) assert(events.some(e => e.type === 'defeat'), 'とどめの一撃で撃破していない');
+    }
+    assert(blow, '3000 ゲームでとどめの一撃が起きない');
+    assert(blow.role in config.finalBlow.rates, `対象でない役 (${blow.role}) でとどめの一撃`);
+    assertEqual(state.rash.debugForceFinalBlow, false, '1回起きたあともデバッグの印が残っている');
 });
 
 test('内定の時: 突破後の次の BATTLE は勝利確定で、必ず撃破する', () => {

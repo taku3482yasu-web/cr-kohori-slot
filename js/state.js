@@ -348,6 +348,7 @@ const Collection = {
                 case 'ending': r.ending = (r.ending || 0) + 1; break;
                 case 'defeat': add(c.defeats, e.enemyId); break;
                 case 'damage':
+                    if (e.finalBlow) r.finalBlow = (r.finalBlow || 0) + 1;
                     // とどめの必殺技 (液晶でカットインが出るのと同じ条件)
                     if (e.finishBy && !e.freeze && !e.finalBlow) add(c.specials, e.finishBy !== 'koori' ? e.finishBy : this.kooriSpecial(e));
                     break;
@@ -948,6 +949,12 @@ const DebugState = {
     forceNaitei(state) {
         const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
         state.rash.debugForceNaitei = true;
+        return events;
+    },
+    // 次の BATTLE でリプレイ・ダイヤ・スイカが出たら、ガード → とどめの一撃 (RASH 中でなければ RASH へ)
+    forceFinalBlow(state) {
+        const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
+        state.rash.debugForceFinalBlow = true;
         return events;
     },
     // 次の内定の時ゾーンを1ゲーム目で負けさせ、アルアルの復活を起こす

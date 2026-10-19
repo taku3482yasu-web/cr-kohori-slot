@@ -683,6 +683,7 @@ window.GAME_CONFIG = {
             naitei: ['こおりくん、内定おめでとう！', 'これで内定持ちだね…ふーん♪'],
             aruaru: ['アルアルさん…かっこいい…！', 'お兄さんのほうは、内定くれるんだ…！']   // アルアルが倒したとき
         },
+        finalBlowLines: ['ガードなんて関係ないね！', 'あとちょっとだけ…届いた〜！'],   // とどめの一撃で倒したとき (defeatLines の代わり)
         // RASH 終了 (「○○RASH 終了」の表示中)。super: SUPER まで行った / many: manyDefeats 体以上撃破 / zero: 1体も倒せなかった / normal: それ以外
         rashEndLines: {
             manyDefeats: 5,
@@ -809,7 +810,8 @@ window.GAME_CONFIG = {
             { id: 'games10000', name: '打ち込み1万G', desc: '合計10,000ゲーム回す', stat: 'games', value: 10000 },
             { id: 'revival', name: 'こおりまだまえる', desc: '復活して敵を撃破する', stat: 'revival', value: 1 },
             { id: 'ending', name: 'ともいし救出', desc: 'SUPER中におにおにを倒して、エンディングを見る', stat: 'ending', value: 1 },
-            { id: 'aruaru', name: '内定がある！！', desc: '内定の時ゾーンで、シーシャ・ナイテイ・アルアルに助けてもらう', stat: 'aruaru', value: 1 }
+            { id: 'aruaru', name: '内定がある！！', desc: '内定の時ゾーンで、シーシャ・ナイテイ・アルアルに助けてもらう', stat: 'aruaru', value: 1 },
+            { id: 'finalBlow', name: 'ガード無視!!', desc: 'ガードされても、とどめの一撃で敵を撃破する', stat: 'finalBlow', value: 1 }
         ]
     },
 

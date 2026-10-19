@@ -145,10 +145,13 @@ const Battle = {
         const canGuard = !rash.setWillWin && !rash.breakActive && !kill;
         let guarded = false;
         let finalBlow = false;
-        if (canGuard && amount >= rash.enemyHp) {
+        // デバッグ「次:とどめの一撃」: 対象の役が出たら、HP・セットに関係なくガード → とどめの一撃
+        const forceBlow = rash.debugForceFinalBlow && !kill && outcome.role in config.finalBlow.rates;
+        if (forceBlow) rash.debugForceFinalBlow = false;
+        if (forceBlow || (canGuard && amount >= rash.enemyHp)) {
             guarded = true;
             // とどめの一撃: ガードで HP1 残ったところへ、ガード無視の 1 ダメージ
-            finalBlow = rng() < (config.finalBlow.rates[outcome.role] || 0);
+            finalBlow = forceBlow || rng() < (config.finalBlow.rates[outcome.role] || 0);
             if (finalBlow) companionHits = [];
             amount = finalBlow ? rash.enemyHp : rash.enemyHp - 1;
         } else if (!kill && amount > rash.enemyHp) {

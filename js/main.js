@@ -227,6 +227,7 @@
         treasure: debugAction(() => DebugState.forceTreasure(state)),
         naitei: debugAction(() => DebugState.forceNaitei(state)),
         aruaru: debugAction(() => DebugState.forceAruaru(state)),
+        finalBlow: debugAction(() => DebugState.forceFinalBlow(state)),
         dance: debugAction(() => DebugState.forceDance(state)),
         revenge: debugAction(() => DebugState.startRevenge(state, config)),
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),
