@@ -381,6 +381,17 @@ window.GAME_CONFIG = {
         }
     },
 
+    // ----- とどめの一撃 -----
+    // BATTLE 中、ガードを崩せない役の攻撃が敵にガードされたとき、rates の確率で「とどめの一撃!」のカットイン。
+    // ガードで HP1 残ったところへ、ガード無視の 1 ダメージで撃破する (ユーザー指定。1〜3%)
+    finalBlow: {
+        rates: {
+            replay: 0.01,     // リプレイ
+            diamond: 0.02,    // ダイヤ
+            melon: 0.03       // スイカ
+        }
+    },
+
     // ----- 対戦相手 -----
     // weight: 通常RASHでの出現の重み / superWeight: SUPER中の重み
     // bonus.type: 'coins' (コイン獲得) / 'games' (ゲーム数上乗せ) / 'probUp' (柄揃い確率アップ)

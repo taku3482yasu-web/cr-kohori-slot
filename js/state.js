@@ -349,7 +349,7 @@ const Collection = {
                 case 'defeat': add(c.defeats, e.enemyId); break;
                 case 'damage':
                     // とどめの必殺技 (液晶でカットインが出るのと同じ条件)
-                    if (e.finishBy && !e.freeze) add(c.specials, e.finishBy !== 'koori' ? e.finishBy : this.kooriSpecial(e));
+                    if (e.finishBy && !e.freeze && !e.finalBlow) add(c.specials, e.finishBy !== 'koori' ? e.finishBy : this.kooriSpecial(e));
                     break;
                 case 'questionResult':
                     if (!e.continued && e.enemyId) add(c.specials, e.enemyId);

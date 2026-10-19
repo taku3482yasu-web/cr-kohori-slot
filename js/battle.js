@@ -144,9 +144,13 @@ const Battle = {
         // 負けセットでは敵がガードして倒しきれない (撃破役・ブレイク中を除く)
         const canGuard = !rash.setWillWin && !rash.breakActive && !kill;
         let guarded = false;
+        let finalBlow = false;
         if (canGuard && amount >= rash.enemyHp) {
-            amount = rash.enemyHp - 1;
             guarded = true;
+            // とどめの一撃: ガードで HP1 残ったところへ、ガード無視の 1 ダメージ
+            finalBlow = rng() < (config.finalBlow.rates[outcome.role] || 0);
+            if (finalBlow) companionHits = [];
+            amount = finalBlow ? rash.enemyHp : rash.enemyHp - 1;
         } else if (!kill && amount > rash.enemyHp) {
             companionHits = this.trimFinishingHits(companionHits, damage, rash.enemyHp);
             amount = rash.enemyHp;
@@ -160,8 +164,9 @@ const Battle = {
             guardBreak: kill && !rash.setWillWin,   // 本来ガードされるセットで撃破役を引いた
             big: kill || outcome.isChance,
             guarded,
+            finalBlow,
             companionHits,
-            finishBy: rash.enemyHp <= 0 ? this.finisherOf(kill, damage, companionHits, hpBefore) : null,
+            finishBy: rash.enemyHp <= 0 ? this.finisherOf(kill || finalBlow, damage, companionHits, hpBefore) : null,
             finishKill: kill && rash.enemyHp <= 0,
             breakActive: rash.breakActive,
             hp: rash.enemyHp,

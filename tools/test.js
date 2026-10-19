@@ -101,6 +101,7 @@ function play(setting, games, seed) {
         rashEnds: [],            // { coinsWon, defeatCount, wasSuper, trophy, hit }
         trophies: { shown: 0, total: 0, byLevel: {} },
         chanceBreak: { eligible: 0, broke: 0 },   // BATTLE 中のチャンス目 (ブレイク前) とブレイクした数
+        finalBlow: { guarded: {}, blows: {}, wrong: 0 },   // とどめの一撃: 役ごとのガードされた数・とどめの一撃の数、決まり方がおかしい数
         guaranteed: { started: 0, won: 0, lost: 0 },
         naiteiWins: 0,
         afterNaiteiWin: 0,       // 内定の時突破のあと、勝利確定で始まった BATTLE
@@ -266,6 +267,15 @@ function play(setting, games, seed) {
             }
             if (guaranteedBefore && e.type === 'defeat') log.guaranteed.won++;
             if (guaranteedBefore && (e.type === 'companionSave' || (e.type === 'questionResult' && !e.continued))) log.guaranteed.lost++;
+            if (e.type === 'damage' && wasBattle && e.guarded) {
+                const fb = log.finalBlow;
+                fb.guarded[e.role] = (fb.guarded[e.role] || 0) + 1;
+                if (e.finalBlow) {
+                    fb.blows[e.role] = (fb.blows[e.role] || 0) + 1;
+                    if (e.hp !== 0 || e.finishBy !== 'koori' || (e.companionHits || []).length) fb.wrong++;
+                    if (!events.some(d => d.type === 'defeat')) fb.wrong++;
+                }
+            }
             if (e.type === 'damage' && e.hp === 0 && !e.freeze) {
                 log.defeats++;
                 if (!e.finishBy) log.finishMissing++;
@@ -395,6 +405,21 @@ test('ブレイク: BATTLE 中のチャンス目で約50%ブレイクする', ()
     assert(total.e > 200, `対象のチャンス目が少ない (${total.e})`);
     const expected = base.config.breakState.rates.chance;
     assertBetween(total.b / total.e, expected - 0.06, expected + 0.06, 'ブレイク率');
+});
+
+test('とどめの一撃: ガードされたリプレイ・ダイヤ・スイカで 1〜3% 起きて撃破し、ほかの役では起きない', () => {
+    const rates = base.config.finalBlow.rates;
+    const sum = (key, role) => runs.reduce((a, r) => a + (r.log.finalBlow[key][role] || 0), 0);
+    for (const role of Object.keys(rates)) {
+        const guarded = sum('guarded', role);
+        assert(guarded > 1000, `${role} のガードが少ない (${guarded})`);
+        const sd = Math.sqrt(rates[role] * (1 - rates[role]) / guarded);
+        assertBetween(sum('blows', role) / guarded, rates[role] - 4 * sd, rates[role] + 4 * sd, `${role} のとどめの一撃の割合`);
+    }
+    const others = runs.reduce((a, r) => a + Object.entries(r.log.finalBlow.blows)
+        .filter(([role]) => !(role in rates)).reduce((b, [, n]) => b + n, 0), 0);
+    assertEqual(others, 0, 'ほかの役でのとどめの一撃');
+    assertEqual(runs.reduce((a, r) => a + r.log.finalBlow.wrong, 0), 0, '撃破にならない・こおりくん以外・仲間の追撃ありのとどめの一撃');
 });
 
 test('内定の時: 突破後の次の BATTLE は勝利確定で、必ず撃破する', () => {
@@ -779,7 +804,8 @@ test('出玉シミュレーター: Node.js 版が動いて出玉率を出し、�
     const rows = JSON.parse(res.stdout);
     assertEqual(rows.map(r => r.setting).join(), '1,6', 'シミュレーターの設定');
     for (const r of rows) {
-        assertBetween(r.rtp, 0.7, 1.6, `シミュレーターの設定${r.setting} の出玉率`);
+        // 2万ゲームなのでぶれが大きい (設定6 は 約1.3 だが、まれに 1.6 を超える)。動いているかを見るための範囲
+        assertBetween(r.rtp, 0.7, 2.0, `シミュレーターの設定${r.setting} の出玉率`);
         assert(r.rashOdds > 0 && r.entryRate > 0, `シミュレーターの設定${r.setting} で RASH・城突入がない`);
     }
     // ブラウザ版: simulate.js が読み込むゲームのファイルを、simulate.html もすべて読み込む

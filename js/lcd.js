@@ -1960,7 +1960,7 @@ const Lcd = (() => {
         let kooriFx = null;   // こおりくんがとどめを刺すときの必殺技のエフェクト
         if (event.freeze) {
             await playCutIn('koori', '完全撃破!!', '#8a2ab0');
-        } else if (event.finishBy === 'koori') {
+        } else if (event.finishBy === 'koori' && !event.finalBlow) {
             // こおりくんがとどめ: 必殺技 (内定の時は HP が残っていても、このカットインで決着)
             kooriFx = await kooriSpecial(event.finishKill, Boolean(event.finisher));
         } else if (event.big && Math.random() < config.effects.cutInRate) {
@@ -1984,7 +1984,8 @@ const Lcd = (() => {
         // 仲間の追撃 (こおりくんの攻撃に続いて、仲間がジャンプしてダメージ)
         const hits = event.guarded ? [] : (event.companionHits || []);
         // まずこおりくんの分だけ HP を減らし、仲間の追撃で残りを減らす
-        animateTo(battle.hp, hits.length ? event.hp + extraSum : event.hp, 300);
+        // とどめの一撃は、まずガードで HP1 残す
+        animateTo(battle.hp, event.finalBlow ? 1 : hits.length ? event.hp + extraSum : event.hp, 300);
         await sleep(timing.hitStop + 100);
         await animateTo(koori.x, KOORI_BATTLE_X, 250);
         koori.moving = false;
@@ -2007,6 +2008,7 @@ const Lcd = (() => {
             animateTo(battle.hp, event.hp, 250);
             await sleep(250);
         }
+        if (event.finalBlow) await finalBlow(event);
         if (event.guardBreak) {
             startFlash('#c080ff', 400);
             showMessage('ガードブレイク!!', '#e0b0ff', 900);
@@ -2014,6 +2016,25 @@ const Lcd = (() => {
         } else if (event.kill) {
             showMessage('一撃必殺!!', '#ff4040', 800);
         }
+    }
+
+    // とどめの一撃: ガードで HP1 残った敵へ、カットインのあとガード無視の 1 ダメージ
+    async function finalBlow(event) {
+        const intensity = config.effects.intensity;
+        startFlash('#ff8c1a', 300);
+        Sound.chance();
+        await playCutIn('koori', 'とどめの一撃!', '#c04a00', 1300, 'ガード無視!!');
+        koori.moving = true;
+        await animateTo(koori.x, ENEMY_X - 56, 120);
+        battle.hurtUntil = performance.now() + 300;
+        startShake(intensity.shakeLarge, 400);
+        startFlash('#ffffff', 300);
+        Sound.bigHit();
+        damageNumbers.push({ text: '-1', color: '#ff4040', size: 16, born: performance.now() });
+        animateTo(battle.hp, event.hp, 300);
+        await sleep(config.effects.timing.hitStop + 100);
+        await animateTo(koori.x, KOORI_BATTLE_X, 250);
+        koori.moving = false;
     }
 
     // ----- 演出: 内定の時ゾーン -----
