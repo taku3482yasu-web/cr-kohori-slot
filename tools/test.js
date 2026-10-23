@@ -471,6 +471,22 @@ test('モード・ゾーン・天井 (A5): 天井で 城突入 確定、天国�
     assertEqual([...modes].sort().join(','), 'A,B,C,heaven', 'モードの 種類');
 });
 
+test('js/episode.js (エピソードBIG の ストーリー): 場面が あり、キャラの 名前が 正しく、セリフが 枠に 入る', () => {
+    const ctx = { window: {} };
+    vm.createContext(ctx);
+    vm.runInContext(fs.readFileSync(path.join(JS_DIR, 'episode.js'), 'utf8'), ctx);
+    const list = ctx.window.EPISODE_STORY;
+    assert(Array.isArray(list) && list.length > 0, 'window.EPISODE_STORY に 場面が ない');
+    const cfg = base.config;
+    const ok = new Set(['koori', 'tomoishi', 'furukawa', ...cfg.companions.members.map(m => m.id), ...cfg.enemies.map(e => e.id),
+        cfg.goldDog.id, cfg.naitei.enemy.id, cfg.naitei.aruaru.id]);
+    list.forEach((scene, i) => {
+        assert(ok.has(scene.who), `${i + 1} 番目の 場面: who '${scene.who}' は 使えない (使える: ${[...ok].join(', ')})`);
+        assert(typeof scene.text === 'string' && scene.text.length > 0, `${i + 1} 番目の 場面: text が ない`);
+        assert(scene.text.length <= 64, `${i + 1} 番目の 場面: セリフが 長すぎる (${scene.text.length} 文字。64 文字まで)`);
+    });
+});
+
 test('config.js: 確率表の合計が 1 以下', () => {
     for (const [name, table] of Object.entries(base.config.lottery)) {
         const sum = Object.values(table).reduce((a, b) => a + b, 0);

@@ -591,26 +591,8 @@ window.GAME_CONFIG = {
         sevenAdd: 5,
         sevenRoles: ['seven', 'sevenBar'],
         // BIG・REG の 液晶: キャラ解説 (図鑑の 文章 js/profiles.js) を この 順に 流す (2 ゲームで 1 人)
-        guide: ['koori', 'tomoishi', 'furukawa', 'okagappa', 'hibikimakuri', 'shibata', 'sasaki', 'onioni', 'yasu', 'tamu', 'dake', 'goldDog'],
-        // エピソードBIG の ストーリー (2 ゲームで 1 場面。セリフは Claude の 案)
-        episode: [
-            { who: 'koori', text: 'おにおにを たおした…！ これで ともいしを 助けられる！' },
-            { who: 'onioni', text: 'ぐぬぬ… まだだ… SE城の 奥には 黄金の 間が あるのだ…' },
-            { who: 'koori', text: '黄金の 間…？ そこに ともいしが いるの！？' },
-            { who: 'furukawa', text: 'こおりくん、ここからが 本番だよ！' },
-            { who: 'yasu', text: 'わしらも ついていくで！' },
-            { who: 'tamu', text: '内定 もらうまで 帰られへんからな！' },
-            { who: 'dake', text: 'ここまで 来たら 最後まで いくばい！' },
-            { who: 'koori', text: 'みんな… ありがとう！' },
-            { who: 'tomoishi', text: 'こおり～！ 聞こえる～！？' },
-            { who: 'koori', text: 'ともいしの 声だ！ 奥から 聞こえる！' },
-            { who: 'onioni', text: 'ふん… 黄金の 間で 待っているぞ…！' },
-            { who: 'koori', text: 'ぜったい 助ける！ こおり、ばりきつよい！' },
-            { who: 'tomoishi', text: 'それと 借りた お金も 返しなさいよ～！' },
-            { who: 'koori', text: '…それは あとで！！' },
-            { who: 'furukawa', text: 'いくよ！ SUPERおにおにRASH へ！！' },
-            { who: 'koori', text: 'こおりいきていける！！' }
-        ]
+        guide: ['koori', 'tomoishi', 'furukawa', 'okagappa', 'hibikimakuri', 'shibata', 'sasaki', 'onioni', 'yasu', 'tamu', 'dake', 'goldDog']
+        // エピソードBIG の ストーリーは js/episode.js (ユーザーが 書きかえる。2026-10-23)
     },
 
     // ----- モード・ゾーン・天井 (2026-10-23 アップグレード A5。最新のスロット koori-slot の 仕様書から) -----

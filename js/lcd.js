@@ -1036,6 +1036,8 @@ const Lcd = (() => {
         if (id === 'furukawa') return config.furukawa.name;
         const m = config.companions.members.find(c => c.id === id);
         if (m) return m.name;
+        if (id === config.naitei.enemy.id) return config.naitei.enemy.name;
+        if (id === config.naitei.aruaru.id) return config.naitei.aruaru.name;
         const e = config.enemies.find(x => x.id === id) || (config.goldDog.id === id ? config.goldDog : null);
         return e ? e.name : id;
     };
@@ -1079,9 +1081,11 @@ const Lcd = (() => {
         const page = Math.floor((b.games - b.remaining) / 2);
         let who, line, head;
         if (b.kind === 'episode') {
-            const list = config.pseudoBonus.episode;
-            ({ who, text: line } = list[Math.min(page, list.length - 1)]);
-            head = nameOf(who);
+            // ストーリーは js/episode.js (場面の 数で ゲーム数を 均等に わりふる)
+            const list = window.EPISODE_STORY && window.EPISODE_STORY.length ? window.EPISODE_STORY : [{ who: 'koori', text: 'こおりいきていける！' }];
+            const scene = list[Math.min(list.length - 1, Math.floor((b.games - b.remaining) * list.length / b.games))];
+            ({ who, text: line } = scene);
+            head = scene.name || nameOf(who);
         } else {
             const list = config.pseudoBonus.guide;
             who = list[page % list.length];
@@ -1093,7 +1097,13 @@ const Lcd = (() => {
         drawWho(who, 40, ground + Math.round(Math.sin(time / 300) * 1.5), 2);
         box(76, 46, W - 84, 74, 'rgba(0,0,0,0.6)', b.kind === 'big' ? '#ffd700' : b.kind === 'reg' ? '#d8e4f0' : '#ff9ad0');
         text(head.length > 22 ? head.slice(0, 22) + '…' : head, 82, 50, { color: '#ffe680', size: 10 });
-        LcdKit.wrapText(line, 10, W - 96).slice(0, 4).forEach((row, i) => text(row, 82, 64 + i * 13, { color: '#fff', size: 10 }));
+        // 「！」「…」などだけが 次の 行に 回ったら 前の 行に つける
+        const rows = LcdKit.wrapText(line, 10, W - 96).reduce((out, row) => {
+            if (out.length && /^[！？!?…、。」）～ー]{1,3}$/.test(row)) out[out.length - 1] += row;
+            else out.push(row);
+            return out;
+        }, []);
+        rows.slice(0, 4).forEach((row, i) => text(row, 82, 64 + i * 13, { color: '#fff', size: 10 }));
         // 残りの ランプ
         const n = Math.min(b.games, 40), lampW = Math.max(3, Math.floor((W - 20) / n) - 1);
         for (let i = 0; i < n; i++) {
