@@ -679,6 +679,19 @@ window.GAME_CONFIG = {
         }
     },
 
+    // ----- レバーの 演出 (2026-10-24 ユーザー指定。js/lever.js。数字は Claude が 決めた 案) -----
+    //   tataki: 結果の 前の PUSH を「レバーを叩け！」に する。rates は 熱さ 0〜6 ごと (PUSH が 出た ときの 割合)、
+    //     rashRate: RASH 中 (確定の 熱さ 6 だけ)、change: はじめ PUSH で、押すと (押さなくても changeMs で) 変わる 割合
+    //   buru: レバブル (レバー ON で 金棒が 震える)。rates は 熱さ 0〜6 ごと、ms は 震える 時間
+    //   okure: 遅れ (リールが 遅れて 回り出す)。役の 分類 (config.notice.classes) ごと。hot / premium だけ (チャンス目・BAR 以上)
+    //   reverse: 逆回転 (リールが しばらく 逆に 回る)。7揃い・7・7・BAR・ロングフリーズ の うち rate
+    lever: {
+        tataki: { rates: [0, 0, 0, 0.03, 0.12, 0.3, 0.45], rashRate: 0.35, change: 0.4, changeMs: 900 },
+        buru: { rates: [0.002, 0.005, 0.02, 0.05, 0.15, 0.3, 0.45], ms: 1200 },
+        okure: { rates: { premium: 0.3, hot: 0.2 }, ms: 520 },
+        reverse: { rate: 0.25, ms: 1500 }
+    },
+
     // ----- モード・ゾーン・天井 (2026-10-23 アップグレード A5。最新のスロット koori-slot の 仕様書から) -----
     // 前回の RASH からの ゲーム数 (gamesSinceHit) で 見る。モードは RASH が 終わったときに 設定ごとの 重みで 抽選 (画面には 出さない)
     //   zones: { at: このゲーム数から zoneLength G (天国は length), hit: SE城前へ 直行する 確率 }。当たりなら ゾーンの どこかの ゲームで 直行

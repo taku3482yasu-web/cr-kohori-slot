@@ -18,7 +18,7 @@ const path = require('path');
 const vm = require('vm');
 
 const JS_DIR = path.join(__dirname, '..', 'js');
-const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'notice.js', 'save.js', 'furukawa.js', 'hype.js', 'zencho.js', 'updates.js'];
+const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'notice.js', 'save.js', 'furukawa.js', 'hype.js', 'lever.js', 'zencho.js', 'updates.js'];
 
 // ----- 引数 -----
 const args = process.argv.slice(2);
@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, ReelMap, Hype, Zencho, GameFlow, Battle, Notice, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, ReelMap, Hype, LeverFx, Zencho, GameFlow, Battle, Notice, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -390,6 +390,39 @@ test('期待度の演出 (A3): カットイン・PUSH は 色の 順に 熱い �
     for (let i = 1; i < cut.length; i++) assert(cut[i] >= cut[i - 1], `カットインの 色の 順: ${cut.map(pct).join(' < ')}`);
     for (let i = 1; i < push.length; i++) assert(push[i] >= push[i - 1], `PUSH の 色の 順: ${push.map(pct).join(' < ')}`);
     console.log(`  熱いゲーム (熱さ 4 以上) の 割合: ぜんぶ ${pct(hot('all'))} / カットイン ${Hy.TIERS.map(t => `${t} ${stat['cutin:' + t] ? pct(hot('cutin:' + t)) : '-'}`).join('・')} / PUSH ${Hy.PUSH_TIERS.map(t => `${t} ${stat['push:' + t] ? pct(hot('push:' + t)) : '-'}`).join('・')}`);
+});
+
+test('レバーの 演出 (2026-10-24): 叩け！は 熱い ゲームで 出て RASH 中は 確定、遅れは チャンス目・BAR 以上、逆回転は 7揃い・ロングフリーズ級、レバブルは 熱い ほど', () => {
+    const g = loadGame(37);
+    const { config: cfg, Lottery: L, Furukawa: F, Hype: Hy, LeverFx: LF, GameFlow: GF, Notice: N, StateMachine: SM } = g;
+    const state = g.createInitialState(cfg);
+    const n = { tataki: 0, tatakiHot: 0, rashTataki: 0, rashTatakiSure: 0, change: 0, okure: 0, okureBad: 0, reverse: 0, reverseBad: 0, buru: 0, buruHot: 0, all: 0, allHot: 0 };
+    for (let i = 0; i < 300000; i++) {
+        state.coins = 1e6;
+        const o = L.draw(state, cfg);
+        const heat = F.canAppear(state, cfg) ? F.heat(state, o, cfg) : 0;
+        const push = LF.tataki(state, Hy.plan(heat, cfg).push, heat, cfg);
+        const fx = LF.atLever(state, o, heat, cfg);
+        const cls = N.classOf(o.role, cfg);
+        n.all++; if (heat >= 4) n.allHot++;
+        if (push && push.lever) {
+            if (SM.isRashMode(state)) { n.rashTataki++; if (heat >= 6) n.rashTatakiSure++; }
+            else { n.tataki++; if (heat >= 4) n.tatakiHot++; }
+            if (push.leverChange) n.change++;
+        }
+        if (fx.okure) { n.okure++; if (cls !== 'hot' && cls !== 'premium' && !o.isFreeze) n.okureBad++; }
+        if (fx.reverse) { n.reverse++; if (cls !== 'premium' && !o.isFreeze) n.reverseBad++; }
+        if (fx.buru) { n.buru++; if (heat >= 4) n.buruHot++; }
+        assert(!(fx.okure && fx.reverse), '遅れと 逆回転は いっしょに 出さない');
+        GF.onGameEnd(state, o, cfg);
+    }
+    assert(n.tataki > 20 && n.tatakiHot / n.tataki > 0.8, `通常時の 叩け！ (${n.tataki} 回・熱い ${pct(n.tatakiHot / n.tataki)})`);
+    assert(n.rashTataki > 0 && n.rashTatakiSure === n.rashTataki, `RASH 中の 叩け！は 確定だけ (${n.rashTatakiSure} / ${n.rashTataki})`);
+    assertBetween(n.change / (n.tataki + n.rashTataki), cfg.lever.tataki.change - 0.15, cfg.lever.tataki.change + 0.15, 'PUSH から 叩け！に 変わる 割合');
+    assert(n.okure > 100 && n.okureBad === 0, `遅れ (${n.okure} 回。チャンス目・BAR 未満 ${n.okureBad})`);
+    assert(n.reverse > 0 && n.reverseBad === 0, `逆回転 (${n.reverse} 回。7揃い・ロングフリーズ級 でない もの ${n.reverseBad})`);
+    assert(n.buru > 100 && n.buruHot / n.buru > n.allHot / n.all * 3, `レバブル (${n.buru} 回・熱い ${pct(n.buruHot / n.buru)}。ぜんぶ ${pct(n.allHot / n.all)})`);
+    console.log(`  叩け！ 通常時 ${n.tataki} 回 (熱い ${pct(n.tatakiHot / n.tataki)})・RASH 中 ${n.rashTataki} 回 (確定)・遅れ ${n.okure} 回・逆回転 ${n.reverse} 回・レバブル ${n.buru} 回 (熱い ${pct(n.buruHot / n.buru)})`);
 });
 
 test('前兆と違和感演出 (A4): 前兆が出たら当たりやすく、違和感は 出たら 本前兆のことが多い。結果は変えない', () => {

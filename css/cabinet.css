@@ -643,3 +643,51 @@ body[data-light="dim"] .slot-machine.cabinet {
     box-shadow: 0 0 0 2px #5a3a0a;
 }
 body[data-light="dim"] .cab-pillar i { animation: none; background: #1a1012; box-shadow: none; }
+
+/* ----- レバーの 演出 (2026-10-24 ユーザー指定。js/lever.js・js/push.js) ----- */
+/* レバーを叩け！: 金棒の レバーが PUSH の 色で 光って 点滅し、金棒が 上下に 揺れる (虹は 色が 流れる) */
+.cabinet #spin-button.lever-call {
+    --push: #ffffff;
+    color: #fff;
+    border-color: var(--push);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--push) 55%, #3a3a44), #16161c);
+    box-shadow: 0 5px 0 #000, 0 0 22px var(--push), 0 0 46px color-mix(in srgb, var(--push) 60%, transparent);
+    animation: push-glow 0.25s ease-in-out infinite alternate;
+}
+.cabinet #spin-button.lever-call.tier-blue { --push: #3f8cff; }
+.cabinet #spin-button.lever-call.tier-red { --push: #ff3a3a; }
+.cabinet #spin-button.lever-call.tier-gold { --push: #ffd700; }
+.cabinet #spin-button.lever-call.tier-rainbow { animation: push-glow 0.25s ease-in-out infinite alternate, push-rainbow 1s linear infinite; }
+.cabinet #spin-button.lever-call .cab-lever-text { font-size: 0; }
+.cabinet #spin-button.lever-call .cab-lever-text::after { content: 'レバーを叩け!!'; font-size: 1.15rem; }
+.cabinet #spin-button.lever-call .cab-kanabo { animation: kanabo-call 0.35s ease-in-out infinite alternate; }
+.cabinet #spin-button.lever-hit .cab-kanabo { animation: none; transform: rotate(24deg); }
+@keyframes kanabo-call {
+    from { transform: rotate(-18deg); }
+    to { transform: rotate(-4deg); }
+}
+
+/* レバブル: 金棒が 小さく 速く ぶるぶる */
+.cabinet #spin-button.lever-buru .cab-kanabo,
+#spin-button.lever-buru .cab-kanabo { animation: kanabo-buru 0.05s linear infinite; }
+@keyframes kanabo-buru {
+    0% { transform: translate(-2px, 1px) rotate(-15deg); }
+    50% { transform: translate(2px, -1px) rotate(-9deg); }
+    100% { transform: translate(-2px, 1px) rotate(-15deg); }
+}
+
+/* 逆回転: リールに 虹色の 光が 下から 上へ 流れる */
+body.reel-gyaku .cabinet .reel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(0deg, rgba(255, 48, 48, 0.35), rgba(255, 224, 0, 0.35), rgba(48, 144, 255, 0.35), rgba(160, 64, 255, 0.35));
+    background-size: 100% 300%;
+    animation: reel-gyaku 0.5s linear infinite;
+}
+@keyframes reel-gyaku {
+    from { background-position: 0 0; }
+    to { background-position: 0 300%; }
+}

@@ -459,8 +459,8 @@ const UI = (() => {
     }
 
     function openResetDialog() {
-        // リールの回転中・演出中はリセットしない
-        if (els.spinButton.disabled) return;
+        // リールの回転中・演出中はリセットしない (レバーを叩け！ の あいだは レバーが 押せるので PUSH も 見る)
+        if (els.spinButton.disabled || PushButton.isActive()) return;
         if (!els.modal.hidden) closeSettings();
         els.resetModal.hidden = false;
         els.resetCancel.focus();
@@ -843,7 +843,7 @@ const UI = (() => {
     // ----- 台移動 (コインなどはそのままに、設定を抽選し直した新しい台へ) -----
     function openMoveDialog() {
         // リールの回転中・演出中は移動しない
-        if (els.spinButton.disabled || !gameState) return;
+        if (els.spinButton.disabled || PushButton.isActive() || !gameState) return;
         if (!els.modal.hidden) closeSettings();
         const lost = moveLosses(gameState);
         els.moveWarning.hidden = !lost;

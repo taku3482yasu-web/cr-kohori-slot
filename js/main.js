@@ -58,6 +58,11 @@
 
     async function playGame() {
         startAudio();
+        // レバーを叩け！ (2026-10-24): ゲームの 途中で レバーが 押せる のは この ときだけ
+        if (PushButton.leverActive()) {
+            PushButton.hitLever();
+            return;
+        }
         // 特化ゾーンの見せ方を選ぶ画面: レバーで決定
         if (Lcd.tokkaSelecting()) {
             Lcd.tokkaSelectInput('lever');
@@ -112,7 +117,10 @@
         // 期待度の 演出 (2026-10-23 A3。js/hype.js): 熱さに 合わせて カットイン・先バレ音・確定音・金発光・フラッシュ・PUSH
         const heat = talk ? talk.heat : Furukawa.canAppear(state, config) ? Furukawa.heat(state, outcome, config) : 0;
         const hype = Hype.plan(heat, config);
+        hype.push = LeverFx.tataki(state, hype.push, heat, config);   // レバーを叩け！ (2026-10-24)
+        const leverFx = LeverFx.atLever(state, outcome, heat, config);   // レバブル・遅れ・逆回転 (2026-10-24)
         playHypeAtLever(hype);
+        playLeverFx(leverFx);
         // 通常時の予告 (ステップアップ予告・群予告。役で選ぶ)。期待度のカットインが出たゲームでは出さない
         if (!hype.cutin || debugNotice) Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
         debugNotice = null;
@@ -148,10 +156,22 @@
                 }
             }
         };
+        // 遅れ (2026-10-24): リールが 少し 遅れて 回り出す (チャンス目・BAR 以上)
+        if (leverFx.okure) {
+            Sound.okure();
+            await new Promise(r => setTimeout(r, config.lever.okure.ms));
+        }
+        // 逆回転 (2026-10-24): リールが しばらく 逆に 回る (7揃い・7・7・BAR・ロングフリーズ)
+        if (leverFx.reverse) {
+            Sound.gyaku();
+            document.body.classList.add('reel-gyaku');
+            [0, 1, 2].forEach(i => setTimeout(() => Reels.setLamp(i, 'freeze'), 0));
+            setTimeout(() => document.body.classList.remove('reel-gyaku'), config.lever.reverse.ms);
+        }
         spinSound = setInterval(Sound.spin, 200);
         // 押した 位置から 引き込む (取りこぼしなし。Lottery.retarget)
         await Reels.spin(outcome.stops, effects.timing.reelSpinStagger, onStop, (i, press, fixed) => Lottery.retarget(outcome, i, press, fixed, config, { keepLine: Boolean(reach) }),
-            { reverse: zc.iwakan === 'reverse' });
+            leverFx.reverse ? { reverse: true, reverseMs: config.lever.reverse.ms } : { reverse: zc.iwakan === 'reverse' });
         if (freezePlaying) await freezePlaying;
         clearInterval(spinSound);
         stopButtons.forEach(btn => btn.classList.remove('reach', 'push'));
@@ -220,6 +240,19 @@
     function endIwakan() {
         Sound.setMuted(false);
         stopButtons.forEach(btn => btn.classList.remove('iwakan'));
+    }
+
+    // レバー ON の レバブル (2026-10-24。js/lever.js): 金棒が ぶるぶる 震える (スマホは 本体も 振動)
+    function playLeverFx(fx) {
+        if (!fx.buru) return;
+        spinButton.classList.remove('lever-buru');
+        void spinButton.offsetWidth;
+        spinButton.classList.add('lever-buru');
+        setTimeout(() => spinButton.classList.remove('lever-buru'), config.lever.buru.ms);
+        Sound.leverBuru();
+        if (navigator.vibrate) {
+            try { navigator.vibrate([60, 30, 60, 30, 60, 30, 120]); } catch (e) { /* 振動できない環境 */ }
+        }
     }
 
     // レバー ON の 演出 (期待度。js/hype.js)

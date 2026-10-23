@@ -101,6 +101,11 @@ const Sound = (() => {
         zencho: () => { sweep(70, 45, 'sawtooth', 0.8, 0.09); setTimeout(() => sweep(90, 50, 'sawtooth', 0.7, 0.07), 500); },   // 前兆の はじまり (ゴゴゴ)
         sakibare: () => { sweep(900, 1900, 'square', 0.16, 0.06); sweep(900, 1900, 'square', 0.16, 0.06, 170); },
         kakutei: () => [0, 180, 360].forEach(d => sweep(1200, 2600, 'triangle', 0.2, 0.08, d)),
+        // レバーの 演出 (2026-10-24): レバーを叩け！・レバブル・遅れ・逆回転
+        leverCall: () => { tone(90, 'square', 0.15, 0.14); setTimeout(() => sequence([1175, 1568, 2093], 60, 'square', 0.1, 0.07), 80); },
+        leverBuru: () => [0, 90, 180, 270].forEach(d => sweep(70, 50, 'sawtooth', 0.08, 0.08, d)),
+        okure: () => tone(60, 'sine', 0.3, 0.12),
+        gyaku: () => { sweep(1800, 200, 'sawtooth', 0.9, 0.07); sweep(900, 100, 'square', 0.9, 0.05, 120); },
         pushReady: tier => sequence(tier === 'rainbow' || tier === 'gold' ? [880, 1175, 1568] : [660, 880], 70, 'square', 0.08, 0.06),
         pushHit: tier => (tier === 'rainbow' ? sequence([523.25, 659.25, 783.99, 1046.5, 1318.5, 1568], 70, 'triangle', 0.35, 0.09)
             : tier === 'gold' ? sequence([659.25, 830.61, 987.77, 1318.5], 70, 'triangle', 0.3, 0.09)
