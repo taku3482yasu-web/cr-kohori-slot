@@ -61,6 +61,11 @@ const Furukawa = {
             }
             // 宝物庫ゾーン: 上乗せの多い役ほど熱い
             if (state.rash.phase === RASH_PHASES.TREASURE) return heat.treasure[role] || 0;
+            // 上乗せ特化ゾーン: 宝物庫と同じく上乗せの多い役ほど熱い。一撃入魂・ASAHARA CHANCE は合計を隠すのでしゃべらない
+            if (state.rash.phase === RASH_PHASES.TOKKA) {
+                const kind = state.rash.tokka && state.rash.tokka.kind;
+                return kind === 'ikkeki' || kind === 'asahara' ? 0 : heat.treasure[role] || 0;
+            }
             return heat.battle[role] || 0;
         }
         // ダンシングステージ: チャンスゾーン突入率で決める (もう突入していたら 0)
@@ -84,7 +89,7 @@ const Furukawa = {
         if (phase === RASH_PHASES.SELECT) return pick(this.selectLines(state, config, color));
         if (phase === RASH_PHASES.QUESTION) return pick(color >= 4 ? cfg.questionLines.hot : cfg.questionLines.normal);
         // ダンシングステージ・宝物庫ゾーンも専用のセリフ
-        const zoneLines = !inRash && state.normal.dance ? cfg.danceLines : phase === RASH_PHASES.TREASURE ? cfg.treasureLines : null;
+        const zoneLines = !inRash && state.normal.dance ? cfg.danceLines : phase === RASH_PHASES.TREASURE ? cfg.treasureLines : phase === RASH_PHASES.TOKKA ? cfg.tokkaLines : null;
         if (zoneLines) return pick(color >= 4 ? zoneLines.hot : zoneLines.normal);
         // RASH 中は攻めるセリフ (いけるよ！ / ここがせめどき！ など)
         if (color >= 4) return pick((inRash ? cfg.rashChanceLines : cfg.chanceLines)[color]);

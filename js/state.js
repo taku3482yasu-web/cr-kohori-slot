@@ -23,7 +23,8 @@ const RASH_PHASES = Object.freeze({
     TREASURE: 'TREASURE', // 宝物庫ゾーン: BATTLE を中断し、揃った柄で次の BATTLE のゲーム数を上乗せ
     NAITEI: 'NAITEI',     // 内定の時ゾーン: SELECT で 7揃い・7・7・BAR → シーシャ・ナイテイ・ナイナイと真剣勝負
     REVIVAL: 'REVIVAL',   // 復活待ち: 「？？」で負けたが復活が決まった。次のゲームで戦っていた敵を撃破して継続
-    BONUS: 'BONUS'        // 疑似ボーナス (A5): 撃破の あと、次の 対戦相手を 決める 前に BIG・REG・エピソードBIG を 消化
+    BONUS: 'BONUS',        // 疑似ボーナス (A5): 撃破の あと、次の 対戦相手を 決める 前に BIG・REG・エピソードBIG を 消化
+    TOKKA: 'TOKKA'        // 上乗せ特化ゾーン: おにおに撃破などの報酬。BATTLE を中断し、役に応じて枚数を上乗せ (300枚保障)
 });
 
 const MODE_LABELS = {
@@ -119,6 +120,7 @@ function createInitialState(config, rng = Math.random) {
         totalGames: 0,
         rashCount: 0,
         superCount: 0,
+        tokkaLastKind: null,     // 上乗せ特化ゾーンで前に選んだ見せ方 (次は最初からこれを選んでおく)
 
         // データカウンター
         gamesSinceHit: 0,      // 前回の RASH から (通常時・城突入チャレンジの) ゲーム数
@@ -161,7 +163,8 @@ function createInitialState(config, rng = Math.random) {
             dance: null,           // ダンシングステージ { games, gamesRemaining, points, zone }
             gameMode: null,        // モード A / B / C / heaven (A5。RASH が 終わったときに 抽選。はじめは 最初の ゲームで)
             zone: null,            // いまの ゾーン { at, end, fireAt (SE城前へ 直行する ゲーム数。外れは null) }
-            ceilingHit: false      // 天井に 着いた
+            ceilingHit: false,     // 天井に 着いた
+            chanceTime: null       // こおりチャンスタイム { games, remaining, points }
         },
 
         // 城突入チャレンジ
@@ -187,6 +190,9 @@ function createRashState() {
         winGuaranteed: false,    // 次の BATTLE (撃破まで) を勝利確定にするか (内定の時ゾーン突破の特典)
         defeatCount: 0,          // 1回のRASH内の撃破数
         oniUnlocked: false,      // おにおに出現フラグ
+        streak: 0,               // 1回のRASH内の連数 (セットを勝った回数。おにおにの出やすさに使う)
+        tokka: null,             // 上乗せ特化ゾーンの途中 { kind, games, remaining, total, tier, members }
+        tokkaReturnPhase: null,  // 上乗せ特化ゾーンが終わったら戻るフェーズ
         nextForcedEnemy: null,   // 次の対戦相手の確定 (ゴールド金面犬撃破後など)
         goldDogFlag: false,      // ゴールド金面犬と対戦中か
         breakActive: false,      // ブレイク状態 (敵がガードできない)
@@ -586,6 +592,7 @@ const GameFlow = {
                 if (carry) {
                     state.rash.defeatCount = carry.defeatCount;
                     state.rash.oniUnlocked = carry.oniUnlocked;
+                    state.rash.streak = carry.streak || 0;
                 }
                 this.recordHit(state, config, 'revenge');
                 events.push({ type: 'rashStart' });
@@ -609,8 +616,14 @@ const GameFlow = {
             bonus = cp.onAligned[outcome.role] || 0;
             reason = 'aligned';
         }
-        normal.chancePoint = Math.min(cp.threshold, normal.chancePoint + cp.perGame + bonus);
-        events.push({ type: 'chancePoint', added: cp.perGame + bonus, bonus, reason, total: normal.chancePoint });
+        // こおりチャンスタイム中は加算が multiplier 倍
+        const mult = normal.chanceTime ? config.chanceTime.multiplier : 1;
+        const added = (cp.perGame + bonus) * mult;
+        normal.chancePoint = Math.min(cp.threshold, normal.chancePoint + added);
+        events.push({ type: 'chancePoint', added, bonus: bonus * mult, reason, total: normal.chancePoint, multiplier: mult });
+
+        // こおりチャンスタイム: 中なら1ゲーム進め、そうでなければ役で突入を抽選 (次のゲームから)
+        events.push(...this.chanceTimeGame(state, outcome, config, rng, added, inRevenge));
 
         // ポイントチャンス: 「少ない」「多い」のどちらを選ぶかを出目で決める
         const pc = config.pointChance;
@@ -636,8 +649,9 @@ const GameFlow = {
             events.push(...challenge);
         }
 
-        // 規定値に到達 → SE城前へ
+        // 規定値に到達 → SE城前へ (こおりチャンスタイムはここで終わり)
         if (normal.chancePoint >= cp.threshold) {
+            if (normal.chanceTime) events.push(this.endChanceTime(state));
             events.push(this.goToCastle(state, config));
             return events;
         }
@@ -645,7 +659,7 @@ const GameFlow = {
         // ダンシングステージ (ポイントチャンス・お仲間チャレンジと同じゲームでは起きない)
         const forcedDance = state.debugForceDance;
         state.debugForceDance = false;
-        if (!inRevenge && !pointChanceHappened && !companionHappened && (forcedDance || rng() < config.dance.rate)) {
+        if (!inRevenge && !pointChanceHappened && !companionHappened && !normal.chanceTime && (forcedDance || rng() < config.dance.rate)) {
             events.push(this.startDance(state, config, rng));
             return events;
         }
@@ -718,6 +732,33 @@ const GameFlow = {
             events.push({ type: 'modeHint', text: lines[Math.floor(rng() * lines.length)] });
         }
         return events;
+
+    },
+
+    // こおりチャンスタイムの1ゲーム (通常時のマップ)。added: このゲームで加算したチャンスポイント
+    chanceTimeGame(state, outcome, config, rng, added, inRevenge) {
+        const normal = state.normal;
+        const ct = normal.chanceTime;
+        if (ct) {
+            ct.remaining--;
+            ct.points += added;
+            const events = [{ type: 'chanceTimeGame', remaining: ct.remaining, points: ct.points }];
+            if (ct.remaining <= 0) events.push(this.endChanceTime(state));
+            return events;
+        }
+        const forced = state.debugForceChanceTime;
+        state.debugForceChanceTime = false;
+        const cfg = config.chanceTime;
+        if (inRevenge || normal.chancePoint >= config.chancePoint.threshold) return [];
+        if (!forced && rng() >= (cfg.triggers[outcome.role] || 0)) return [];
+        normal.chanceTime = { games: cfg.games, remaining: cfg.games, points: 0 };
+        return [{ type: 'chanceTimeStart', games: cfg.games, multiplier: cfg.multiplier }];
+    },
+
+    endChanceTime(state) {
+        const ct = state.normal.chanceTime;
+        state.normal.chanceTime = null;
+        return { type: 'chanceTimeEnd', points: ct ? ct.points : 0 };
     },
 
     // SE城前へ (チャンスポイントが規定値に到達・ダンシングステージのチャンスゾーン突入)
@@ -846,7 +887,9 @@ const GameFlow = {
             case RASH_PHASES.NAITEI:
                 return Battle.naiteiGame(state, outcome, config, rng);
             case RASH_PHASES.REVIVAL:
-                return Battle.revivalGame(state, config);
+                return Battle.revivalGame(state, config, rng);
+            case RASH_PHASES.TOKKA:
+                return Battle.tokkaGame(state, outcome, config, rng);
         }
         return [];
     },
@@ -867,6 +910,7 @@ const GameFlow = {
         if (StateMachine.isRashMode(state)) return Battle.longFreeze(state, config, rng);
         // 通常時・城突入チャレンジ: おにおにRASH へ (最初の相手はおにおに)
         const events = [{ type: 'freezeBonus', kind: 'rash' }];
+        state.normal.chanceTime = null;
         events.push(StateMachine.transition(state, MODES.RASH));
         state.rash = createRashState();
         state.rash.nextForcedEnemy = 'onioni';
@@ -899,7 +943,7 @@ const GameFlow = {
         events.push(this.changeMap(state, config.map.loop[state.normal.loopIndex]));
         // 通常時に戻ったらリベンジチャンス (撃破数と SUPER だったかを覚えておく)
         state.normal.revengeGames = config.revenge.games;
-        state.normal.revengeCarry = { defeatCount: rash.defeatCount, oniUnlocked: rash.oniUnlocked, wasSuper: events[0].wasSuper };
+        state.normal.revengeCarry = { defeatCount: rash.defeatCount, oniUnlocked: rash.oniUnlocked, streak: rash.streak, wasSuper: events[0].wasSuper };
         events.push({ type: 'revengeStart', games: config.revenge.games });
         events.push(...this.nextMode(state, config, rng));   // 次の モード (A5)
         return events;
@@ -970,6 +1014,7 @@ const DebugState = {
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
         state.normal.dance = null;
+        state.normal.chanceTime = null;
         state.rash = createRashState();
         return [{ type: 'debug', label: '通常時へ' }];
     },
@@ -1070,6 +1115,12 @@ const DebugState = {
     },
     // 次のゲームでお仲間チャレンジを発生させる (通常時)
     // 次のゲームのあとダンシングステージへ (通常時)
+    // 次のゲームでこおりチャンスタイムに入る (通常時のマップだけ)
+    forceChanceTime(state, config) {
+        if (state.mode !== MODES.NORMAL || state.normal.dance || state.normal.chanceTime || state.normal.map === config.map.castle) return [{ type: 'debugQuiet' }];
+        state.debugForceChanceTime = true;
+        return [{ type: 'debugQuiet' }];
+    },
     forceDance(state) {
         if (state.mode !== MODES.NORMAL || state.normal.dance) return [{ type: 'debugQuiet' }];
         state.debugForceDance = true;
@@ -1088,6 +1139,17 @@ const DebugState = {
     forcePointChance(state, config) {
         state.debugForcePointChance = true;
         return [{ type: 'debugQuiet' }];
+    },
+    // 上乗せ特化ゾーンに入る (kind: 'fire' / 'okaLamp' / 'ikkeki' / 'asahara'。RASH 中の BATTLE・SELECT のときだけ)
+    forceTokka(state, config, kind) {
+        const rash = state.rash;
+        if (!StateMachine.isRashMode(state) || (rash.phase !== RASH_PHASES.SELECT && rash.phase !== RASH_PHASES.BATTLE)) return [{ type: 'debugQuiet' }];
+        return Battle.startTokka(state, config, 'debug', Math.random, kind);
+    },
+    // 連数を変える (おにおにの出やすさの確認用。10連で 50%)
+    setStreak(state, value) {
+        if (StateMachine.isRashMode(state)) state.rash.streak = value;
+        return [{ type: 'debug', label: `${value}連` }];
     },
     // 次の対戦相手を指定する (RASH 中の SELECT 前に押す)
     forceEnemy(state, enemyId) {

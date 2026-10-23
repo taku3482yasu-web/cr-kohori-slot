@@ -52,6 +52,7 @@ const Battle = {
         const table = this.battleTable(state, config);
 
         if (rash.phase === RASH_PHASES.TREASURE) return Lottery.drawRole(config.treasure.lottery, rng);
+        if (rash.phase === RASH_PHASES.TOKKA) return Lottery.drawRole(config.tokka.lottery, rng);
 
         // デバッグ「次:内定の時」: 対戦相手を決めるゲームで実際に 7揃いを出して突入させる
         if (rash.phase === RASH_PHASES.SELECT && rash.debugForceNaitei) {
@@ -109,10 +110,36 @@ const Battle = {
         const isSuper = this.isSuper(state);
         // ゴールド金面犬は SUPER 中のみ、ごくまれに出現
         if (isSuper && rng() < config.goldDog.prob) return config.goldDog;
-        const oniAvailable = rash.oniUnlocked || (isSuper && config.rash.superOniAlwaysAvailable);
-        const candidates = config.enemies.filter(e => !e.requiresUnlock || oniAvailable);
+        // おにおには連数で決まる確率で先に抽選し、外れたらほかの敵を重みで選ぶ
+        if (rng() < this.oniRate(state, config)) return this.findEnemy(config, 'onioni');
+        const others = config.enemies.filter(e => e.id !== 'onioni');
         const weightKey = isSuper ? 'superWeight' : 'weight';
-        return Lottery.weightedPick(candidates, e => e[weightKey], rng);
+        return Lottery.weightedPick(others, e => e[weightKey], rng);
+    },
+
+    // おにおにが相手に選ばれる確率 (ユーザー指定 2026-10-23: RASH が続くほど上がり、10連で 50%、それ以降はずっと 50%)
+    //   候補に入っていなければ 0。入った連数 (unlockStreak) では重みどおりの確率 (約13%) で、
+    //   そこから maxStreak 連までまっすぐ上げて maxRate にする。SUPER 中は連数で変わらない (ユーザー指定。重みどおりの約14%)
+    oniRate(state, config) {
+        const rash = state.rash;
+        const isSuper = this.isSuper(state);
+        const oniAvailable = rash.oniUnlocked || (isSuper && config.rash.superOniAlwaysAvailable);
+        if (!oniAvailable) return 0;
+        const cfg = config.rash.oni;
+        const weightKey = isSuper ? 'superWeight' : 'weight';
+        const total = config.enemies.reduce((sum, e) => sum + e[weightKey], 0);
+        const base = this.findEnemy(config, 'onioni')[weightKey] / total;
+        if (isSuper) return base;
+        if (rash.streak >= cfg.maxStreak) return cfg.maxRate;
+        if (rash.streak <= cfg.unlockStreak) return base;
+        return base + (cfg.maxRate - base) * (rash.streak - cfg.unlockStreak) / (cfg.maxStreak - cfg.unlockStreak);
+    },
+
+    // 1連 (セットを勝った): 連数を数え、おにおにの出現を見る
+    addStreak(state, config) {
+        const rash = state.rash;
+        rash.streak++;
+        return [{ type: 'streak', streak: rash.streak }, ...this.checkOniUnlock(state, config)];
     },
 
     damageFor(role, config) {
@@ -179,7 +206,7 @@ const Battle = {
         });
 
         if (rash.enemyHp <= 0) {
-            events.push(...this.defeatEnemy(state, config));
+            events.push(...this.defeatEnemy(state, config, rng));
             return events;
         }
 
@@ -209,18 +236,19 @@ const Battle = {
             .filter(h => h.amount > 0);
     },
 
-    // 撃破数でおにおにが対戦相手の候補に入る
+    // 連数でおにおにが対戦相手の候補に入る
     checkOniUnlock(state, config) {
         const rash = state.rash;
         // SUPER 中はおにおにが常に対戦相手の候補に入っているので、「おにおにが現れる…!?」は出さない
         if (state.mode === MODES.SUPER_RASH && config.rash.superOniAlwaysAvailable) return [];
-        if (rash.oniUnlocked || rash.defeatCount < config.rash.oniUnlockDefeats) return [];
+        if (rash.oniUnlocked || rash.streak < config.rash.oni.unlockStreak) return [];
         rash.oniUnlocked = true;
         return [{ type: 'oniUnlocked' }];
     },
 
-    // 撃破: ボーナス → おにおに出現 → SUPER 移行 / ゴールド金面犬撃破後はおにおに確定
-    defeatEnemy(state, config) {
+    // 撃破: ボーナス → 連数 (おにおに出現・10連のおにおに確定) → SUPER 移行 → 上乗せ特化ゾーン
+    // ゴールド金面犬撃破後はおにおに確定
+    defeatEnemy(state, config, rng = Math.random) {
         const rash = state.rash;
         const enemy = this.findEnemy(config, rash.enemyId);
         rash.defeatCount++;
@@ -243,7 +271,7 @@ const Battle = {
             nextForcedName: forced ? forced.name : null
         }];
 
-        events.push(...this.checkOniUnlock(state, config));
+        events.push(...this.addStreak(state, config));
         if (pseudo) events.push(this.startPseudoBonus(state, pseudo, config));
 
         // SUPER 中におにおにを撃破: ともいし救出のエンディング (SUPER 1回につき1回)
@@ -257,6 +285,7 @@ const Battle = {
             state.superCount++;
             events.push({ type: 'superStart' });
         }
+        events.push(...this.maybeStartTokka(state, config, enemy.id, rng));
         return events;
     },
 
@@ -443,7 +472,7 @@ const Battle = {
             gamesRemaining: rash.gamesRemaining,
             probUpGames: rash.probUpGames
         }];
-        if (rash.enemyHp <= 0) events.push(...this.endNaitei(state, config, true));
+        if (rash.enemyHp <= 0) events.push(...this.endNaitei(state, config, true, rng));
         else if (rash.gamesRemaining <= 0) events.push(...this.endNaitei(state, config, false, rng));
         return events;
     },
@@ -459,7 +488,7 @@ const Battle = {
         rash.debugForceAruaru = false;
         if (!win && (forceAruaru || rng() < config.naitei.aruaru.rate)) {
             rash.enemyHp = 0;
-            const events = this.endNaitei(state, config, true);
+            const events = this.endNaitei(state, config, true, rng);
             events[0].aruaru = true;
             return events;
         }
@@ -476,12 +505,13 @@ const Battle = {
                 type: 'naiteiResult', win: true, name: enemy.name, bonus, defeatCount: rash.defeatCount,
                 winNextBattle: rash.winGuaranteed
             }];
-            events.push(...this.checkOniUnlock(state, config));
+            events.push(...this.addStreak(state, config));
             if (state.mode === MODES.RASH) {
                 events.push(StateMachine.transition(state, MODES.SUPER_RASH));
                 state.superCount++;
                 events.push({ type: 'superStart' });
             }
+            events.push(...this.maybeStartTokka(state, config, enemy.id, rng));
             return events;
         }
 
@@ -513,7 +543,7 @@ const Battle = {
                     freeze: true, breakActive: false, hp: 0, maxHp: rash.enemyMaxHp,
                     gamesRemaining: rash.gamesRemaining, probUpGames: rash.probUpGames
                 },
-                ...this.endNaitei(state, config, true)
+                ...this.endNaitei(state, config, true, rng)
             ];
         }
         const wasSuper = this.isSuper(state);
@@ -535,7 +565,7 @@ const Battle = {
                 freeze: true, breakActive: rash.breakActive, hp: 0, maxHp: rash.enemyMaxHp,
                 gamesRemaining: rash.gamesRemaining, probUpGames: rash.probUpGames
             });
-            const defeatEvents = this.defeatEnemy(state, config);
+            const defeatEvents = this.defeatEnemy(state, config, rng);
             defeat = defeatEvents[0];
             events.push(...defeatEvents);
         }
@@ -583,7 +613,7 @@ const Battle = {
             rash.gamesRemaining = games;
             rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
             rash.phase = RASH_PHASES.BATTLE;
-            return [{ type: 'questionResult', continued: true, games }];
+            return [{ type: 'questionResult', continued: true, games }, ...this.addStreak(state, config)];
         }
         // 仲間の肩代わり: RASH を続ける
         const saver = forceRevival ? null : Companions.trySave(state, config, rng);
@@ -592,7 +622,7 @@ const Battle = {
             rash.gamesRemaining = games;
             rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
             rash.phase = RASH_PHASES.BATTLE;
-            return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId }];
+            return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId }, ...this.addStreak(state, config)];
         }
         // 復活: 液晶は RASH 終了に見せたまま止まり、次のゲームで戦っていた敵を撃破して継続
         if (forceRevival || rng() < this.revivalRate(state, config)) {
@@ -607,10 +637,78 @@ const Battle = {
     },
 
     // 復活のゲーム: 戦っていた敵を撃破して RASH 継続 (出目に関係なく)
-    revivalGame(state, config) {
+    revivalGame(state, config, rng = Math.random) {
         const rash = state.rash;
         const amount = rash.enemyHp;
         rash.enemyHp = 0;
-        return [{ type: 'revival', enemyId: rash.enemyId, amount }, ...this.defeatEnemy(state, config)];
+        return [{ type: 'revival', enemyId: rash.enemyId, amount }, ...this.defeatEnemy(state, config, rng)];
+    },
+
+    // ----- 上乗せ特化ゾーン (config.tokka) -----
+    // 撃破のあとに突入を抽選する (おにおには確定。ほかは trigger の確率)
+    maybeStartTokka(state, config, enemyId, rng = Math.random) {
+        const trigger = config.tokka.trigger;
+        const rate = trigger[enemyId] ?? trigger.others;
+        if (rng() >= rate) return [];
+        return this.startTokka(state, config, enemyId, rng);
+    },
+
+    // 突入: 次のゲームから games ゲーム。終わったら tokkaReturnPhase へ戻る
+    // 見せ方 (kind) はプレイヤーが液晶で選ぶ (chooseTokka)。選ぶまでは前に選んだもの (はじめは kinds の先頭) にしておく。
+    // choose: 選ぶ画面を出すか (デバッグで見せ方を指定したときは出さない)
+    startTokka(state, config, source, rng = Math.random, kind = null) {
+        const cfg = config.tokka;
+        const rash = state.rash;
+        const choose = !kind;
+        if (!kind) kind = cfg.kinds.includes(state.tokkaLastKind) ? state.tokkaLastKind : cfg.kinds[0];
+        rash.tokkaReturnPhase = rash.phase === RASH_PHASES.BATTLE ? RASH_PHASES.BATTLE : RASH_PHASES.SELECT;
+        rash.phase = RASH_PHASES.TOKKA;
+        // ASAHARA CHANCE で集まる順 (先に来るのは SASAKI か KOTANI のどちらか)
+        const members = rng() < 0.5 ? ['sasaki', 'kotani'] : ['kotani', 'sasaki'];
+        rash.tokka = { kind, games: cfg.games, remaining: cfg.games, total: 0, tier: 0, members };
+        return [{ type: 'tokkaStart', kind, choose, source, games: cfg.games, min: cfg.min, max: cfg.max, members }];
+    },
+
+    // プレイヤーが選んだ見せ方にする (まだ1ゲームも回していないときだけ)。上乗せの確率はどれも同じ
+    chooseTokka(state, config, kind) {
+        const t = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.TOKKA ? state.rash.tokka : null;
+        if (!t || t.remaining !== t.games || !config.tokka.kinds.includes(kind)) return false;
+        t.kind = kind;
+        state.tokkaLastKind = kind;
+        return true;
+    },
+
+    // 1ゲーム: 役に応じて上乗せ (合計は max まで)。ASAHARA CHANCE は合計が tiers に届いたら告知
+    tokkaGame(state, outcome, config, rng = Math.random) {
+        const cfg = config.tokka;
+        const rash = state.rash;
+        const t = rash.tokka;
+        const table = cfg.addTable[outcome.role] || cfg.addTable.miss;
+        const drawn = Number(Lottery.weightedPick(Object.keys(table), k => table[k], rng));
+        const add = Math.min(drawn, cfg.max - t.total);
+        t.total += add;
+        t.remaining--;
+        const tier = cfg.tiers.filter(v => t.total >= v).length;
+        const flash = t.kind === 'asahara' && tier > t.tier ? { from: t.tier, to: tier, arrive: t.members.slice(t.tier, tier) } : null;
+        t.tier = tier;
+        const events = [{
+            type: 'tokkaGame', kind: t.kind, role: outcome.role, add, total: t.total, remaining: t.remaining,
+            max: t.total >= cfg.max, flash, guaranteed: flash ? cfg.tiers[tier - 1] : null
+        }];
+        if (t.remaining <= 0) events.push(...this.endTokka(state, config));
+        return events;
+    },
+
+    // 終了: 合計 (min 枚保障) をまとめて払い出し、BATTLE に戻る
+    endTokka(state, config) {
+        const cfg = config.tokka;
+        const rash = state.rash;
+        const t = rash.tokka;
+        const coins = Math.max(cfg.min, t.total);
+        this.applyBonus(state, { type: 'coins', value: coins });
+        rash.phase = rash.tokkaReturnPhase || RASH_PHASES.SELECT;
+        rash.tokkaReturnPhase = null;
+        rash.tokka = null;
+        return [{ type: 'tokkaEnd', kind: t.kind, name: cfg.names[t.kind], total: t.total, coins, guaranteed: t.total < cfg.min, members: t.members.slice(0, t.tier) }];
     }
 };

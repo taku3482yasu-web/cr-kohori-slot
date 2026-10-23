@@ -26,7 +26,7 @@ window.GAME_CONFIG = {
             3: { chance: 0.88, castleEntry: 1.00, pointBig: 1.00 },   // 2026-10-23 A5: 0.92 → 0.88 (設定3 まで 100% 未満)
             4: { chance: 1.24, castleEntry: 1.25, pointBig: 1.28 },
             5: { chance: 1.73, castleEntry: 1.76, pointBig: 1.62 },
-            6: { chance: 2.75, castleEntry: 2.75, pointBig: 2.15 }
+            6: { chance: 2.50, castleEntry: 2.55, pointBig: 2.15 }   // 2026-10-23: チャンスタイム追加で上がった分 2.75 / 2.75 から下げた
         }
     },
 
@@ -129,9 +129,9 @@ window.GAME_CONFIG = {
             cherry: 3,
             melon: 5,
             bar: 10,
-            seven: 100        // 規定値と同じ = 7揃いでSE城前へ直行
+            seven: 150        // 規定値と同じ = 7揃いでSE城前へ直行 (規定値を 150 にしたので合わせた)
         },
-        threshold: 100        // この値に達するとSE城前へ移動
+        threshold: 150        // この値に達するとSE城前へ移動 (2026-10-23 ユーザー指定: 100→150)
     },
 
     // ----- ポイントチャンス (通常時) -----
@@ -176,6 +176,73 @@ window.GAME_CONFIG = {
         },
         zoneRates: {
             seven: 1.0, chance: 0.6, bar: 0.5, melon: 0.3, cherry: 0.2, diamond: 0.05, bell: 0.03, replay: 0.02, miss: 0.02
+        }
+    },
+
+    // ----- こおりチャンスタイム (通常時。ユーザー指定 2026-10-23: 通常時が長くなったので演出を増やす) -----
+    // 通常時のマップで triggers の役が出たとき、その確率で突入。games ゲームの間、チャンスポイントの加算
+    // (1ゲームごと・チャンス目・柄揃い) が multiplier 倍。ともいしが応援しながらこおりくんの後ろを付いてくる。
+    // SE城前に着く・ダンシングステージに入ると終わる。リベンジチャンス中は入らない
+    chanceTime: {
+        triggers: { chance: 0.25, bar: 0.2, melon: 0.06, cherry: 0.02 },
+        games: 10,
+        multiplier: 2
+    },
+
+    // ----- 通常時の予告 (ユーザー指定 2026-10-23。キャラとセリフはパチンコ・新作のスロットを参考にした) -----
+    // レバー ON で出す。どれを出すかはそのゲームの役で決める (期待度は役しだい。演出だけで、出目や抽選は変えない)。
+    // 役の分類: premium (7揃い・7・7・BAR = SE城前へ直行) / hot (チャンス目・BAR = ポイント大量) / warm (スイカ・チェリー) / cold (ほか)
+    //   rate:   何かの予告が出る確率 / kinds: 出たときの種類の振り分け
+    //   cutin:  カットインの色の振り分け。虹は premium だけ (確定)。cast は色ごとに出るキャラとセリフ (新作のスロットと同じ顔ぶれ)
+    //   stepUp: ステップアップ予告 (パチンコと同じ)。何段目まで行くか・3段目の文字の色。series はキャラの組 (期待度は同じ)
+    //   gun:    群予告 (パチンコと同じ)。ひびきまくり群は hot 以上だけ (チャンス目以上確定)
+    notice: {
+        classes: { seven: 'premium', sevenBar: 'premium', chance: 'hot', bar: 'hot', melon: 'warm', cherry: 'warm' },
+        rate: { premium: 0.9, hot: 0.55, warm: 0.25, cold: 0.03 },
+        kinds: {
+            premium: { cutin: 40, stepUp: 30, gun: 30 },
+            hot: { cutin: 45, stepUp: 35, gun: 20 },
+            warm: { cutin: 50, stepUp: 45, gun: 5 },
+            cold: { cutin: 50, stepUp: 45, gun: 5 }
+        },
+        cutin: {
+            premium: { rainbow: 35, gold: 45, red: 20 },
+            hot: { gold: 25, red: 45, green: 20, blue: 10 },
+            warm: { gold: 3, red: 22, green: 40, blue: 35 },
+            cold: { red: 5, green: 30, blue: 65 }
+        },
+        colors: { blue: '#2a5ac8', green: '#2a9a48', red: '#b01828', gold: '#c89a10', rainbow: 'rainbow' },
+        cast: {
+            blue: [['koori', 'いくぞ！'], ['yasu', 'いけるかも…？'], ['tamu', 'まだまだやな'], ['dake', '気合いだ！'], ['furukawa', 'チャンスかも！']],
+            green: [['koori', 'チャンスだ！'], ['yasu', 'チャンスですの！'], ['tamu', 'ええ流れやん'], ['dake', 'こぶしが燃える！'], ['furukawa', 'いい感じだよ！']],
+            red: [['koori', '勝つぞ！！'], ['dake', 'たたきつぶしてくれる！'], ['onioni', '負けたら金返せよ！'], ['tomoishi', 'こおり、がんばり！']],
+            gold: [['koori', '激アツ！！'], ['onioni', 'ここで決めろ、こおり！'], ['tomoishi', 'こおりなにしよっと！いけー！'], ['furukawa', '激アツだよ！！']],
+            rainbow: [['koori', 'こおりいきていける！']]
+        },
+        stepUp: {
+            outcomes: {
+                premium: { s3gold: 60, s3red: 30, s3white: 10 },
+                hot: { s3gold: 20, s3red: 40, s3white: 25, s2: 15 },
+                warm: { s3gold: 2, s3red: 18, s3white: 30, s2: 30, s1: 20 },
+                cold: { s3red: 3, s3white: 12, s2: 35, s1: 50 }
+            },
+            stepMs: 650,
+            textColors: { white: '#ffffff', red: '#ff3a3a', gold: '#ffd040' },
+            series: [
+                [['koori', 'こおりくん、出発！'], ['koori', 'SE城を目指せ！'], ['koori', 'ツラヌケ！！']],
+                [['furukawa', 'ふるカワが見てる…'], ['furukawa', 'ふるカワが応援！'], ['furukawa', 'ふるカワ大興奮！！']],
+                [['tomoishi', 'ともいし登場'], ['tomoishi', 'お金返しなさい！'], ['tomoishi', '今すぐ返しなさい！！']],
+                [['yasu', 'やすさん登場！'], ['tamu', 'たむさんも来た！'], ['dake', 'だけさんで全員集合！！']],
+                [['onioni', 'おにおにの気配…'], ['onioni', 'おにおにが怒った！'], ['onioni', 'おにおに激怒！！']]
+            ]
+        },
+        gun: {
+            premium: { hibikimakuri: 50, koori: 25, onioni: 25 },
+            hot: { hibikimakuri: 30, koori: 35, onioni: 35 },
+            warm: { koori: 50, onioni: 50 },
+            cold: { koori: 50, onioni: 50 },
+            names: { koori: 'こおり群', onioni: 'おにおに群', hibikimakuri: 'ひびきまくり群' },
+            ms: 1600
         }
     },
 
@@ -240,8 +307,10 @@ window.GAME_CONFIG = {
         // presetRate:   セット開始時に「勝ちセット」にする確率 (先決め)。
         //               負けセットでもガード崩し・ブレイク・仲間の肩代わり・復活で続くぶん、continueRate より低くしてある。
         //               ダメージ・確率・ブレイク率を変えたら、シミュレーションで continueRate に合うよう調整する
-        normal: { continueRate: 0.70, presetRate: 0.380 },   // おにおにRASH
-        super: { continueRate: 0.93, presetRate: 0.848 },    // SUPERおにおにRASH
+        // 2026-10-23: 上乗せ特化ゾーン・おにおにの出やすさの追加と、SE城前のポイント 100→150 に合わせて、
+        //   出玉率を元くらい (設定1 約98%) にするために下げた (presetRate 通常 0.380→0.345 / SUPER 0.848→0.800。特化ゾーンの突入率も調整)
+        normal: { continueRate: 0.68, presetRate: 0.345 },   // おにおにRASH
+        super: { continueRate: 0.91, presetRate: 0.800 },    // SUPERおにおにRASH
         // BATTLE開始時のゲーム数 (重み付き抽選)
         initialGames: [
             { games: 5, weight: 45 },
@@ -256,10 +325,63 @@ window.GAME_CONFIG = {
             { games: 15, weight: 15 },
             { games: 20, weight: 10 }
         ],
-        // おにおにが対戦相手の候補に入るのに必要な撃破数 (1回のRASH内で数える)
-        oniUnlockDefeats: 3,
         // SUPER中はおにおにを常に候補に入れるか
-        superOniAlwaysAvailable: true
+        superOniAlwaysAvailable: true,
+        // おにおにの出やすさ (ユーザー指定 2026-10-23: RASH が続くほど出やすく、10連で 50%、それ以降はずっと 50%)
+        //   連 = セットを勝った回数 (撃破・「？？」の継続・仲間の肩代わり・復活・内定の時ゾーン突破で1連ずつ。1回の RASH 内で数える)
+        //   unlockStreak: この連数で対戦相手の候補に入る (「おにおにが現れる…!?」)。このときは重みどおりの確率 (約13%)
+        //   maxStreak・maxRate: そこから maxStreak 連までまっすぐ上げて maxRate にし、それ以降はずっと maxRate (SUPER 中は連数で変わらない)
+        oni: { unlockStreak: 3, maxStreak: 10, maxRate: 0.5 }
+    },
+
+    // ----- 上乗せ特化ゾーン (ユーザー指定 2026-10-23) -----
+    // おにおにの撃破の報酬。ほかの敵の撃破でも trigger の確率で突入する。games ゲームの間 BATTLE は中断し、
+    // 1ゲームごとに、出目 (役) に応じて addTable の枚数を上乗せする。終わったら合計をまとめて払い出す。
+    //   min: 保障 (合計がこれより少なければ min 枚にする) / max: 上限 (ユーザー指定 2026-10-23: 1000枚)
+    //   kinds: 4つの見せ方。突入したらプレイヤーが選ぶ (ユーザー指定: 新作と同じ。前に選んだものを最初に選んでおき、10秒で決まる)。
+    //          上乗せの確率はどれも同じで、見せ方だけちがう
+    //     fire:    こおりファイアー   1G ごとに上乗せを出す (炎の色で大きさ)
+    //     okaLamp: おかランプ         レバーの瞬間、チャンス役でランプが点灯 (7揃い・7・7・BAR は虹色)。止まったら上乗せを出す
+    //     ikkeki:  おにおに一撃入魂   上乗せは見せずに溜め、最後のゲームのあとに一撃で合計を出す
+    //     asahara: ASAHARA CHANCE    一発告知。合計が tiers に届いたゲームで ASAHARA FLASH → SASAKI・KOTANI が集まる
+    //              (どちらか1人で 500枚以上確定、2人そろえば 1000枚以上確定)
+    tokka: {
+        trigger: { onioni: 1, goldDog: 0.1, naitei: 1, others: 0.02 },   // ナイナイは確定 (ユーザー指定)。金面犬は出玉率を戻すため 30% → 10%
+        games: 10,
+        min: 300,
+        max: 1000,
+        kinds: ['fire', 'okaLamp', 'ikkeki', 'asahara'],
+        selectMs: 10000,
+        names: { fire: 'こおりファイアー', okaLamp: 'おかランプ', ikkeki: 'おにおに一撃入魂', asahara: 'ASAHARA CHANCE' },
+        lottery: {
+            replay: 1 / 2.5,
+            bell: 1 / 6,
+            diamond: 1 / 12,
+            cherry: 1 / 15,
+            melon: 1 / 25,
+            bar: 1 / 40,
+            seven: 1 / 120,
+            sevenBar: 1 / 150,
+            chance: 1 / 20
+        },
+        // 役ごとの上乗せ枚数 (枚: 重み)
+        addTable: {
+            miss: { 5: 50, 10: 40, 30: 10 },
+            replay: { 10: 60, 20: 30, 50: 10 },
+            bell: { 10: 50, 20: 35, 50: 15 },
+            diamond: { 20: 50, 50: 35, 100: 15 },
+            cherry: { 30: 50, 50: 35, 100: 12, 300: 3 },
+            melon: { 50: 40, 100: 40, 200: 15, 300: 5 },
+            chance: { 50: 40, 100: 40, 200: 15, 500: 5 },
+            bar: { 100: 50, 200: 35, 300: 10, 500: 5 },
+            seven: { 300: 40, 500: 40, 1000: 20 },
+            sevenBar: { 300: 30, 500: 40, 1000: 30 }
+        },
+        // おかランプが点灯する役 (rainbowRoles は虹色)
+        lampRoles: ['diamond', 'cherry', 'melon', 'chance', 'bar', 'seven', 'sevenBar'],
+        rainbowRoles: ['seven', 'sevenBar'],
+        // ASAHARA CHANCE: 合計がこの枚数に届いたら ASAHARA FLASH (1つ目でどちらか1人、2つ目でもう1人。2人そろえば上限の1000枚)
+        tiers: [500, 1000]
     },
 
     // ----- リベンジチャンス (RASH 終了後の引き戻し) -----
@@ -426,8 +548,8 @@ window.GAME_CONFIG = {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
             lines: { special: '金返せ！' },
             weight: 16, superWeight: 15, hp: 200,
-            bonus: { type: 'coins', value: 0 },   // 2026-10-23 A5: エピソードBIG (SUPER へ 上がるとき) を 足したので 200 → 0
-            requiresUnlock: true          // 撃破数が oniUnlockDefeats に達するまで出ない
+            bonus: { type: 'tokka' },     // 撃破の報酬は上乗せ特化ゾーン (300枚保障。tokka)
+            requiresUnlock: true          // 連数が rash.oni.unlockStreak に達するまで出ない (SUPER 中は常に候補)
         }
     ],
 
@@ -781,6 +903,10 @@ window.GAME_CONFIG = {
         treasureLines: {
             normal: ['宝物庫だ！ いっぱい上乗せしよ！', '金貨がいっぱい…うちの実家くらいあるかも♪', '次のBATTLEが長くなるよ！'],
             hot: ['大量上乗せのチャンス！！', 'いっぱいもらっちゃお！！']
+        },
+        tokkaLines: {   // 上乗せ特化ゾーン (一撃入魂・ASAHARA CHANCE は合計を隠すので、いつも normal)
+            normal: ['特化ゾーンだ！ いっぱい上乗せしよ！', '最低でも300枚！ やったね♪', 'どれだけ乗るかな…？'],
+            hot: ['大量上乗せのチャンス！！', '最大1000枚、いっちゃえ！！']
         },
         questionLines: {
             normal: ['おねがい！続いて！', '揃って…！', 'まだ終わりたくない…！'],

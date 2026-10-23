@@ -19,6 +19,7 @@
     const setPayout = n => { if (payoutDisplay) payoutDisplay.textContent = n; };
     const lightLine = line => lineLamps.forEach(el => el.classList.toggle('on', line !== null && Number(el.dataset.line) === line));
     let debugNextRole = null;   // デバッグ: 次のゲームの役を指定
+    let debugNotice = null;     // デバッグ: 次のゲームの予告の種類を指定 ('cutin' | 'stepUp' | 'gun')
     let debugEndCard = -1;      // デバッグ: 最後に見た RASH 終了画面の絵の番号
 
     function refresh() {
@@ -39,6 +40,7 @@
     // 場面ごとの BGM
     function bgmTrack(s) {
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return 'defeat';   // 復活待ちは負けたように見せる
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA && s.rash.tokka.kind === 'okaLamp') return 'dance';   // おかランプは踊れる曲
         if (s.mode === MODES.SUPER_RASH) return 'super';
         if (s.mode === MODES.RASH) return 'battle';
         if (s.mode === MODES.CASTLE_CHALLENGE || s.normal.map === config.map.castle) return 'castle';
@@ -56,6 +58,11 @@
 
     async function playGame() {
         startAudio();
+        // 特化ゾーンの見せ方を選ぶ画面: レバーで決定
+        if (Lcd.tokkaSelecting()) {
+            Lcd.tokkaSelectInput('lever');
+            return;
+        }
         // オープニング中のレバーはスキップ
         if (Lcd.storyActive()) {
             Lcd.skipStory();
@@ -87,6 +94,10 @@
         const outcome = debugNextRole ? Lottery.makeOutcome(debugNextRole, config) : Lottery.draw(state, config);
         debugNextRole = null;
         const effects = config.effects;
+        Lcd.tokkaLever(outcome);   // 上乗せ特化ゾーン「おかランプ」: チャンス役でランプが点灯
+        // 通常時の予告 (カットイン・ステップアップ予告・群予告。役で選ぶ)
+        Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
+        debugNotice = null;
 
         // 先読み予告 (レバーON で雪が降る)
         const previewRate = effects.preview[outcome.role] || 0;
@@ -247,6 +258,18 @@
     }
 
     Lcd.init(document.getElementById('lcd'), config, state);
+    // 特化ゾーンの見せ方を選ぶ画面: 選んでいる間はレバーと STOP を押せるようにし、選んだ見せ方を state に入れる
+    Lcd.setHandlers({
+        chooseTokka: kind => Battle.chooseTokka(state, config, kind),
+        selectStart: () => {
+            spinButton.disabled = false;
+            stopButtons.forEach(btn => { btn.disabled = false; });
+        },
+        selectEnd: () => {
+            spinButton.disabled = true;
+            stopButtons.forEach(btn => { btn.disabled = true; });
+        }
+    });
     Reels.init(config, reelElements, stopButtons);
     UI.init(config, { lever: spinButton, stop1: stopButtons[0], stop2: stopButtons[1], stop3: stopButtons[2] });
     PushButton.init(config);   // PUSH ボタン (2026-10-23 A3)
@@ -260,7 +283,14 @@
     // スマホでは回っているリールそのものを押しても止められる (STOP より大きくて押しやすい)。
     // 指で止めたときは短く震わせる (対応している端末だけ)
     const stopByPointer = (e, i) => {
-        if (e.button !== 0 || stopButtons[i].disabled) return;
+        if (e.button !== 0) return;
+        // 特化ゾーンの見せ方を選ぶ画面: 左右の STOP で選び、まんなかの STOP で決定
+        if (Lcd.tokkaSelecting()) {
+            e.preventDefault();
+            Lcd.tokkaSelectInput(`stop${i + 1}`);
+            return;
+        }
+        if (stopButtons[i].disabled) return;
         e.preventDefault();
         Reels.stop(i);
         if (e.pointerType === 'touch' && navigator.vibrate) navigator.vibrate(15);
@@ -318,7 +348,16 @@
         bonusReg: debugAction(() => DebugState.startBonus(state, 'reg', config)),
         bonusEpisode: debugAction(() => DebugState.startBonus(state, 'episode', config)),
         nearCeiling: debugAction(() => DebugState.nearCeiling(state, config)),
-        heaven: debugAction(() => DebugState.toHeaven(state, config))
+        heaven: debugAction(() => DebugState.toHeaven(state, config)),
+        tokkaFire: debugAction(() => DebugState.forceTokka(state, config, 'fire')),
+        tokkaLamp: debugAction(() => DebugState.forceTokka(state, config, 'okaLamp')),
+        tokkaIkkeki: debugAction(() => DebugState.forceTokka(state, config, 'ikkeki')),
+        tokkaAsahara: debugAction(() => DebugState.forceTokka(state, config, 'asahara')),
+        streak10: debugAction(() => DebugState.setStreak(state, config.rash.oni.maxStreak)),
+        chanceTime: debugAction(() => DebugState.forceChanceTime(state, config)),
+        noticeCutin: () => { debugNotice = 'cutin'; },
+        noticeStepUp: () => { debugNotice = 'stepUp'; },
+        noticeGun: () => { debugNotice = 'gun'; }
     });
     document.querySelectorAll('[data-next-role]').forEach(btn => {
         btn.addEventListener('click', () => { debugNextRole = btn.dataset.nextRole; });

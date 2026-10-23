@@ -51,6 +51,7 @@ const SaveData = (() => {
         if (saved.justMoved) state.justMoved = true;   // 台移動の直後 (起動時のメッセージ用)
         state.debugForcePointChance = false;
         state.debugForceDance = false;
+        state.debugForceChanceTime = false;
         return isValid(state, config) ? state : null;
     }
 

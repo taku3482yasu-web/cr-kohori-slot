@@ -408,6 +408,7 @@
     };
     const bonusText = b => b.type === 'coins' ? `+${b.value}枚`
         : b.type === 'games' ? `次のBATTLE +${b.value}G`
+        : b.type === 'tokka' ? `上乗せ特化ゾーン（${c.tokka.min}枚保障）`
         : `柄揃い確率UP ×${b.value}（${b.games}G）`;
 
     $('title').textContent = c.title;
@@ -423,7 +424,7 @@
     $('flow-cp').textContent = `CP が ${cp.threshold} に到達`;
     $('flow-wait').textContent = `SE城が見えてきた！ ${c.castle.waitGames}ゲーム後に城突入チャレンジが始まります。`;
     $('flow-challenge').textContent = `${c.castle.challengeGames}ゲームの間にチャンス目などを引けば城に突入！ 失敗すると通常時に戻ります（CP は ${pct(c.castle.failKeepRate)} 持ち越し）。`;
-    $('flow-rash').textContent = `敵と BATTLE してコインを増やすモード。継続率 ${pct(c.rash.normal.continueRate)}。敵を倒すとボーナス、${c.rash.oniUnlockDefeats}体倒すとおにおにが現れるように。`;
+    $('flow-rash').textContent = `敵と BATTLE してコインを増やすモード。継続率 ${pct(c.rash.normal.continueRate)}。敵を倒すとボーナス。${c.rash.oni.unlockStreak}連するとおにおにが現れ、連するほど出やすく、${c.rash.oni.maxStreak}連からはずっと${pct(c.rash.oni.maxRate)}！ おにおにを倒すと上乗せ特化ゾーン（${c.tokka.games}G・${c.tokka.min}枚保障・最大${c.tokka.max}枚。${Object.values(c.tokka.names).join('・')}から好きな演出を選べる）。ほかの敵を倒したときもまれに突入。`;
     $('flow-super').textContent = `継続率 ${pct(c.rash.super.continueRate)}！ ごくまれに「ゴールド金面犬」が現れ、倒すと ${c.goldDog.bonus.value}枚！`;
 
     // 通常時
@@ -564,7 +565,7 @@
     };
     const normalTotal = c.enemies.filter(e => !e.requiresUnlock).reduce((s, e) => s + e.weight, 0);
     const rows = c.enemies.map(e => [
-        '', `<b>${e.name}</b>${e.requiresUnlock ? `<br><span class="tag">${c.rash.oniUnlockDefeats}体撃破後に出現</span>` : ''}`,
+        '', `<b>${e.name}</b>${e.requiresUnlock ? `<br><span class="tag">${c.rash.oni.unlockStreak}連で出現・${c.rash.oni.maxStreak}連から${pct(c.rash.oni.maxRate)}</span>` : ''}`,
         e.hp, bonusText(e.bonus), e.requiresUnlock ? '出にくい' : pct(e.weight / normalTotal)
     ]);
     rows.push(['', `<b class="gold">${c.goldDog.name}</b><br><span class="tag">SUPER限定</span>`, c.goldDog.hp,

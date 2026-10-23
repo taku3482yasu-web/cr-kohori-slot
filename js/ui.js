@@ -386,6 +386,11 @@ const UI = (() => {
             Lcd.skipStory();
             return;
         }
+        // 特化ゾーンの見せ方を選ぶ画面 (左右の STOP で選び、レバーかまんなかの STOP で決定)
+        if (Lcd.tokkaSelecting()) {
+            Lcd.tokkaSelectInput(actionId);
+            return;
+        }
         if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
         const button = keyActions[actionId];
         if (button && !button.disabled) button.click();

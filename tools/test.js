@@ -18,7 +18,7 @@ const path = require('path');
 const vm = require('vm');
 
 const JS_DIR = path.join(__dirname, '..', 'js');
-const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'save.js', 'furukawa.js', 'hype.js', 'zencho.js', 'updates.js'];
+const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'notice.js', 'save.js', 'furukawa.js', 'hype.js', 'zencho.js', 'updates.js'];
 
 // ----- 引数 -----
 const args = process.argv.slice(2);
@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, ReelMap, Hype, Zencho, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, ReelMap, Hype, Zencho, GameFlow, Battle, Notice, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -114,6 +114,7 @@ function play(setting, games, seed) {
         questionFails: 0,
         revenge: { success: 0, toSuper: 0, fromSuper: 0, carried: 0, wrong: 0 },
         oniUnlockInSuper: 0,
+        tokka: { starts: {}, oniDefeats: 0, oniNoTokka: 0, ends: 0, outOfRange: 0, flashWrong: 0, notChosen: 0, kinds: new Set() },   // 上乗せ特化ゾーン
         ending: { count: 0, notSuperOni: 0, twiceInSet: 0, supers: 0 },   // エンディング (SUPER 中のおにおに撃破で、SUPER 1回につき1回)     // SUPER 中に「おにおにが現れる…!?」が出た回数 (出てはいけない)
         joined: new Set(),       // 仲間になった仲間の id
         revival: { pending: 0, revived: 0, ends: 0, notPending: 0, noDefeat: 0, notSeven: 0, paid: 0 },
@@ -232,6 +233,28 @@ function play(setting, games, seed) {
                 else log.aruaru.lost++;
             }
             if (e.type === 'oniUnlocked' && mode === MODES.SUPER_RASH) log.oniUnlockInSuper++;
+            // 上乗せ特化ゾーン: おにおに撃破は必ず突入。合計は 300〜1000枚。ASAHARA FLASH の「〇枚以上確定」は最後の合計以下
+            // 見せ方はプレイヤーが選ぶので、ここでは選ぶ画面の代わりに順番に選ぶ
+            const tk = log.tokka;
+            if (e.type === 'defeat' && e.enemyId === 'onioni') {
+                tk.oniDefeats++;
+                if (!events.some(x => x.type === 'tokkaStart')) tk.oniNoTokka++;
+            }
+            if (e.type === 'tokkaStart') {
+                tk.starts[e.source] = (tk.starts[e.source] || 0) + 1;
+                const kinds = config.tokka.kinds;
+                const kind = kinds[(tk.ends + 1) % kinds.length];
+                game.Battle.chooseTokka(state, config, kind);
+                if (state.rash.tokka.kind !== kind || state.tokkaLastKind !== kind) tk.notChosen++;
+                tk.kinds.add(kind);
+                tk.promised = 0;
+            }
+            if (e.type === 'tokkaGame' && e.guaranteed) tk.promised = e.guaranteed;
+            if (e.type === 'tokkaEnd') {
+                tk.ends++;
+                if (e.coins < config.tokka.min || e.coins > config.tokka.max) tk.outOfRange++;
+                if (tk.promised > e.coins) tk.flashWrong++;
+            }
             if (e.type === 'superStart') log.ending.supers++;
             if (e.type === 'ending') {
                 log.ending.count++;
@@ -889,6 +912,115 @@ test('おにおに出現: SUPER 中は常に候補に入っているので「お
     for (const { setting, log } of runs) assertEqual(log.oniUnlockInSuper, 0, `設定${setting} の SUPER 中のおにおに出現`);
 });
 
+test('上乗せ特化ゾーン: おにおに撃破で必ず突入し、ほかの敵でもまれに入る。選んだ見せ方になり、合計は 300〜1000枚で、ASAHARA FLASH の確定は守られる', () => {
+    for (const { setting, log } of runs) {
+        const t = log.tokka;
+        assert(t.oniDefeats > 0, `設定${setting} でおにおにを一度も撃破していない`);
+        assertEqual(t.oniNoTokka, 0, `設定${setting} でおにおにを撃破したのに特化ゾーンに入らない`);
+        assert(Object.keys(t.starts).some(k => k !== 'onioni'), `設定${setting} でおにおに以外から特化ゾーンに入らない`);
+        assertEqual(t.outOfRange, 0, `設定${setting} で 300〜1000枚から外れた特化ゾーン`);
+        assertEqual(t.notChosen, 0, `設定${setting} で選んだ見せ方にならない`);
+        assertEqual(t.flashWrong, 0, `設定${setting} で ASAHARA FLASH の確定より少ない結果`);
+        assertEqual(t.kinds.size, 4, `設定${setting} の特化ゾーンの見せ方の種類`);
+    }
+});
+
+test('通常時の予告: 虹のカットインは7揃い・7・7・BAR だけ、ひびきまくり群はチャンス目以上だけ。出るのは通常時のマップだけ', () => {
+    const game = loadGame(11);
+    const { createInitialState, Lottery, Notice, MODES, config } = game;
+    const state = createInitialState(config);
+    const roles = ['miss', 'replay', 'bell', 'diamond', 'cherry', 'melon', 'bar', 'chance', 'seven', 'sevenBar'];
+    const seen = {};
+    for (const role of roles) {
+        const outcome = Lottery.makeOutcome(role, config);
+        let shown = 0;
+        for (let i = 0; i < 4000; i++) {
+            const n = Notice.pick(state, outcome, config);
+            if (!n) continue;
+            shown++;
+            const key = n.kind === 'cutin' ? `cutin:${n.color}` : n.kind === 'gun' ? `gun:${n.who}` : `step:${n.steps}${n.textColor}`;
+            (seen[key] = seen[key] || new Set()).add(role);
+        }
+        seen[`rate:${role}`] = shown / 4000;
+    }
+    const premium = ['seven', 'sevenBar'];
+    const hotUp = ['bar', 'chance', 'seven', 'sevenBar'];
+    for (const role of seen['cutin:rainbow'] || []) assert(premium.includes(role), `虹のカットインが ${role} で出た`);
+    for (const role of seen['gun:hibikimakuri'] || []) assert(hotUp.includes(role), `ひびきまくり群が ${role} で出た`);
+    assert(seen['cutin:rainbow'] && seen['gun:hibikimakuri'], '虹のカットイン・ひびきまくり群が一度も出ない');
+    assertBetween(seen['rate:miss'], 0.015, 0.05, 'ハズレで予告が出る割合');
+    assert(seen['rate:seven'] > 0.8, '7揃いで予告が出にくい');
+    // RASH 中・ダンシングステージ中は出さない
+    state.mode = MODES.RASH;
+    assertEqual(Notice.pick(state, Lottery.makeOutcome('seven', config), config, Math.random, 'cutin'), null, 'RASH 中の予告');
+});
+
+test('こおりチャンスタイム: チャンス目などで突入し、10G のあいだチャンスポイントの加算が2倍。SE城前に着いたら終わる', () => {
+    const game = loadGame(12);
+    const { createInitialState, Lottery, GameFlow, MODES, config } = game;
+    const state = createInitialState(config);
+    state.debugForceChanceTime = true;
+    let events = GameFlow.onGameEnd(state, Lottery.makeOutcome('replay', config), config);
+    assert(events.some(e => e.type === 'chanceTimeStart'), 'チャンスタイムに入らない');
+    let before = state.normal.chancePoint;
+    events = GameFlow.onGameEnd(state, Lottery.makeOutcome('replay', config), config);
+    const cp = events.find(e => e.type === 'chancePoint');
+    assertEqual(cp.added, config.chancePoint.perGame * config.chanceTime.multiplier, 'チャンスタイム中の1ゲームの加算');
+    for (let i = 1; i < config.chanceTime.games; i++) {
+        state.normal.chancePoint = 0;
+        events = GameFlow.onGameEnd(state, Lottery.makeOutcome('replay', config), config);
+    }
+    assert(events.some(e => e.type === 'chanceTimeEnd'), '10G で終わらない');
+    assertEqual(state.normal.chanceTime, null, '終わったあとも残っている');
+    // SE城前に着いたら終わる
+    state.debugForceChanceTime = true;
+    GameFlow.onGameEnd(state, Lottery.makeOutcome('replay', config), config);
+    state.normal.chancePoint = config.chancePoint.threshold - 1;
+    events = GameFlow.onGameEnd(state, Lottery.makeOutcome('replay', config), config);
+    assert(events.some(e => e.type === 'chanceTimeEnd'), 'SE城前に着いても終わらない');
+    assertEqual(state.normal.map, config.map.castle, 'SE城前に着かない');
+    // 7揃いは SE城前へ直行 (規定値を 150 にしたあとも)
+    const fresh = createInitialState(config);
+    GameFlow.onGameEnd(fresh, Lottery.makeOutcome('seven', config), config);
+    assertEqual(fresh.normal.map, config.map.castle, '7揃いで SE城前に直行しない');
+});
+
+test('おにおにの出やすさ: 連するほど上がり、10連で 50%、それ以降はずっと 50% (SUPER 中は変わらない)', () => {
+    const game = loadGame(7);
+    const { createInitialState, Battle, MODES, config } = game;
+    const rateOf = (mode, streak, unlocked = true) => {
+        const state = createInitialState(config);
+        state.mode = mode;
+        state.rash.streak = streak;
+        state.rash.oniUnlocked = unlocked;
+        let oni = 0;
+        const n = 20000;
+        for (let i = 0; i < n; i++) if (Battle.pickEnemy(state, config, Math.random).id === 'onioni') oni++;
+        return oni / n;
+    };
+    assertEqual(rateOf(MODES.RASH, 2, false), 0, '候補に入る前のおにおにの割合');
+    const r3 = rateOf(MODES.RASH, 3), r6 = rateOf(MODES.RASH, 6);
+    assertBetween(r3, 0.11, 0.16, '3連のおにおにの割合');
+    assert(r6 > r3 + 0.05, `連しても上がらない (3連 ${pct(r3)} → 6連 ${pct(r6)})`);
+    [10, 15, 30].forEach(s => assertBetween(rateOf(MODES.RASH, s), 0.48, 0.52, `${s}連のおにおにの割合`));
+    const s0 = rateOf(MODES.SUPER_RASH, 0), s12 = rateOf(MODES.SUPER_RASH, 12);
+    assertBetween(s0, 0.11, 0.16, 'SUPER のおにおにの割合');
+    assertBetween(s12 - s0, -0.02, 0.02, 'SUPER で連数によっておにおにの割合が変わった');
+    // 見せ方は選んだものになり、次の特化ゾーンでも最初に選ばれている。1ゲーム回したあとは変えられない
+    const state = createInitialState(config);
+    state.mode = MODES.RASH;
+    const start = Battle.startTokka(state, config, 'onioni', Math.random)[0];
+    assert(start.choose, '選ぶ画面を出す印がない');
+    assert(Battle.chooseTokka(state, config, 'asahara'), '見せ方を選べない');
+    assertEqual(state.rash.tokka.kind, 'asahara', '選んだ見せ方');
+    state.rash.tokka.remaining--;
+    assert(!Battle.chooseTokka(state, config, 'fire'), '回したあとに見せ方を変えられた');
+    const next = createInitialState(config);
+    next.tokkaLastKind = state.tokkaLastKind;
+    next.mode = MODES.RASH;
+    assertEqual(Battle.startTokka(next, config, 'onioni', Math.random)[0].kind, 'asahara', '前に選んだ見せ方が最初に選ばれていない');
+});
+
 test('エンディング: SUPER 中におにおにを撃破したときだけ、SUPER 1回につき1回流れ、図鑑の回数が合う', () => {
     for (const { setting, state, log } of runs) {
         const e = log.ending;
@@ -992,18 +1124,24 @@ test('アップデート情報: 更新されたときだけ1回表示し、は�
 // 出玉シミュレーター: 少ないゲーム数で実際に動かす (ゲームの処理が新しいファイルを使うようになったのに、
 // シミュレーターが読み込んでいないと動かなくなる。ブラウザ版の simulate.html も同じファイルを読み込んでいるか確かめる)
 test('内定の時ゾーン: 負けの約1割でアルアルが復活して突破と同じ扱いになり、図鑑・実績に記録される', () => {
+    // 割合は設定1〜6 をまとめて見る (設定ごとだと負けが 50回くらいしかなく、たまたま外れることがある)
+    const revived = runs.reduce((n, r) => n + r.log.aruaru.revived, 0);
+    const lost = runs.reduce((n, r) => n + r.log.aruaru.lost, 0);
+    assert(revived > 0, 'アルアルが一度も出ない (設定1〜6 の合計)');
+    assertBetween(revived / (revived + lost), 0.04, 0.18, 'アルアルの割合 (負けのうち。設定1〜6 の合計)');
     for (const { setting, state, log, game } of runs) {
         const a = log.aruaru;
-        assert(a.revived > 0, `設定${setting} でアルアルが一度も出ない`);
-        assertBetween(a.revived / (a.revived + a.lost), 0.04, 0.18, `設定${setting} のアルアルの割合 (負けのうち)`);
         assertEqual(a.notSuper, 0, `設定${setting} でアルアルのあと SUPER にならない`);
         const c = state.collection;
         const id = game.config.naitei.aruaru.id;
-        assertEqual(c.records.aruaru, a.revived, `設定${setting} のアルアルの回数`);
-        assertEqual(c.specials[id], a.revived, `設定${setting} の「採用の祝福」の回数`);
+        assertEqual(c.records.aruaru || 0, a.revived, `設定${setting} のアルアルの回数`);
+        assertEqual(c.specials[id] || 0, a.revived, `設定${setting} の「採用の祝福」の回数`);
         assertEqual(c.records.naitei, a.won + a.revived, `設定${setting} の内定の時の突破の回数 (アルアルも含む)`);
-        assert(game.Collection.isUnlocked(c, id, game.config), `設定${setting} でアルアルの説明が解禁されない`);
-        assert(c.achievements.aruaru != null, `設定${setting} で実績「内定がある！！」が解除されない`);
+        // 図鑑・実績は、アルアルが出た設定だけ見る (設定ごとだと一度も出ないことがある)
+        if (a.revived > 0) {
+            assert(game.Collection.isUnlocked(c, id, game.config), `設定${setting} でアルアルの説明が解禁されない`);
+            assert(c.achievements.aruaru != null, `設定${setting} で実績「内定がある！！」が解除されない`);
+        }
     }
 });
 

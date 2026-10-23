@@ -60,6 +60,11 @@ const Lcd = (() => {
     let aruaruIntro = null;    // アルアルの復活の暗転 { phase: 'black' | 'giveup' | 'you' | 'rainbow' | 'have', start }
     let aruaruAlly = null;     // こおりくんの横に立つアルアル { x }
     let dance = null;          // ダンシングステージ { hype, hypeAt } (hype: 盛り上がり 0〜3、hypeAt: そのゲームの時刻)
+    let tokka = null;          // 上乗せ特化ゾーン (makeTokkaView)
+    let chanceTimeView = null; // こおりチャンスタイム { games, remaining, points }
+    let tokkaSelect = null;    // 特化ゾーンの見せ方を選ぶ画面 { index, until, resolve }
+    let handlers = {};         // main.js から: chooseTokka (選んだ見せ方を state に入れる)・selectStart / selectEnd (ボタンを押せるようにする)
+    let streak = 0;            // 表示中の連数
 
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
     const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true, hurtUntil: 0 };
@@ -118,6 +123,16 @@ const Lcd = (() => {
         ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
         LcdKit.setCanvas(ctx, W, H, config);   // 切り出した描画のファイル (js/lcd/) が使う
+        // 特化ゾーンの見せ方を選ぶ画面: 液晶のカードをタップで選び、選んでいるカードをもう一度タップで決定
+        canvas.addEventListener('pointerdown', (e) => {
+            if (!tokkaSelect) return;
+            const r = canvas.getBoundingClientRect();
+            const x = (e.clientX - r.left) * W / r.width;
+            const i = Math.max(0, Math.min(3, Math.floor((x - SELECT_CARD.x0) / SELECT_CARD.step)));
+            if (i === tokkaSelect.index) finishTokkaSelect();
+            else tokkaSelect.index = i;
+            Sound.stop(1);
+        });
         syncWithState();
         requestAnimationFrame(loop);
     }
@@ -142,6 +157,8 @@ const Lcd = (() => {
         gateText = null;
         naiteiZone = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.NAITEI;
         dance = state.mode === MODES.NORMAL && state.normal.dance ? { hype: 0, hypeAt: 0, cp: state.normal.chancePoint } : null;
+        chanceTimeView = state.mode === MODES.NORMAL && state.normal.chanceTime ? { ...state.normal.chanceTime } : null;
+        NoticeView.clear();
         if (StateMachine.isRashMode(state)) {
             scene = 'rash';
             logoSuper = state.mode === MODES.SUPER_RASH;
@@ -155,7 +172,10 @@ const Lcd = (() => {
             setNow(battle.alpha, 1);
             setNow(battle.drop, 0);
             battle.defeats = rash.defeatCount;
+            streak = rash.streak || 0;
             nextBonusGames = rash.bonusGames;
+            const tk = rash.phase === RASH_PHASES.TOKKA ? rash.tokka : null;
+            tokka = tk ? makeTokkaView(tk.kind, tk.games, tk.remaining, tk.total, tk.members, tk.members.slice(0, tk.tier)) : null;
             treasure = rash.phase === RASH_PHASES.TREASURE
                 ? { remaining: rash.treasureGames, games: config.treasure.games, total: rash.treasureTotal, chestOpenUntil: 0, coins: [] }
                 : null;
@@ -191,6 +211,11 @@ const Lcd = (() => {
     }
 
     function draw(time) {
+        if (tokkaSelect) {
+            drawTokkaSelect(time);
+            drawFlash(time);
+            return;
+        }
         if (StoryView.active()) {
             StoryView.draw(time);
             return;
@@ -226,10 +251,12 @@ const Lcd = (() => {
             }
             const groundY = Backgrounds.get(displayMap).groundY;
             drawParty(time, valueAt(koori.x, time), groundY, 1.5);
+            if (chanceTimeView && scene === 'field') drawChanceTimeTomoishi(time, groundY);
             drawKoori(time);
             drawVisitor(time, groundY);
             drawBubbles(time);
             if (scene === 'field') drawNormalHud(time);
+            if (scene === 'field' && chanceTimeView) NoticeView.drawChanceTime(ctx, time, chanceTimeView, config.chanceTime.multiplier);
             if (scene === 'challenge') drawChallengeHud(time);
         }
         ctx.restore();
@@ -239,6 +266,7 @@ const Lcd = (() => {
         drawPopups(time);
         drawMessage(time);
         drawPreview(time);
+        NoticeView.draw(ctx, time);   // 通常時の予告 (ステップアップ予告・群予告)
         ChanceFx.draw(time);
         drawReach(time);
         FurukawaView.draw(time);
@@ -662,6 +690,11 @@ const Lcd = (() => {
             drawBonus(time);
             return;
         }
+        if (tokka) {
+            drawTokka(time);
+            drawDamageNumbers(time);
+            return;
+        }
         const hallId = logoSuper && !naiteiZone ? 'goldHall' : 'castleHall';
         const hall = Backgrounds.get(hallId);
         Backgrounds.draw(ctx, hallId, 0);
@@ -724,6 +757,10 @@ const Lcd = (() => {
         const logo = logoText();
         box(4, 4, textWidth(logo, 12) + 12, 17, 'rgba(0,0,0,0.75)', logoColor());
         text(logo, 10, 6, { color: logoColor(), outline: '#200000' });
+        // 連数 (おにおにの出やすさに関係する)
+        if (streak > 0 && !naiteiZone) {
+            text(`${streak}連`, textWidth(logo, 12) + 22, 6, { color: streak >= config.rash.oni.maxStreak ? '#ff6060' : '#fff', size: 12 });
+        }
         // 内定の時ゾーンは敵の名前が長いので、左側の表示は出さない
         if (battle.defeats > 0 && !naiteiZone) {
             text(`撃破 ${battle.defeats}`, 8, 24, { color: '#fff', size: 10 });
@@ -788,7 +825,7 @@ const Lcd = (() => {
         damageNumbers.forEach(d => {
             const age = (time - d.born) / 900;
             const y = 56 - Math.sin(Math.min(1, age * 2) * Math.PI / 2) * 14;
-            text(d.text, treasure ? CHEST.x + CHEST.w / 2 : ENEMY_X, y, { color: d.color, size: d.size, align: 'center' });
+            text(d.text, treasure ? CHEST.x + CHEST.w / 2 : tokka ? W / 2 : ENEMY_X, y + (tokka ? 20 : 0), { color: d.color, size: d.size, align: 'center' });
         });
     }
 
@@ -1941,6 +1978,477 @@ const Lcd = (() => {
         treasure = null;
     }
 
+// ----- 上乗せ特化ゾーン (config.tokka。おにおに撃破の報酬など) -----
+    // 4つの見せ方: fire (こおりファイアー) / okaLamp (おかランプ) / ikkeki (おにおに一撃入魂) / asahara (ASAHARA CHANCE)
+    // 上乗せの確率はどれも同じで、見せ方だけちがう。一撃入魂と ASAHARA CHANCE は合計を最後まで見せない
+    const TOKKA_COLOR = { fire: '#ff7a1a', okaLamp: '#ff4fd8', ikkeki: '#ff3030', asahara: '#ffd700' };
+    const TOKKA_HIDDEN = ['ikkeki', 'asahara'];
+
+    function makeTokkaView(kind, games, remaining, total, members, arrived) {
+        return {
+            kind, games, remaining, total, members, arrived,
+            name: config.tokka.names[kind],
+            lamp: null,            // おかランプ: 'red' | 'rainbow' (次のレバーまで点いたまま)
+            lampAt: 0,
+            fireLevel: 0,          // こおりファイアー: 直前の上乗せの大きさ (0〜4。4 は虹色)
+            fireAt: 0,
+            guaranteed: arrived.length ? config.tokka.tiers[arrived.length - 1] : 0,
+            arriveAt: {},          // ASAHARA CHANCE: 仲間が歩いてきた時刻
+            strikeAt: 0,           // 一撃入魂: 金棒を振り下ろした時刻
+            reveal: null           // 終わりに出す合計 (一撃入魂・ASAHARA CHANCE)
+        };
+    }
+
+    function fireLevelOf(add) {
+        if (add >= 300) return 4;
+        if (add >= 100) return 3;
+        if (add >= 50) return 2;
+        return add > 0 ? 1 : 0;
+    }
+
+    function drawTokka(time) {
+        const t = tokka;
+        if (t.kind === 'okaLamp') {
+            drawTokkaLamp(time);
+        } else {
+            const bgId = t.kind === 'asahara' ? 'goldHall' : 'castleHall';
+            const bg = Backgrounds.get(bgId);
+            Backgrounds.draw(ctx, bgId, 0);
+            if (bg.braziers) drawFlames(bg.braziers, time);
+            const ground = bg.groundY;
+            if (t.kind === 'fire') drawTokkaFire(time, ground);
+            else if (t.kind === 'ikkeki') drawTokkaIkkeki(time, ground);
+            else drawTokkaAsahara(time, ground);
+        }
+
+        // 表示: ゾーン名・残りゲーム (ランプ)・上乗せの合計
+        const color = TOKKA_COLOR[t.kind];
+        box(4, 4, textWidth(t.name, 12) + 12, 17, 'rgba(0,0,0,0.75)', color);
+        text(t.name, 10, 6, { color, outline: '#200000' });
+        const lampW = 6, gap = 2, n = t.games;
+        const lx = W - 8 - n * (lampW + gap);
+        box(lx - 5, 4, n * (lampW + gap) + 7, 15, 'rgba(0,0,0,0.75)', color);
+        const blink = Math.floor(time / 250) % 2;
+        for (let i = 0; i < n; i++) {
+            const lit = i < t.remaining;
+            ctx.fillStyle = lit ? (i === t.remaining - 1 && blink ? '#ffffff' : color) : '#3a2a10';
+            ctx.fillRect(lx + i * (lampW + gap), 8, lampW, 7);
+        }
+        // 下の帯: 上乗せの合計 (一撃入魂・ASAHARA CHANCE は最後まで ？？？) と、保障・確定
+        const hidden = TOKKA_HIDDEN.includes(t.kind) && t.reveal === null;
+        const shown = hidden ? '？？？' : String(t.reveal ?? t.total);
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(0, H - 19, W, 19);
+        ctx.fillStyle = color;
+        ctx.fillRect(0, H - 19, W, 1);
+        text(`上乗せ ${shown}枚`, 8, H - 17, { color: '#fff2a0', size: 14, outline: '#3a2a00' });
+        if (t.guaranteed && t.reveal === null) {
+            const gb = Math.floor(time / 300) % 2;
+            text(`${t.guaranteed}枚以上確定!!`, W - 8, H - 16, { color: gb ? '#ffffff' : '#ffd700', size: 12, align: 'right', outline: '#3a2a00' });
+        } else if (t.reveal === null) {
+            text(`${config.tokka.min}枚保障・最大${config.tokka.max}枚`, W - 8, H - 15, { color: '#e0d0a0', size: 10, align: 'right', outline: null });
+        }
+    }
+
+    // こおりファイアー: こおりくんが炎をまとう。上乗せが大きいほど炎が高く、色が変わる (300枚以上は虹色)
+    function drawTokkaFire(time, ground) {
+        const t = tokka;
+        ctx.fillStyle = 'rgba(30,0,0,0.35)';
+        ctx.fillRect(0, 0, W, H);
+        // ふだんの炎は合計が増えるほど大きく、上乗せのあと少しのあいだはその大きさの炎
+        const base = t.total >= 1000 ? 3 : t.total >= 300 ? 2 : 1;
+        const hot = time - t.fireAt < 1800 ? Math.max(base, t.fireLevel) : base;
+        const cx = W / 2, size = 16 * 3;
+        const colors = [['#ffb040', '#ff5a1a'], ['#ffb040', '#ff5a1a'], ['#ffe060', '#ff2020'], ['#a0e0ff', '#4060ff']];
+        const count = 28 + hot * 10;
+        for (let i = 0; i < count; i++) {
+            const k = (time / (600 - hot * 60) + i / count) % 1;
+            const fx = cx + Math.sin(i * 2.4 + time / 250) * size * (0.45 + hot * 0.06);
+            const fy = ground - k * size * (1.1 + hot * 0.35);
+            const s = Math.max(1, Math.round((1 - k) * (4 + hot * 1.5)));
+            ctx.globalAlpha = 1 - k;
+            ctx.fillStyle = hot >= 4 ? `hsl(${(time / 4 + i * 40) % 360}, 95%, 60%)` : colors[Math.min(3, hot)][k < 0.4 ? 0 : 1];
+            ctx.fillRect(Math.round(fx - s / 2), Math.round(fy), s, s * 2);
+        }
+        ctx.globalAlpha = 1;
+        if (hot >= 4) drawRainbowGlow(cx, ground - size / 2, size, (time / 6) % 360);
+        drawSprite(ctx, SPRITES.koori, Math.floor(time / 200) % 2 ? 'walk2' : 'walk1', cx - size / 2, ground - size + valueAt(koori.jump, time), 3);
+        drawParty(time, cx - size / 2 - 4, ground, 1.5);
+    }
+
+    // おかランプ (新作と同じ。js/lcd/okalamp-view.js): まんなかで8頭身のおかがっぱがキレのあるダンスを踊り、
+    // 頭のランプがチャンス役でレバーの瞬間に点灯 (7揃い・7・7・BAR は虹色)。左右にいつものおかがっぱ
+    function drawTokkaLamp(time) {
+        const t = tokka;
+        const ground = 120;
+        OkaLampView.drawScene(ctx, time, W, H, ground, t.lamp, t.lamp ? time - t.lampAt : 99999);
+        if (t.lamp && time - t.lampAt < 1200) {
+            const k = time - t.lampAt;
+            const size = Math.round(14 * (1 + Math.max(0, 0.5 - k / 300)));
+            const rainbowLit = t.lamp === 'rainbow';
+            text(rainbowLit ? 'ピカーッ！！' : 'ピカッ！', 54, 40, { color: rainbowLit ? `hsl(${(time / 3) % 360}, 95%, 62%)` : '#ff5050', size, align: 'center', outline: '#2a0008' });
+        } else if (!t.lamp) {
+            text('おかピポ♪ おかピポ♪', 56, 44, { color: '#e0d0ff', size: 10, align: 'center', outline: '#2a0a3a' });
+        }
+    }
+    // おにおに一撃入魂: おにおにが金棒に気合を溜める (ゲームが進むほどオーラが大きく)。最後に千両箱を一撃
+    function drawTokkaIkkeki(time, ground) {
+        const t = tokka;
+        ctx.fillStyle = 'rgba(40,0,0,0.45)';
+        ctx.fillRect(0, 0, W, H);
+        const charge = (t.games - t.remaining) / t.games;
+        const ox = 96;
+        const pulse = 0.25 + 0.2 * Math.sin(time / 120) + charge * 0.3;
+        ctx.fillStyle = `rgba(255,40,20,${Math.min(0.8, pulse)})`;
+        ctx.beginPath();
+        ctx.ellipse(ox, ground - 40, 26 + charge * 22, 40 + charge * 18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        const struck = t.strikeAt && time - t.strikeAt < 1200;
+        Characters.drawEnemy(ctx, 'onioni', ox + (struck ? 30 : 0), ground, { scale: 2, frame: Math.floor(time / 300) % 2, flip: true });
+        // 千両箱
+        const bx = 170, by = ground - 30;
+        ctx.fillStyle = '#6a3a14';
+        ctx.fillRect(bx, by, 48, 30);
+        ctx.fillStyle = '#c8a040';
+        ctx.fillRect(bx, by, 48, 3);
+        ctx.fillRect(bx, by + 14, 48, 2);
+        ctx.fillRect(bx + 21, by + 6, 6, 8);
+        text('千両', bx + 24, by + 17, { color: '#ffd23a', size: 10, align: 'center', outline: null });
+        if (struck) {
+            const k = (time - t.strikeAt) / 1200;
+            for (let i = 0; i < 40; i++) {
+                const a = i * 2.39;
+                const r = k * (40 + (i % 7) * 12);
+                ctx.fillStyle = i % 3 ? '#ffd23a' : '#fff2a0';
+                ctx.fillRect(Math.round(bx + 24 + Math.cos(a) * r), Math.round(by + 10 + Math.sin(a) * r * 0.7 - k * 20), 3, 3);
+            }
+        }
+        // 気合のゲージ
+        text('気合', 8, 25, { color: '#ffb0b0', size: 10 });
+        box(32, 26, 80, 9, 'rgba(0,0,0,0.7)', '#ff6060');
+        ctx.fillStyle = Math.floor(time / 150) % 2 ? '#ff3030' : '#ff8a30';
+        ctx.fillRect(34, 28, Math.round(76 * charge), 5);
+    }
+
+    // ASAHARA CHANCE: まんなかの玉座に KING.ASAHARA。ASAHARA FLASH のたびに SASAKI・KOTANI が集まる
+    function drawTokkaAsahara(time, ground) {
+        const t = tokka;
+        const cx = W / 2;
+        // 玉座
+        ctx.fillStyle = '#7a1020';
+        ctx.fillRect(cx - 30, ground - 100, 60, 100);
+        ctx.fillStyle = '#ffd700';
+        ctx.fillRect(cx - 30, ground - 100, 60, 3);
+        ctx.fillRect(cx - 30, ground - 100, 3, 100);
+        ctx.fillRect(cx + 27, ground - 100, 3, 100);
+        [-20, 0, 20].forEach(dx => ctx.fillRect(cx + dx - 3, ground - 108, 6, 8));
+        ctx.fillStyle = '#a01828';
+        ctx.fillRect(cx - 36, ground - 34, 72, 10);
+        // すわっている KING.ASAHARA (足元を座面に合わせる)
+        Characters.drawEnemy(ctx, 'asahara', cx, ground - 6, { scale: 2, frame: Math.floor(time / 600) % 2 });
+        // 集まった仲間 (左右から歩いてくる)
+        t.arrived.forEach((id, i) => {
+            const fromLeft = i === 0;
+            const at = t.arriveAt[id] || 0;
+            const k = ease(Math.min(1, (time - at) / 700));
+            const home = fromLeft ? 44 : W - 44;
+            const x = fromLeft ? -30 + (home + 30) * k : W + 30 - (W + 30 - home) * k;
+            drawRainbowGlow(x, ground - 40, 34, (time / 6 + i * 120) % 360);
+            Characters.drawEnemy(ctx, id, x, ground, { scale: 2, frame: Math.floor(time / 400) % 2, flip: fromLeft });
+        });
+        // まだ来ていない席は影だけ
+        if (t.arrived.length < 2) {
+            const empty = t.arrived.length === 0 ? [44, W - 44] : [W - 44];
+            empty.forEach(x => {
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.fillRect(x - 14, ground - 2, 28, 3);
+                text('？', x, ground - 40, { color: 'rgba(255,255,255,0.35)', size: 16, align: 'center', outline: null });
+            });
+        }
+    }
+
+    async function tokkaStart(event) {
+        clearMessage();
+        letterboxTarget = 1;
+        battle.visible = false;
+        startFlash(TOKKA_COLOR[event.kind], 700);
+        startShake(config.effects.intensity.shakeLarge, 600);
+        Sound.fanfare();
+        showTitle('上乗せ特化ゾーン突入!!', `${event.min}枚保障！ 最大${event.max}枚！`, '#ffd700', 2000);
+        await sleep(2000);
+        // 見せ方を選ぶ (デバッグで指定したときは選ばない)。選んだものは main.js が state に入れる
+        const kind = event.choose ? await selectTokka(event.kind) : event.kind;
+        if (handlers.chooseTokka) handlers.chooseTokka(kind);
+        letterboxTarget = 1;
+        tokka = makeTokkaView(kind, event.games, event.games, 0, event.members, []);
+        startFlash('#ffffff', 400);
+        Sound.chance();
+        const subs = {
+            fire: '1Gごとに枚数を上乗せ！炎が大きいほど大量！',
+            okaLamp: 'ランプが光ったらチャンス！',
+            ikkeki: `${event.games}G 気合を溜めて、最後に一撃！`,
+            asahara: 'ASAHARA FLASH で一発告知！'
+        };
+        showTitle(config.tokka.names[kind], subs[kind], TOKKA_COLOR[kind], 2200);
+        await sleep(2200);
+        letterboxTarget = 0;
+    }
+
+    // レバーの瞬間 (main.js から): おかランプはチャンス役でランプが点灯する
+    function tokkaLever(outcome) {
+        if (!tokka || !StateMachine.isRashMode(state) || state.rash.phase !== RASH_PHASES.TOKKA) return;
+        tokka.lamp = null;
+        if (tokka.kind !== 'okaLamp' || !config.tokka.lampRoles.includes(outcome.role)) return;
+        const rainbow = config.tokka.rainbowRoles.includes(outcome.role);
+        tokka.lamp = rainbow ? 'rainbow' : 'red';
+        tokka.lampAt = performance.now();
+        startFlash(rainbow ? '#ffffff' : '#ff3030', 300);
+        if (rainbow) Sound.rainbow(); else Sound.chance();
+    }
+
+    async function tokkaGame(event) {
+        if (!tokka) return;
+        const t = tokka;
+        t.remaining = event.remaining;
+        t.total = event.total;
+        const now = performance.now();
+        if (TOKKA_HIDDEN.includes(t.kind)) {
+            if (event.flash) await asaharaFlash(event);
+            else await sleep(300);
+            return;
+        }
+        if (event.add <= 0) {
+            showMessage('MAX!!', '#ffd700', 600);
+            await sleep(400);
+            return;
+        }
+        const level = fireLevelOf(event.add);
+        t.fireLevel = level;
+        t.fireAt = now;
+        const big = event.add >= 100;
+        if (level >= 4) {
+            startFlash('#ffffff', 600);
+            Sound.rainbow();
+        } else if (big) {
+            startFlash('#ffd23a', 400);
+            Sound.fanfare();
+        } else {
+            Sound.win();
+        }
+        startShake(big ? config.effects.intensity.shakeLarge : config.effects.intensity.shakeSmall, 250);
+        const color = level >= 4 ? `hsl(${Math.floor(now / 5) % 360}, 95%, 62%)` : big ? '#ff6a3a' : '#ffd23a';
+        damageNumbers.push({ text: `+${event.add}枚`, color, size: big ? 16 : 12, born: now });
+        await animateTo(koori.jump, -10, 120);
+        await animateTo(koori.jump, 0, 120);
+        await sleep(big ? 700 : 350);
+    }
+
+    // ASAHARA FLASH: 暗転 → 金と虹の光 → 仲間が歩いてくる →「〇枚以上確定!!」
+    async function asaharaFlash(event) {
+        const t = tokka;
+        letterboxTarget = 1;
+        startFlash('#000000', 500, 1);
+        await sleep(500);
+        startFlash('#ffd700', 900);
+        startShake(config.effects.intensity.shakeLarge, 900);
+        Sound.rainbow();
+        showTitle('ASAHARA FLASH!!', 'KING.ASAHARA「集え、我がしもべたちよ」', '#ffd700', 1600);
+        await sleep(1600);
+        const now = performance.now();
+        event.flash.arrive.forEach((id, i) => {
+            t.arrived.push(id);
+            t.arriveAt[id] = now + i * 400;
+        });
+        Sound.fanfare();
+        await sleep(900 + 400 * (event.flash.arrive.length - 1));
+        t.guaranteed = event.guaranteed;
+        startFlash('#ffffff', 500);
+        const names = event.flash.arrive.map(id => (id === 'sasaki' ? 'Mr.SASAKI' : 'Mr.KOTANI')).join('・');
+        showTitle(`${event.guaranteed}枚以上確定!!`, `${names} が集まった！`, '#ffd700', 2000);
+        await sleep(2000);
+        letterboxTarget = 0;
+    }
+
+    async function tokkaEnd(event) {
+        if (!tokka) tokka = makeTokkaView(event.kind, config.tokka.games, 0, event.total, event.members, event.members);
+        const t = tokka;
+        if (t.kind === 'ikkeki') {
+            // 一撃入魂: 「一撃入魂!!」→ 金棒で千両箱を一撃 → 合計を出す
+            letterboxTarget = 1;
+            showTitle('一撃入魂!!', 'おにおに「うおおおお！金返せぇぇ！」', '#ff3030', 1500);
+            Sound.bigHit();
+            await sleep(1500);
+            t.strikeAt = performance.now();
+            startFlash('#ffffff', 700);
+            startShake(config.effects.intensity.shakeLarge, 700);
+            Sound.special('club');   // 鬼鬼の金棒の音
+            await sleep(700);
+        } else if (t.kind === 'asahara') {
+            letterboxTarget = 1;
+            showTitle('結果発表', 'KING.ASAHARA「褒美をとらす」', '#ffd700', 1300);
+            await sleep(1300);
+        }
+        t.reveal = event.coins;
+        const huge = event.coins >= 1000;
+        startFlash(huge ? '#ffffff' : '#ffd700', 600);
+        if (huge) Sound.rainbow(); else Sound.fanfare();
+        popups.push({ text: `+${event.coins}枚`, color: '#ffe45a', born: performance.now() });
+        showTitle(`${event.name} 終了`, `+${event.coins}枚 GET!!${event.guaranteed ? `（${config.tokka.min}枚保障）` : ''}`, TOKKA_COLOR[t.kind], 2600);
+        await sleep(2600);
+        letterboxTarget = 0;
+        tokka = null;
+    }
+
+    // ----- 特化ゾーンの見せ方を選ぶ画面 (新作と同じ: 前に選んだものを最初に選んでおき、10秒たったらそれで始める) -----
+    // 左の STOP・右の STOP で選び、レバーか まんなかの STOP で決定。液晶のカードのタップでも選べる (もう一度タップで決定)
+    const SELECT_CARD = { x0: 4, step: 63, w: 60, y: 24, h: 94 };
+    const SELECT_LABELS = { fire: ['こおり', 'ファイアー'], okaLamp: ['おか', 'ランプ'], ikkeki: ['一撃', '入魂'], asahara: ['ASAHARA', 'CHANCE'] };
+    const SELECT_NOTES = { fire: '1Gごと', okaLamp: 'ランプで告知', ikkeki: '最後に一撃', asahara: '一発告知' };
+
+    function selectTokka(current) {
+        const kinds = config.tokka.kinds;
+        return new Promise(resolve => {
+            tokkaSelect = { index: Math.max(0, kinds.indexOf(current)), until: performance.now() + config.tokka.selectMs, resolve };
+            tokkaSelect.timer = setTimeout(finishTokkaSelect, config.tokka.selectMs);
+            if (handlers.selectStart) handlers.selectStart();
+        });
+    }
+
+    function finishTokkaSelect() {
+        if (!tokkaSelect) return;
+        const sel = tokkaSelect;
+        tokkaSelect = null;
+        clearTimeout(sel.timer);
+        if (handlers.selectEnd) handlers.selectEnd();
+        startFlash('#ffffff', 300);
+        Sound.fanfare();
+        sel.resolve(config.tokka.kinds[sel.index]);
+    }
+
+    // ボタン・キーの操作 (action: 'stop1' | 'stop2' | 'stop3' | 'lever')
+    function tokkaSelectInput(action) {
+        if (!tokkaSelect) return;
+        const n = config.tokka.kinds.length;
+        if (action === 'stop1') tokkaSelect.index = (tokkaSelect.index + n - 1) % n;
+        else if (action === 'stop3') tokkaSelect.index = (tokkaSelect.index + 1) % n;
+        else return finishTokkaSelect();
+        Sound.stop(1);
+    }
+
+    function drawTokkaSelect(time) {
+        const bg = ctx.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0, '#14081e');
+        bg.addColorStop(0.5, '#2a0a2a');
+        bg.addColorStop(1, '#0a0410');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, W, H);
+        text('特化ゾーンの演出を選んでね', W / 2, 5, { color: '#ffffff', size: 12, align: 'center' });
+        const { x0, step, w, y: y0, h } = SELECT_CARD;
+        config.tokka.kinds.forEach((kind, i) => {
+            const on = i === tokkaSelect.index;
+            const x = x0 + i * step, y = on ? y0 - 3 : y0;
+            const color = TOKKA_COLOR[kind];
+            box(x, y, w, h, on ? 'rgba(60,20,40,0.95)' : 'rgba(20,10,20,0.85)', on ? '#ffd23a' : '#5a4a5a');
+            // カードの絵
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x + 2, y + 2, w - 4, 58);
+            ctx.clip();
+            const ground = y + 58;
+            if (kind === 'fire') {
+                ctx.fillStyle = '#3a1000';
+                ctx.fillRect(x + 2, y + 2, w - 4, 58);
+                for (let k = 0; k < 14; k++) {
+                    const f = (time / 500 + k / 14) % 1;
+                    ctx.globalAlpha = 1 - f;
+                    ctx.fillStyle = f < 0.4 ? '#ffb040' : '#ff3a1a';
+                    ctx.fillRect(Math.round(x + w / 2 + Math.sin(k * 2.4 + time / 250) * 14), Math.round(ground - f * 44), 3, 5);
+                }
+                ctx.globalAlpha = 1;
+                drawSprite(ctx, SPRITES.koori, Math.floor(time / 160) % 2 ? 'walk2' : 'walk1', x + w / 2 - 16, ground - 34, 2);
+            } else if (kind === 'okaLamp') {
+                ctx.fillStyle = '#1a0828';
+                ctx.fillRect(x + 2, y + 2, w - 4, 58);
+                OkaLampView.drawDanceFloor(ctx, time, x + 2, ground - 8, w - 4, 8);
+                OkaLampView.drawTall(ctx, time, x + w / 2, ground - 2, 46, Math.floor(time / 600) % 2 ? 'red' : null);
+            } else if (kind === 'ikkeki') {
+                ctx.fillStyle = '#2a0404';
+                ctx.fillRect(x + 2, y + 2, w - 4, 58);
+                Characters.drawEnemy(ctx, 'onioni', x + w / 2, ground, { scale: 1, frame: Math.floor(time / 400) % 2, flip: true });
+            } else {
+                ctx.fillStyle = '#4a3a08';
+                ctx.fillRect(x + 2, y + 2, w - 4, 58);
+                Characters.drawEnemy(ctx, 'asahara', x + w / 2, ground, { scale: 1.1, frame: Math.floor(time / 600) % 2 });
+            }
+            ctx.restore();
+            if (!on) {
+                ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                ctx.fillRect(x, y, w, h);
+            }
+            const [l1, l2] = SELECT_LABELS[kind];
+            text(l1, x + w / 2, y + 61, { color: on ? '#ffe680' : '#a89aa8', size: 10, align: 'center', outline: '#000' });
+            text(l2, x + w / 2, y + 72, { color: on ? color : '#a89aa8', size: 10, align: 'center', outline: '#000' });
+            text(SELECT_NOTES[kind], x + w / 2, y + 83, { color: on ? '#ffffff' : '#8a7a8a', size: 8, align: 'center', outline: null });
+        });
+        const sec = Math.max(0, Math.ceil((tokkaSelect.until - time) / 1000));
+        const blink = Math.floor(time / 500) % 2;
+        text(`左右のSTOP・タップで選んで レバーで決定（あと${sec}秒）`, W / 2, H - 23, { color: blink ? '#ffffff' : '#ffd0e0', size: 8, align: 'center', outline: null });
+        text('上乗せのしやすさは どれも同じだよ', W / 2, H - 12, { color: '#a89aa8', size: 8, align: 'center', outline: null });
+    }
+
+    // ----- 通常時の予告 (レバー ON。Notice.pick が役で選んだもの) -----
+    // リールが回っている間に流すので待たない
+    function playNotice(notice) {
+        if (!notice) return;
+        if (notice.kind === 'cutin') {
+            const color = config.notice.colors[notice.color];
+            cutIn = { who: notice.who, text: notice.line, color, start: performance.now(), duration: notice.color === 'rainbow' ? 1800 : 1300 };
+            if (notice.color === 'rainbow') {
+                startFlash('#ffffff', 500);
+                Sound.rainbow();
+            } else if (notice.color === 'gold' || notice.color === 'red') {
+                startFlash(color, 300);
+                Sound.bigHit();
+            } else {
+                Sound.chance();
+            }
+        } else if (notice.kind === 'stepUp') {
+            NoticeView.playStepUp(notice, config);
+        } else {
+            NoticeView.playGun(notice, config);
+        }
+    }
+
+    // ----- こおりチャンスタイム (通常時) -----
+    // ともいしが「こおり、チャンスよ！」と飛び出してきて、こおりくんの後ろを応援しながら付いてくる
+    function drawChanceTimeTomoishi(time, groundY) {
+        const x = valueAt(koori.x, time) + 8 - COMPANION_GAP * (party.length + 1) - 10;
+        const frame = Math.floor(time / 300) % 2 ? 'shout' : 'idle';
+        const hop = Math.floor(time / 140) % 2 ? -2 : 0;
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(x - 8, groundY - 2, 16, 3);
+        drawSprite(ctx, SPRITES.tomoishi, frame, x - 12, groundY - 18 * 1.5 + hop, 1.5);
+        if (Math.floor(time / 1800) % 3 === 0) text('がんばり！', x, groundY - 40, { color: '#ffe45a', size: 8, align: 'center' });
+    }
+
+    async function chanceTimeStart(event) {
+        clearMessage();
+        startFlash('#ff8ad8', 500);
+        await playCutIn('tomoishi', 'こおり、チャンスよ！', '#c03a8a', 1300);
+        chanceTimeView = { games: event.games, remaining: event.games, points: 0 };
+        startShake(config.effects.intensity.shakeSmall, 300);
+        Sound.fanfare();
+        showTitle('こおりチャンスタイム!!', `${event.games}G のあいだ ポイント${event.multiplier}倍！`, '#ff8ad8', 2000);
+        await sleep(2000);
+    }
+
+    async function chanceTimeEnd(event) {
+        chanceTimeView = null;
+        Sound.win();
+        showTitle('チャンスタイム終了', `チャンスタイムで +${event.points} CP`, '#ff8ad8', 1500);
+        await sleep(1500);
+    }
+
     // ----- 演出: お仲間チャレンジ -----
     async function companionChallenge(event) {
         clearMessage();
@@ -2447,6 +2955,7 @@ const Lcd = (() => {
             case 'coins': return `+${bonus.value}枚 GET!!`;
             case 'games': return `次のBATTLE +${bonus.value}G`;
             case 'probUp': return `柄揃い確率UP ×${bonus.value}（${bonus.games}G）`;
+            case 'tokka': return '上乗せ特化ゾーン 確定!!';
         }
         return '';
     }
@@ -2629,7 +3138,21 @@ const Lcd = (() => {
                     if (event.bonus > 0) {
                         const label = event.reason === 'chance' ? 'CHANCE' : 'BONUS';
                         popups.push({ text: `${label} +${event.bonus}`, color: '#ffe45a', born: performance.now() });
+                    } else if (event.multiplier > 1) {
+                        popups.push({ text: `+${event.added} CP`, color: '#ff8ad8', born: performance.now() });
                     }
+                    break;
+                case 'chanceTimeStart':
+                    await chanceTimeStart(event);
+                    break;
+                case 'chanceTimeGame':
+                    if (chanceTimeView) {
+                        chanceTimeView.remaining = event.remaining;
+                        chanceTimeView.points = event.points;
+                    }
+                    break;
+                case 'chanceTimeEnd':
+                    await chanceTimeEnd(event);
                     break;
                 case 'mapChange':
                     await mapTransition(event);
@@ -2736,6 +3259,18 @@ const Lcd = (() => {
                 case 'treasureEnd':
                     await treasureEnd(event);
                     break;
+                case 'tokkaStart':
+                    await tokkaStart(event);
+                    break;
+                case 'tokkaGame':
+                    await tokkaGame(event);
+                    break;
+                case 'tokkaEnd':
+                    await tokkaEnd(event);
+                    break;
+                case 'streak':
+                    streak = event.streak;
+                    break;
                 case 'bonusGames':
                     nextBonusGames = event.bonusGames;
                     break;
@@ -2775,6 +3310,9 @@ const Lcd = (() => {
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
         reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, setZencho, noiseFx,
+        tokkaLever, tokkaSelectInput, playNotice,
+        tokkaSelecting: () => Boolean(tokkaSelect),
+        setHandlers: h => { handlers = h; },
         playOpening: () => StoryView.play('opening'),
         skipStory: () => StoryView.skip(),
         storyActive: () => StoryView.active(),
