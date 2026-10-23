@@ -18,7 +18,7 @@ const path = require('path');
 const vm = require('vm');
 
 const JS_DIR = path.join(__dirname, '..', 'js');
-const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'save.js', 'furukawa.js', 'updates.js'];
+const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'save.js', 'furukawa.js', 'hype.js', 'updates.js'];
 
 // ----- 引数 -----
 const args = process.argv.slice(2);
@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, ReelMap, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, ReelMap, Hype, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -341,6 +341,32 @@ test('リールの引き込み: どこで STOP を押しても 役は変わら�
     assert(within4 / presses > 0.7,   // ハズレ・ベルは ほとんど 4 コマ以内。7・BAR は 1 本に 2 つなので 遠いと 長く すべる
     `4 コマ以内: ${pct(within4 / presses)} (最大 ${maxSlide} コマ)`);
     console.log(`  引き込み: 4 コマ以内 ${pct(within4 / presses)}・いちばん すべって ${maxSlide} コマ`);
+});
+
+test('期待度の演出 (A3): カットイン・PUSH は 色の 順に 熱い ゲームで 出る。虹と 確定音は 確定 (熱さ 6) だけ', () => {
+    const g = loadGame(31);
+    const { config: cfg, Lottery: L, Furukawa: F, Hype: Hy, GameFlow: GF } = g;
+    const state = g.createInitialState(cfg);
+    const stat = {};
+    const add = (key, heat) => { const t = (stat[key] = stat[key] || { n: 0, hot: 0, sum: 0 }); t.n++; t.sum += heat; if (heat >= 4) t.hot++; };
+    for (let i = 0; i < 200000; i++) {
+        state.coins = 1e6;
+        const o = L.draw(state, cfg);
+        const heat = F.canAppear(state, cfg) ? F.heat(state, o, cfg) : 0;
+        const p = Hy.plan(heat, cfg);
+        add('all', heat);
+        if (p.cutin) add(`cutin:${p.cutin}`, heat);
+        if (p.push) add(`push:${p.push.tier}`, heat);
+        if (p.kakutei) assertEqual(heat, 6, '確定音は 熱さ 6 だけ');
+        if (p.cutin === 'rainbow' || (p.push && p.push.tier === 'rainbow')) assertEqual(heat, 6, '虹は 熱さ 6 だけ');
+        GF.onGameEnd(state, o, cfg);
+    }
+    const hot = k => (stat[k] ? stat[k].hot / stat[k].n : null);
+    const order = list => list.map(hot).filter(v => v !== null);
+    const cut = order(Hy.TIERS.map(t => `cutin:${t}`)), push = order(Hy.PUSH_TIERS.map(t => `push:${t}`));
+    for (let i = 1; i < cut.length; i++) assert(cut[i] >= cut[i - 1], `カットインの 色の 順: ${cut.map(pct).join(' < ')}`);
+    for (let i = 1; i < push.length; i++) assert(push[i] >= push[i - 1], `PUSH の 色の 順: ${push.map(pct).join(' < ')}`);
+    console.log(`  熱いゲーム (熱さ 4 以上) の 割合: ぜんぶ ${pct(hot('all'))} / カットイン ${Hy.TIERS.map(t => `${t} ${stat['cutin:' + t] ? pct(hot('cutin:' + t)) : '-'}`).join('・')} / PUSH ${Hy.PUSH_TIERS.map(t => `${t} ${stat['push:' + t] ? pct(hot('push:' + t)) : '-'}`).join('・')}`);
 });
 
 test('config.js: 確率表の合計が 1 以下', () => {

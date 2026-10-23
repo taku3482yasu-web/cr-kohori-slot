@@ -934,7 +934,12 @@ const Lcd = (() => {
         ctx.rect(0, y, W, h);
         ctx.clip();
         ctx.translate(offset, 0);
-        ctx.fillStyle = cutIn.color;
+        if (cutIn.color === 'rainbow') {
+            // 虹の カットイン (確定): 色が 流れる
+            const grad = ctx.createLinearGradient(0, y, W, y + h);
+            for (let k = 0; k <= 6; k++) grad.addColorStop(k / 6, `hsl(${(k * 60 + time / 5) % 360}, 90%, 50%)`);
+            ctx.fillStyle = grad;
+        } else ctx.fillStyle = cutIn.color;
         ctx.fillRect(0, y, W, h);
         // 集中線
         ctx.fillStyle = 'rgba(255,255,255,0.35)';
@@ -946,6 +951,8 @@ const Lcd = (() => {
             drawSprite(ctx, SPRITES.koori, 'walk1', 14, y + 6, 4);
         } else if (cutIn.who === 'tomoishi') {
             drawSprite(ctx, SPRITES.tomoishi, 'shout', 14, y + 4, 4);
+        } else if (cutIn.who === 'furukawa') {
+            drawSprite(ctx, SPRITES.furukawa, 'talk', 16, y + 2, 3.5);
         } else if (Characters.isCompanion(cutIn.who)) {
             Characters.drawCompanion(ctx, cutIn.who, 52, y + h - 2, { scale: 3 });
         } else {
@@ -1009,6 +1016,14 @@ const Lcd = (() => {
             Sound.miss();
         }
         await sleep(700);
+    }
+
+    // 期待度の カットイン (2026-10-23 A3。js/hype.js): 青 < 緑 < 赤 < 金 < 虹。待たずに 出す
+    function chanceCutIn(tier, cast) {
+        const h = config.hype.cutin;
+        const sub = { blue: 'CHANCE', green: 'CHANCE', red: 'BIG CHANCE', gold: '激アツ', rainbow: '確定!!' }[tier];
+        cutIn = { who: cast.who, text: cast.text, color: h.colorCodes[tier], sub, start: performance.now(), duration: h.duration };
+        if (tier === 'gold' || tier === 'rainbow') startFlash(tier === 'gold' ? '#ffd700' : '#ffffff', 400);
     }
 
     function playCutIn(who, textStr, color, duration = 1100, sub = null) {
@@ -2541,7 +2556,7 @@ const Lcd = (() => {
 
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
-        reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout,
+        reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash,
         playOpening: () => StoryView.play('opening'),
         skipStory: () => StoryView.skip(),
         storyActive: () => StoryView.active(),

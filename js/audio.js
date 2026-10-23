@@ -94,6 +94,13 @@ const Sound = (() => {
         hit: () => tone(180, 'square', 0.08, 0.12),
         bigHit: () => sequence([120, 90, 60], 60, 'sawtooth', 0.15, 0.15),
         defeat: () => sequence([523.25, 659.25, 783.99, 1046.5], 120, 'square', 0.25, 0.08),
-        miss: () => sequence([220, 160], 200, 'sawtooth', 0.4, 0.06)
+        miss: () => sequence([220, 160], 200, 'sawtooth', 0.4, 0.06),
+        // 期待度の 演出 (2026-10-23 A3): 先バレ音・確定音・PUSH
+        sakibare: () => { sweep(900, 1900, 'square', 0.16, 0.06); sweep(900, 1900, 'square', 0.16, 0.06, 170); },
+        kakutei: () => [0, 180, 360].forEach(d => sweep(1200, 2600, 'triangle', 0.2, 0.08, d)),
+        pushReady: tier => sequence(tier === 'rainbow' || tier === 'gold' ? [880, 1175, 1568] : [660, 880], 70, 'square', 0.08, 0.06),
+        pushHit: tier => (tier === 'rainbow' ? sequence([523.25, 659.25, 783.99, 1046.5, 1318.5, 1568], 70, 'triangle', 0.35, 0.09)
+            : tier === 'gold' ? sequence([659.25, 830.61, 987.77, 1318.5], 70, 'triangle', 0.3, 0.09)
+            : sweep(500, 1400, 'square', 0.18, 0.07))
     };
 })();

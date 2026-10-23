@@ -101,6 +101,11 @@
         if (talk) Collection.hearFurukawa(state, talk.text, config);   // 図鑑のふるカワの説明・セリフ
         if (talk && talk.settingLine != null) SettingEstimate.countFurukawa(state, talk.settingLine);
 
+        // 期待度の 演出 (2026-10-23 A3。js/hype.js): 熱さに 合わせて カットイン・先バレ音・確定音・金発光・フラッシュ・PUSH
+        const heat = talk ? talk.heat : Furukawa.canAppear(state, config) ? Furukawa.heat(state, outcome, config) : 0;
+        const hype = Hype.plan(heat, config);
+        playHypeAtLever(hype);
+
         const stopOrder = [];
         let reach = null;
         let freezePlaying = null;
@@ -155,6 +160,8 @@
         if (outcome.aligned) Sound.win();
         // チャンス目ごとの演出
         if (outcome.isChance) await Lcd.playChanceEffect(outcome.chanceName);
+        // PUSH ボタン: 結果の 前に 押す
+        if (hype.push) await PushButton.wait(hype.push);
 
         const coinsBefore = state.coins;
         const events = GameFlow.onGameEnd(state, outcome, config);
@@ -171,6 +178,20 @@
         SaveData.save(state);
 
         setTimeout(() => { spinButton.disabled = false; }, 300);
+    }
+
+    // レバー ON の 演出 (期待度。js/hype.js)
+    function playHypeAtLever(hype) {
+        document.body.classList.toggle('cab-gold', hype.gold || hype.kakutei);
+        if (hype.kakutei) Sound.kakutei();
+        else if (hype.sakibare) Sound.sakibare();
+        if (hype.cutin) Lcd.chanceCutIn(hype.cutin, hype.cutinWho);
+        if (hype.flash !== 'none') {
+            const cls = `reel-flash-${hype.flash}`;
+            document.body.classList.add(cls);
+            setTimeout(() => document.body.classList.remove(cls), hype.flash === 'strong' ? 900 : 500);
+            if (hype.flash === 'strong') Lcd.startFlash('#ffffff', 500);
+        }
     }
 
     function buyCoins() {
@@ -196,6 +217,7 @@
     Lcd.init(document.getElementById('lcd'), config, state);
     Reels.init(config, reelElements, stopButtons);
     UI.init(config, { lever: spinButton, stop1: stopButtons[0], stop2: stopButtons[1], stop3: stopButtons[2] });
+    PushButton.init(config);   // PUSH ボタン (2026-10-23 A3)
     Layout.init();   // パソコンでの表示 (一覧 / 全画面)
 
     spinButton.addEventListener('click', playGame);

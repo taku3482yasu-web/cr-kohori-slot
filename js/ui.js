@@ -10,7 +10,8 @@ const UI = (() => {
         lever: 'レバー（回転開始）',
         stop1: '左リール STOP',
         stop2: '中リール STOP',
-        stop3: '右リール STOP'
+        stop3: '右リール STOP',
+        push: 'PUSH ボタン'
     };
 
     let config;
@@ -930,5 +931,5 @@ const UI = (() => {
         });
     }
 
-    return { init, update, bindDebugActions, showAchievements, showUpdates };
+    return { init, update, bindDebugActions, showAchievements, showUpdates, bindingOf: id => keyBindings[id] };
 })();

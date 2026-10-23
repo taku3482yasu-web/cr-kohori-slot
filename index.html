@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
     <link rel="stylesheet" href="css/style.css?v=cec0791d">
-    <link rel="stylesheet" href="css/cabinet.css?v=c6286ee4">
+    <link rel="stylesheet" href="css/cabinet.css?v=d153ccc4">
 </head>
 <body>
     <div class="game-container">
@@ -147,6 +147,8 @@
                 <!-- 全画面のときだけ出す、コイン枚数と BUY (js/layout.js) -->
                 <div class="fs-coins">COINS <span id="fs-coin-display">0</span><button id="fs-buy-button" type="button">BUY</button></div>
                 <button id="spin-button"><span class="cab-kanabo" aria-hidden="true"></span><span class="cab-lever-text">LEVER ON</span><span class="key-hint" data-action="lever"></span></button>
+                <!-- PUSH ボタン (2026-10-23 A3。js/push.js)。色: 白 < 青 < 赤 < 金 < 虹、激熱は 飛び出す -->
+                <button id="push-button" class="cab-push" type="button" aria-label="PUSH"><span class="cab-push-face">PUSH</span><span class="key-hint" data-action="push"></span></button>
             </div>
         </div>
 
@@ -400,14 +402,15 @@
     </div>
 
     <!-- 読み込み順: 設定 → データ → 各機能 → 起動 -->
-    <script src="js/config.js?v=d5dc2fdd"></script>
+    <script src="js/config.js?v=28d1cb90"></script>
     <script src="js/sprites.js?v=056d5554"></script>
     <script src="js/backgrounds.js?v=772c65c2"></script>
     <script src="js/characters.js?v=5ad35d02"></script>
-    <script src="js/audio.js?v=41c6ca85"></script>
+    <script src="js/audio.js?v=5d912a0b"></script>
     <script src="js/state.js?v=0286b79f"></script>
     <script src="js/lottery.js?v=acffe958"></script>
     <script src="js/battle.js?v=96b44151"></script>
+    <script src="js/hype.js?v=c2af4624"></script>
     <script src="js/furukawa.js?v=906ea7e6"></script>
     <script src="js/save.js?v=4165304e"></script>
     <script src="js/bgm.js?v=007b4b6e"></script>
@@ -421,11 +424,12 @@
     <script src="js/lcd/story-view.js?v=9d4ed5f5"></script>
     <script src="js/lcd/opening-view.js?v=f59a78e2"></script>
     <script src="js/lcd/ending-view.js?v=3c9c7b55"></script>
-    <script src="js/lcd.js?v=a1044537"></script>
+    <script src="js/lcd.js?v=110077f5"></script>
     <script src="js/profiles.js?v=9335b576"></script>
     <script src="js/updates.js?v=484b8627"></script>
-    <script src="js/ui.js?v=0b91c058"></script>
+    <script src="js/push.js?v=58abe19a"></script>
+    <script src="js/ui.js?v=e8f19e24"></script>
     <script src="js/layout.js?v=14bd5f38"></script>
-    <script src="js/main.js?v=78284038"></script>
+    <script src="js/main.js?v=afdb10cd"></script>
 </body>
 </html>

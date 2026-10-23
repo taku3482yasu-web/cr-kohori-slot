@@ -411,3 +411,142 @@ body.long-freeze .cab-pillar i {
     from { box-shadow: 0 0 2px var(--lamp); filter: brightness(0.8); }
     to { box-shadow: 0 0 14px var(--lamp); filter: brightness(1.3); }
 }
+
+/* ----- 期待度の 演出 (2026-10-23 A3。js/hype.js・js/push.js) ----- */
+.cab-base.controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 22px;
+}
+
+/* PUSH ボタン: ふだんは 暗い 丸。出たら 色に 光る (白 < 青 < 赤 < 金 < 虹)。激熱は 飛び出す */
+.cab-push {
+    --push: #8a8a8a;
+    --progress: 0;
+    position: relative;
+    width: 68px;
+    height: 68px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 3px solid #5a4a2a;
+    background: radial-gradient(circle at 50% 35%, #4a4a52, #1a1a20 70%);
+    color: #6a6a6a;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #000;
+    transition: transform 0.15s, box-shadow 0.15s;
+    touch-action: none;
+}
+
+.cab-push-face {
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+}
+
+.cab-push .key-hint {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 6px;
+}
+
+/* 長押し・連打の ゲージ (ボタンの まわりの 輪) */
+.cab-push::after {
+    content: '';
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
+    background: conic-gradient(var(--push) calc(var(--progress) * 360deg), transparent 0);
+    -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%);
+    mask: radial-gradient(circle, transparent 60%, #000 62%);
+    pointer-events: none;
+}
+
+.cab-push.on {
+    color: #1a1a1a;
+    border-color: #fff;
+    background: radial-gradient(circle at 50% 35%, #fff, var(--push) 55%, color-mix(in srgb, var(--push) 50%, #000));
+    box-shadow: 0 5px 0 #000, 0 0 18px var(--push);
+    animation: push-glow 0.35s infinite alternate;
+}
+
+.cab-push.on.pressed { transform: translateY(3px) scale(0.96); box-shadow: 0 2px 0 #000, 0 0 10px var(--push); }
+.cab-push.tier-white { --push: #f2f2f2; }
+.cab-push.tier-blue { --push: #3f8cff; }
+.cab-push.tier-red { --push: #ff3a3a; }
+.cab-push.tier-gold { --push: #ffd700; }
+.cab-push.tier-rainbow { --push: #ff5ad0; animation: push-glow 0.35s infinite alternate, push-rainbow 0.8s linear infinite; }
+
+/* 飛び出し (激熱) */
+.cab-push.on.pop { transform: scale(1.35) translateY(-10px); z-index: 2; }
+.cab-push.on.pop.pressed { transform: scale(1.25) translateY(-6px); }
+
+@keyframes push-glow {
+    from { filter: brightness(1); }
+    to { filter: brightness(1.35); }
+}
+
+@keyframes push-rainbow {
+    0% { --push: #ff3030; } 17% { --push: #ff9a00; } 33% { --push: #ffe000; }
+    50% { --push: #30d040; } 67% { --push: #3090ff; } 83% { --push: #a040ff; } 100% { --push: #ff3030; }
+}
+
+@property --push {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #8a8a8a;
+}
+
+/* 金発光: 筐体の ふち・提灯・LED が 金色に */
+body.cab-gold .slot-machine.cabinet {
+    --cab-glow: #ffd700;
+    box-shadow: 0 0 0 2px #5a3a0a, 0 0 60px #ffd700, 0 0 120px rgba(255, 215, 0, 0.45);
+    animation: cab-gold-pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes cab-gold-pulse {
+    from { filter: brightness(1); }
+    to { filter: brightness(1.12); }
+}
+
+/* フラッシュ: 弱 = リールが 白く 光る / 強 = リールが 何度も 強く 光る (液晶も 光る。main.js) */
+body.reel-flash-weak .cabinet .reel::before,
+body.reel-flash-strong .cabinet .reel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: #fff;
+    animation: reel-flash 0.5s ease-out;
+}
+
+body.reel-flash-strong .cabinet .reel::before {
+    animation: reel-flash-strong 0.9s linear;
+}
+
+@keyframes reel-flash {
+    from { opacity: 0.85; }
+    to { opacity: 0; }
+}
+
+@keyframes reel-flash-strong {
+    0%, 22%, 44%, 66% { opacity: 0.9; }
+    11%, 33%, 55%, 77%, 100% { opacity: 0; }
+}
+
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+    .cab-base.controls { gap: 12px; }
+    .cabinet #spin-button { width: auto; flex: 1; }
+    .cab-push { width: 58px; height: 58px; }
+}
+
+/* レバーの 文字は 折り返さない (スマホでは PUSH と 並ぶので 少し 小さく) */
+.cab-lever-text { white-space: nowrap; }
+
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+    .cabinet #spin-button { font-size: 1.1rem; gap: 8px; padding: 8px 12px; }
+    .cab-kanabo { width: 44px; height: 13px; }
+    .cabinet #spin-button .key-hint { display: none; }
+}

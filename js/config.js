@@ -510,6 +510,67 @@ window.GAME_CONFIG = {
         }
     },
 
+    // ----- 期待度の演出 (2026-10-23 アップグレード A3。js/hype.js。数字は Claude の 案) -----
+    // そのゲームの 熱さ (ふるカワの heat。0〜6) ごとの 出やすさ。配列の 番号が 熱さ。
+    // 高い 色・強い 演出ほど 熱い ゲームでしか 出ないので、色の 順に 期待度が 上がる (虹・確定音は 熱さ 6 だけ)
+    hype: {
+        cutin: {
+            // 出たら 熱い (熱さ 4 以上) 割合の 目安: 青 約10%・緑 約25%・赤 約50%・金 約80%・虹 100% (ASO の 案と 同じ)。
+            // 熱さ 0〜3 でも ときどき 出る (ガセ)。tools/test.js で 測る
+            rates: [0.0144, 0.06, 0.25, 0.5, 0.4, 0.6, 0.85],  // カットインが 出る 確率
+            colors: [                                          // 出たときの 色の 重み
+                { blue: 36, green: 17, red: 35, gold: 12 },
+                { blue: 50, green: 30, red: 20 },
+                { blue: 30, green: 40, red: 30 },
+                { green: 30, red: 40, gold: 30 },
+                { blue: 10, green: 20, red: 45, gold: 25 },
+                { red: 35, gold: 65 },
+                { gold: 40, rainbow: 60 }
+            ],
+            colorCodes: { blue: '#2a5ad8', green: '#1a9a4a', red: '#c81828', gold: '#b8860b', rainbow: 'rainbow' },
+            duration: 1300
+        },
+        // カットインに 出る キャラと セリフ (色ごとの 顔ぶれ。キャラで 期待度は 変わらない。セリフは 案)
+        cast: {
+            blue: [{ who: 'koori', text: 'チャンス…？' }, { who: 'yasu', text: 'きてるかも！' }, { who: 'tamu', text: 'いけるで！' }, { who: 'dake', text: 'よっしゃ！' }, { who: 'furukawa', text: 'チャンスだよ！' }],
+            green: [{ who: 'koori', text: 'チャンス！' }, { who: 'yasu', text: 'これは いける！' }, { who: 'tamu', text: 'ええ流れや！' }, { who: 'dake', text: 'きたきた！' }, { who: 'furukawa', text: 'いけるいける！' }],
+            red: [{ who: 'koori', text: '大チャンス!!' }, { who: 'dake', text: 'これは熱い！' }, { who: 'onioni', text: '来るなら来い!!' }, { who: 'tomoishi', text: 'こおり、がんばって！' }],
+            gold: [{ who: 'koori', text: '激アツ!!' }, { who: 'onioni', text: 'ぐぬぬ…!!' }, { who: 'tomoishi', text: '内定は まだなの!?' }, { who: 'furukawa', text: '激アツだよ!!' }],
+            rainbow: [{ who: 'koori', text: 'こおりいきていける！' }]
+        },
+        sakibareRates: [0.003, 0.01, 0.03, 0.08, 0.2, 0.4, 0.6],   // 先バレ音 (レバー ON で 鳴る)
+        kakuteiRate: 0.35,                                          // 確定音 (熱さ 6 の とき)
+        goldRates: [0, 0, 0, 0, 0.02, 0.15, 0.4],                   // 金発光 (筐体が 金色に 光る)
+        flash: [                                                    // フラッシュ: none / weak (リール) / strong (液晶と リール)
+            { none: 100 },
+            { none: 96, weak: 4 },
+            { none: 85, weak: 15 },
+            { none: 70, weak: 25, strong: 5 },
+            { none: 55, weak: 30, strong: 15 },
+            { none: 40, weak: 25, strong: 35 },
+            { none: 30, weak: 20, strong: 50 }
+        ],
+        // PUSH ボタン: 全リールが 止まった あと、結果の 前に 出る。色 白 < 青 < 赤 < 金 < 虹。激熱は 飛び出す
+        push: {
+            rates: [0.004, 0.02, 0.05, 0.1, 0.25, 0.45, 0.6],
+            colors: [
+                { white: 85, blue: 15 },
+                { white: 70, blue: 25, red: 5 },
+                { white: 80, blue: 20 },
+                { white: 50, blue: 40, red: 10 },
+                { white: 20, blue: 35, red: 40, gold: 5 },
+                { blue: 15, red: 50, gold: 35 },
+                { red: 20, gold: 40, rainbow: 40 }
+            ],
+            popRates: [0, 0, 0, 0, 0.05, 0.25, 0.5],               // 飛び出す 確率
+            modes: { tap: 65, long: 20, mash: 15 },                 // 押し方: 1 回 / 長押し / 連打
+            longMs: 900,                                            // 長押しの 長さ
+            mashCount: 6,                                           // 連打の 回数
+            autoMs: 8000,                                           // 押さなかったら この時間で 進む
+            colorCodes: { white: '#f2f2f2', blue: '#3f8cff', red: '#ff3a3a', gold: '#ffd700', rainbow: 'rainbow' }
+        }
+    },
+
     // ----- 必殺技 -----
     // こおりくんがとどめを刺したときのカットイン (killRole: 一撃必殺の役 = BAR揃い・7揃い・7・7・BAR、内定の時の 7揃い・7・7・BAR)
     // 敵・仲間の必殺技は enemies / goldDog / naitei.enemy / companions.members の special
@@ -820,6 +881,7 @@ window.GAME_CONFIG = {
         lever: 'Space',
         stop1: 'KeyJ',
         stop2: 'KeyK',
-        stop3: 'KeyL'
+        stop3: 'KeyL',
+        push: 'KeyB'   // PUSH ボタン (2026-10-23 A3)
     }
 };
