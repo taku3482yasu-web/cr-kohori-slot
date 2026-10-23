@@ -422,6 +422,19 @@ test('レバーの 演出 (2026-10-24): 叩け！は 熱い ゲームで 出て 
     assert(n.okure > 100 && n.okureBad === 0, `遅れ (${n.okure} 回。チャンス目・BAR 未満 ${n.okureBad})`);
     assert(n.reverse > 0 && n.reverseBad === 0, `逆回転 (${n.reverse} 回。7揃い・ロングフリーズ級 でない もの ${n.reverseBad})`);
     assert(n.buru > 100 && n.buruHot / n.buru > n.allHot / n.all * 3, `レバブル (${n.buru} 回・熱い ${pct(n.buruHot / n.buru)}。ぜんぶ ${pct(n.allHot / n.all)})`);
+    // STOP の 色 (青 < 赤 < 金 < 虹。虹は 確定) と 長押しの STOP (2026-10-24)
+    const tiers = {}, ls = [0, 0];
+    for (let heat = 0; heat <= 6; heat++) {
+        for (let i = 0; i < 20000; i++) {
+            const t = LF.stopTier(heat, cfg);
+            if (t) { const x = tiers[t] || (tiers[t] = { n: 0, sum: 0, max6: 0 }); x.n++; x.sum += heat; if (heat < 6) x.max6++; }
+            if (LF.longStop(heat, cfg)) { ls[0]++; if (heat >= 4) ls[1]++; }
+        }
+    }
+    const avg = id => tiers[id].sum / tiers[id].n;
+    assert(avg('blue') < avg('red') && avg('red') < avg('gold') && avg('gold') < avg('rainbow'), `STOP の 色の 順 (熱さの 平均 ${['blue', 'red', 'gold', 'rainbow'].map(id => avg(id).toFixed(2)).join(' < ')})`);
+    assertEqual(tiers.rainbow.max6, 0, '虹の STOP は 確定 (熱さ 6) だけ');
+    assert(ls[0] > 0 && ls[1] / ls[0] > 0.9, `長押しの STOP は 熱い ゲーム (${pct(ls[1] / ls[0])})`);
     console.log(`  叩け！ 通常時 ${n.tataki} 回 (熱い ${pct(n.tatakiHot / n.tataki)})・RASH 中 ${n.rashTataki} 回 (確定)・遅れ ${n.okure} 回・逆回転 ${n.reverse} 回・レバブル ${n.buru} 回 (熱い ${pct(n.buruHot / n.buru)})`);
 });
 

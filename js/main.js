@@ -121,6 +121,12 @@
         const leverFx = LeverFx.atLever(state, outcome, heat, config);   // レバブル・遅れ・逆回転 (2026-10-24)
         playHypeAtLever(hype);
         playLeverFx(leverFx);
+        // 図鑑の「レバーの演出」(2026-10-24)
+        if (hype.push && hype.push.lever) {
+            Collection.seeLever(state, StateMachine.isRashMode(state) ? 'tatakiRash' : 'tataki');
+            if (hype.push.leverChange) Collection.seeLever(state, 'tatakiChange');
+        } else if (hype.push && hype.push.mode !== 'tap') Collection.seeLever(state, hype.push.mode === 'long' ? 'pushLong' : 'pushMash');
+        ['buru', 'okure', 'reverse'].forEach(k => { if (leverFx[k]) Collection.seeLever(state, k); });
         // 通常時の予告 (ステップアップ予告・群予告。役で選ぶ)。期待度のカットインが出たゲームでは出さない
         if (!hype.cutin || debugNotice) Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
         debugNotice = null;
@@ -154,6 +160,20 @@
                     Reels.setLamp(remaining, 'push');
                     Lcd.push();
                 }
+                // STOP の 色 (2026-10-24): のこりの STOP と ランプが 青 < 赤 < 金 < 虹 で 光る
+                const tier = LeverFx.stopTier(heat, config);
+                if (tier) {
+                    stopButtons[remaining].classList.add(`tier-${tier}`);
+                    Reels.setLamp(remaining, `tier-${tier}`);
+                    Sound.pushReady(tier === 'rainbow' || tier === 'gold' ? tier : 'red');
+                    Collection.seeLever(state, tier === 'rainbow' ? 'stopRainbow' : 'stopTier');
+                }
+                // 第 3 停止の 長押し (2026-10-24): ためきって 離すと 止まる
+                if (LeverFx.longStop(heat, config)) {
+                    longStop = { reel: remaining, start: 0, full: false, color: tier ? config.lever.stopTier.colorCodes[tier] : '#ffd700' };
+                    stopButtons[remaining].classList.add('long-stop');
+                    Lcd.showMessage('長押し!!', longStop.color === 'rainbow' ? '#ffffff' : longStop.color, 8000);
+                }
             }
         };
         // 遅れ (2026-10-24): リールが 少し 遅れて 回り出す (チャンス目・BAR 以上)
@@ -174,7 +194,9 @@
             leverFx.reverse ? { reverse: true, reverseMs: config.lever.reverse.ms } : { reverse: zc.iwakan === 'reverse' });
         if (freezePlaying) await freezePlaying;
         clearInterval(spinSound);
-        stopButtons.forEach(btn => btn.classList.remove('reach', 'push'));
+        stopButtons.forEach(btn => btn.classList.remove('reach', 'push', 'long-stop', 'holding', 'tier-blue', 'tier-red', 'tier-gold', 'tier-rainbow'));
+        longStop = null;
+        Lcd.setCharge(null);
         Lcd.stopPreview();
 
         // 揃ったライン・チャンス目の図柄を光らせる
@@ -226,6 +248,13 @@
     }
     function playZencho(zc) {
         setZenchoView(zc.zencho);
+        // 連続予告「？」(2026-10-24): 前兆の あいだ、ゲームごとに「？」が 増える (色も 白 → 青 → 赤 → 金)
+        if (zc.zencho && zc.games) {
+            const q = config.lever.question;
+            const n = Math.min(q.colors.length, zc.games);
+            Lcd.showMessage('？'.repeat(n), q.colors[n - 1], q.ms);
+            if (n >= 2) Collection.seeLever(state, 'question');
+        }
         if (zc.started) Sound.zencho();
         if (zc.iwakan === 'noise') {
             Lcd.noiseFx(700);
@@ -315,8 +344,61 @@
     // キーボード・支援技術からの click でも止められるよう両方受け付ける (2回目は無視される)
     // スマホでは回っているリールそのものを押しても止められる (STOP より大きくて押しやすい)。
     // 指で止めたときは短く震わせる (対応している端末だけ)
+    // 第 3 停止の 長押し (2026-10-24 ユーザー指定): 押して いる あいだ ため (液晶の ふちが 光る)、ためきって 離すと 止まる。途中で 離すと やり直し
+    let longStop = null;   // { reel, start (押しはじめた 時刻。0 は 押して いない), full, color }
+    function beginLongStop(i) {
+        if (!longStop || longStop.reel !== i || longStop.start) return;
+        const start = performance.now();
+        longStop.start = start;
+        stopButtons[i].classList.add('holding');
+        Lcd.showMessage('ためろ!!', longStop.color === 'rainbow' ? '#ffffff' : longStop.color, 8000);
+        const tick = () => {
+            if (!longStop || longStop.start !== start) return;
+            const k = Math.min(1, (performance.now() - start) / config.lever.longStop.ms);
+            stopButtons[i].style.setProperty('--progress', String(k));
+            Lcd.setCharge(k, longStop.color);
+            if (k >= 1 && !longStop.full) {
+                longStop.full = true;
+                Sound.pushReady('gold');
+                Lcd.showMessage('はなせ!!', longStop.color === 'rainbow' ? '#ffffff' : longStop.color, 8000);
+            }
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    }
+    function endLongStop(i) {
+        if (!longStop || longStop.reel !== i || !longStop.start) return;
+        stopButtons[i].classList.remove('holding');
+        stopButtons[i].style.setProperty('--progress', '0');
+        if (!longStop.full) {   // ためきる 前に 離した: やり直し
+            longStop.start = 0;
+            Lcd.setCharge(null);
+            Lcd.showMessage('長押し!!', longStop.color === 'rainbow' ? '#ffffff' : longStop.color, 8000);
+            return;
+        }
+        const color = longStop.color === 'rainbow' ? '#ffffff' : longStop.color;
+        longStop = null;
+        Lcd.setCharge(null);
+        Lcd.clearMessage();
+        Lcd.startFlash(color, 500);
+        Collection.seeLever(state, 'longStop');
+        Reels.stop(i);
+    }
+    document.addEventListener('keydown', e => {
+        if (!longStop || e.repeat || e.code !== UI.bindingOf(`stop${longStop.reel + 1}`)) return;
+        beginLongStop(longStop.reel);
+    });
+    document.addEventListener('keyup', e => {
+        if (longStop && e.code === UI.bindingOf(`stop${longStop.reel + 1}`)) endLongStop(longStop.reel);
+    });
+
     const stopByPointer = (e, i) => {
         if (e.button !== 0) return;
+        if (longStop && longStop.reel === i) {   // 長押しの STOP
+            e.preventDefault();
+            beginLongStop(i);
+            return;
+        }
         // 特化ゾーンの見せ方を選ぶ画面: 左右の STOP で選び、まんなかの STOP で決定
         if (Lcd.tokkaSelecting()) {
             e.preventDefault();
@@ -330,11 +412,12 @@
     };
     stopButtons.forEach((btn, i) => {
         btn.addEventListener('pointerdown', (e) => stopByPointer(e, i));
-        btn.addEventListener('click', () => Reels.stop(i));
+        btn.addEventListener('click', () => { if (!(longStop && longStop.reel === i)) Reels.stop(i); });   // 長押しの STOP は クリックでは 止めない
     });
     reelElements.forEach((reel, i) => {
         reel.addEventListener('pointerdown', (e) => stopByPointer(e, i));
     });
+    [...stopButtons, ...reelElements].forEach((el, k) => ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => el.addEventListener(t, () => endLongStop(k % 3))));
     // 画面の向きが変わると1コマの高さが変わるので、リールの位置を合わせ直す
     window.addEventListener('resize', () => Reels.relayout());
 

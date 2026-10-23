@@ -689,7 +689,21 @@ window.GAME_CONFIG = {
         tataki: { rates: [0, 0, 0, 0.03, 0.12, 0.3, 0.45], rashRate: 0.35, change: 0.4, changeMs: 900 },
         buru: { rates: [0.002, 0.005, 0.02, 0.05, 0.15, 0.3, 0.45], ms: 1200 },
         okure: { rates: { premium: 0.3, hot: 0.2 }, ms: 520 },
-        reverse: { rate: 0.25, ms: 1500 }
+        reverse: { rate: 0.25, ms: 1500 },
+        // STOP の 色 (2026-10-24 ユーザー指定): 第 3 停止の 前に、のこりの STOP と リールの 上の ランプが 光る。青 < 赤 < 金 < 虹 (虹は 確定の 熱さ 6 だけ)。
+        //   rates: 熱さ 0〜6 ごとの 出る 割合、colors: 熱さごとの 色の 重み
+        stopTier: {
+            rates: [0, 0.02, 0.04, 0.08, 0.25, 0.45, 0.6],
+            colors: [{ blue: 80, red: 20 }, { blue: 80, red: 20 }, { blue: 70, red: 30 }, { blue: 50, red: 40, gold: 10 },
+                { blue: 20, red: 45, gold: 35 }, { red: 40, gold: 60 }, { red: 15, gold: 45, rainbow: 40 }],
+            colorCodes: { blue: '#3f8cff', red: '#ff3a3a', gold: '#ffd700', rainbow: 'rainbow' }
+        },
+        // 第 3 停止の 長押し (2026-10-24 ユーザー指定): のこりの STOP を 長押しして ためないと 止まらない。ためきって 離すと 止まる。
+        //   rates: 熱さ 0〜6 ごと、ms: ためきるまでの 時間
+        longStop: { rates: [0, 0, 0, 0.02, 0.1, 0.25, 0.35], ms: 900 },
+        // 連続予告「？」(2026-10-24 ユーザー指定): 前兆 (js/zencho.js) の あいだ、レバー ON の たびに「？」が 1 つずつ 増える (4 つまで)。
+        //   色は 1 つ目から 白 → 青 → 赤 → 金
+        question: { colors: ['#ffffff', '#3f8cff', '#ff3a3a', '#ffd700'], ms: 1500 }
     },
 
     // ----- モード・ゾーン・天井 (2026-10-23 アップグレード A5。最新のスロット koori-slot の 仕様書から) -----
@@ -1040,7 +1054,12 @@ window.GAME_CONFIG = {
             { id: 'revival', name: 'こおりまだまえる', desc: '復活して敵を撃破する', stat: 'revival', value: 1 },
             { id: 'ending', name: 'ともいし救出', desc: 'SUPER中におにおにを倒して、エンディングを見る', stat: 'ending', value: 1 },
             { id: 'aruaru', name: '内定がある！！', desc: '内定の時ゾーンで、シーシャ・ナイテイ・アルアルに助けてもらう', stat: 'aruaru', value: 1 },
-            { id: 'finalBlow', name: 'ガード無視!!', desc: 'ガードされても、とどめの一撃で敵を撃破する', stat: 'finalBlow', value: 1 }
+            { id: 'finalBlow', name: 'ガード無視!!', desc: 'ガードされても、とどめの一撃で敵を撃破する', stat: 'finalBlow', value: 1 },
+            // レバーの 演出 (2026-10-24 ユーザー指定)
+            { id: 'tatakiRash', name: '叩け確定', desc: 'RASH 中に「レバーを叩け!!」を見る', stat: 'lever:tatakiRash', value: 1 },
+            { id: 'gyaku', name: '逆回転', desc: 'リールの逆回転を見る', stat: 'lever:reverse', value: 1 },
+            { id: 'longStop', name: 'ためて止めろ', desc: '長押しの STOP でリールを止める', stat: 'lever:longStop', value: 1 },
+            { id: 'allLeverFx', name: 'レバー演出マスター', desc: 'レバーの演出を全種類見る', stat: 'leverKinds', value: 'all' }
         ]
     },
 

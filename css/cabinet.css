@@ -691,3 +691,42 @@ body.reel-gyaku .cabinet .reel::after {
     from { background-position: 0 0; }
     to { background-position: 0 300%; }
 }
+
+/* STOP の 色 (2026-10-24): 第 3 停止の 前に のこりの STOP と リールの 上の ランプが 光る (青 < 赤 < 金 < 虹) */
+.cabinet .stop-button.tier-blue, #stop-button-1.tier-blue, #stop-button-2.tier-blue, #stop-button-3.tier-blue { --push: #3f8cff; }
+.cabinet .stop-button.tier-red, #stop-button-1.tier-red, #stop-button-2.tier-red, #stop-button-3.tier-red { --push: #ff3a3a; }
+.cabinet .stop-button.tier-gold, #stop-button-1.tier-gold, #stop-button-2.tier-gold, #stop-button-3.tier-gold { --push: #ffd700; }
+[id^="stop-button-"].tier-blue, [id^="stop-button-"].tier-red, [id^="stop-button-"].tier-gold, [id^="stop-button-"].tier-rainbow {
+    border-color: var(--push);
+    color: #fff;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--push) 60%, #2a2a30), #141418);
+    box-shadow: 0 0 16px var(--push), 0 0 30px color-mix(in srgb, var(--push) 55%, transparent);
+    animation: push-glow 0.3s ease-in-out infinite alternate;
+}
+[id^="stop-button-"].tier-rainbow { animation: push-glow 0.3s ease-in-out infinite alternate, push-rainbow 1s linear infinite; }
+.cabinet .reel-lamp.lamp-tier-blue { background: #3f8cff; box-shadow: 0 0 10px #3f8cff; }
+.cabinet .reel-lamp.lamp-tier-red { background: #ff3a3a; box-shadow: 0 0 10px #ff3a3a; }
+.cabinet .reel-lamp.lamp-tier-gold { background: #ffd700; box-shadow: 0 0 12px #ffd700; }
+.cabinet .reel-lamp.lamp-tier-rainbow { --push: #ff3030; background: var(--push); box-shadow: 0 0 12px var(--push); animation: push-rainbow 1s linear infinite; }
+
+/* 第 3 停止の 長押し (2026-10-24): 「長押し」の 文字と、ためると 下から たまる ゲージ */
+[id^="stop-button-"].long-stop { position: relative; }
+[id^="stop-button-"].long-stop::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: calc(var(--progress, 0) * 100%);
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--push, #ffd700) 70%, transparent);
+    pointer-events: none;
+}
+[id^="stop-button-"].long-stop::after {
+    content: '長押し';
+    position: absolute;
+    left: 0; right: 0; top: -1.4em;
+    font-size: 0.75rem;
+    color: #ffe680;
+    text-shadow: 0 0 4px #000;
+    pointer-events: none;
+}
+[id^="stop-button-"].long-stop.holding { transform: translateY(2px); }

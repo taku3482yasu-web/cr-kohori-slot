@@ -910,7 +910,33 @@ const Lcd = (() => {
         ctx.globalAlpha = 1;
     }
 
+    // ため の 光 (2026-10-24 ユーザー指定: 長押しは ため演出): 液晶の ふちが 光って、光の 粒が まんなかへ 集まる。k: 0〜1
+    let charge = null;   // { k, color }
+    function setCharge(k, color = '#ffd700') { charge = k == null ? null : { k: Math.min(1, k), color }; }
+    function drawCharge(time) {
+        if (!charge) return;
+        const { k } = charge;
+        const color = charge.color === 'rainbow' ? `hsl(${Math.floor(time / 4) % 360}, 95%, 62%)` : charge.color;
+        ctx.save();
+        ctx.globalAlpha = 0.25 + k * 0.6;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2 + k * 6;
+        ctx.strokeRect(1, 1, W - 2, H - 2);
+        ctx.fillStyle = color;
+        for (let i = 0; i < 14; i++) {
+            const a = i / 14 * Math.PI * 2 + time / 300;
+            const r = (1 - ((time / 500 + i / 14) % 1)) * W * 0.45;
+            ctx.fillRect(Math.round(W / 2 + Math.cos(a) * r), Math.round(H / 2 + Math.sin(a) * r * 0.6), 2, 2);
+        }
+        ctx.globalAlpha = 0.15 + k * 0.35;
+        ctx.beginPath();
+        ctx.arc(W / 2, H / 2, 6 + k * 26 + Math.sin(time / 40) * 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
     function drawFlash(time) {
+        drawCharge(time);
         if (!flash) return;
         const t = (time - flash.start) / flash.duration;
         if (t >= 1) {
@@ -3162,7 +3188,7 @@ const Lcd = (() => {
 
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
-        reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, setZencho, noiseFx,
+        reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, startShake, setCharge, setZencho, noiseFx,
         tokkaLever, tokkaSelectInput, playNotice,
         tokkaSelecting: () => Boolean(tokkaSelect),
         setHandlers: h => { handlers = h; },

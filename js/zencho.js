@@ -39,7 +39,7 @@ const Zencho = (() => {
         if (current) current.games++;
         const iwakanRate = current ? (scene.real ? z.iwakan.real : z.iwakan.fake) : z.iwakan.random;
         const iwakan = rng() < iwakanRate ? Hype.pick(z.iwakan.kinds, rng) : null;
-        return { zencho: current ? current.kind : null, started, iwakan };
+        return { zencho: current ? current.kind : null, started, iwakan, games: current ? current.games : 0 };   // games: 前兆の 何ゲーム目か (連続予告「？」)
     }
 
     // 場面が 変わったか (ゲームの あとに 呼ぶ)。前兆が 終わったら true

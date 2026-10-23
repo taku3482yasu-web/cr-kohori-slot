@@ -7,6 +7,7 @@
 //   逆回転   : リールが しばらく 逆に 回る。7揃い・7・7・BAR・ロングフリーズ だけ
 // tataki(): 結果の 前の PUSH を「レバーを叩け！」に する (はじめ PUSH で、押すと 変わる ことも ある)。
 //   通常時は 熱い ゲームだけ。RASH 中は 確定 (熱さ 6) だけ なので、出たら 確定
+// stopTier(): 第 3 停止の 前の STOP の 色 (青 < 赤 < 金 < 虹)。longStop(): 第 3 停止を 長押しに する か
 // 演出だけで、役・バトル・出玉は 変えない (UI 側の 乱数で 選ぶ)。数字は config.lever (案)
 // =====================================================================
 
@@ -28,5 +29,15 @@ const LeverFx = {
         const rate = StateMachine.isRashMode(state) ? (heat >= 6 ? c.rashRate : 0) : c.rates[Math.max(0, Math.min(6, heat))];
         if (rng() >= rate) return push;
         return { ...push, lever: true, leverChange: rng() < c.change };
+    },
+
+    stopTier(heat, config, rng = Math.random) {
+        const c = config.lever.stopTier;
+        const h = Math.max(0, Math.min(6, heat));
+        return rng() < c.rates[h] ? Hype.pick(c.colors[h], rng) : null;
+    },
+
+    longStop(heat, config, rng = Math.random) {
+        return rng() < config.lever.longStop.rates[Math.max(0, Math.min(6, heat))];
     }
 };

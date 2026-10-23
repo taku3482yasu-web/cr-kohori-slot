@@ -1,5 +1,6 @@
 // =====================================================================
 // PUSH ボタン (2026-10-23 アップグレード A3。筐体の 下の 丸い ボタン #push-button と B キー)
+// 長押しは ため演出 (液晶の ふちが 光って ためる →「フルチャージ!!」)、連打は 連撃演出 (押すたびに「〇連撃!」で 液晶が 揺れる)。2026-10-24 ユーザー指定
 // ---------------------------------------------------------------------
 // wait(push) で 出して、押し終わるまで 待つ (押さなければ config.hype.push.autoMs で 進む)。
 //   push: { tier: 'white'〜'rainbow', pop: 飛び出す, mode: 'tap' 1 回 / 'long' 長押し / 'mash' 連打 }
@@ -88,16 +89,24 @@ const PushButton = (() => {
             active.count++;
             Sound.hit();
             button.style.setProperty('--progress', String(active.count / cfg.mashCount));
+            // 連撃: 押すたびに「〇連撃!」・液晶が 揺れて 光る
+            const color = cfg.colorCodes[push.tier];
+            Lcd.showMessage(`${active.count}連撃!`, color === 'rainbow' ? '#ffffff' : color, cfg.autoMs);
+            Lcd.startShake(2 + active.count * 0.4, 140);
+            Lcd.startFlash(color === 'rainbow' ? '#ffffff' : color, 140, 0.35);
             if (active.count >= cfg.mashCount) finish();
             return;
         }
         // 長押し: ゲージが たまったら 終わる
         const start = performance.now();
         active.held = start;
+        const color = cfg.colorCodes[push.tier];
+        Lcd.showMessage('ためろ!!', color === 'rainbow' ? '#ffffff' : color, cfg.autoMs);
         const tick = () => {
             if (!active || active.held !== start) return;
             const k = Math.min(1, (performance.now() - start) / cfg.longMs);
             button.style.setProperty('--progress', String(k));
+            Lcd.setCharge(k, color);   // ため の 光
             if (k >= 1) return finish();
             requestAnimationFrame(tick);
         };
@@ -110,12 +119,14 @@ const PushButton = (() => {
         if (active && active.push.mode === 'long') {
             active.held = 0;
             button.style.setProperty('--progress', '0');
+            Lcd.setCharge(null);
         }
     }
 
     function finish() {
         if (!active) return;
         const { push, resolve, timer } = active;
+        const wasHeld = Boolean(active.held), mashCount = active.count;
         clearTimeout(timer);
         clearTimeout(active.changeTimer);
         if (active.lever) {
@@ -126,8 +137,13 @@ const PushButton = (() => {
         button.className = 'cab-push';
         button.style.setProperty('--progress', '0');
         Lcd.clearMessage();
+        Lcd.setCharge(null);
         const color = cfg.colorCodes[push.tier];
         Lcd.startFlash(color === 'rainbow' ? '#ffffff' : color, push.tier === 'rainbow' || push.tier === 'gold' ? 600 : 350);
+        // とどめの 文字: フルチャージ!! / 〇連撃フィニッシュ!!
+        const shown = color === 'rainbow' ? '#ffffff' : color;
+        if (!push.lever && push.mode === 'long' && active === null && wasHeld) Lcd.showMessage('フルチャージ!!', shown, 900);
+        if (!push.lever && push.mode === 'mash' && mashCount >= cfg.mashCount) Lcd.showMessage(`${mashCount}連撃フィニッシュ!!`, shown, 900);
         Sound.pushHit(push.tier);
         setTimeout(resolve, 450);
     }

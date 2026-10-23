@@ -88,6 +88,8 @@ const UI = (() => {
             colEnemies: $('col-enemies'),
             colSpecialCount: $('col-special-count'),
             colSpecials: $('col-specials'),
+            colLeverCount: $('col-lever-count'),
+            colLever: $('col-lever'),
             colTrophyCount: $('col-trophy-count'),
             colTrophies: $('col-trophies'),
             colRecords: $('col-records'),
@@ -630,6 +632,15 @@ const UI = (() => {
             const n = c.specials[s.id] || 0;
             return `<li class="${n ? '' : 'col-unknown'}"><span class="col-who">${s.who}</span>` +
                 `<span class="col-name">${n ? s.name : '？？？'}</span><span class="col-times">${n ? `×${n.toLocaleString()}` : ''}</span></li>`;
+        }).join('');
+
+        // レバーの 演出 (2026-10-24): 見た 演出は 名前と 回数、まだの 演出は ？？？
+        const lever = c.lever || {};
+        els.colLeverCount.textContent = count(entries.lever.filter(x => lever[x.id]).length, entries.lever.length);
+        els.colLever.innerHTML = entries.lever.map(x => {
+            const n = lever[x.id] || 0;
+            return `<li class="${n ? '' : 'col-unknown'}"><span class="col-who">レバー</span>` +
+                `<span class="col-name">${n ? x.name : '？？？'}</span><span class="col-times">${n ? `×${n.toLocaleString()}` : ''}</span></li>`;
         }).join('');
 
         // トロフィー: 出た色と回数

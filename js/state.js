@@ -402,6 +402,13 @@ const Collection = {
         lines[text] = (lines[text] || 0) + 1;
     },
 
+    // レバーの 演出を 見た (2026-10-24。図鑑の「レバーの演出」。id は entries の lever)
+    seeLever(state, id) {
+        const c = state.collection;
+        const map = c.lever || (c.lever = {});
+        map[id] = (map[id] || 0) + 1;
+    },
+
     // キャラクターに会った (図鑑の説明が見られるようになる)
     meet(state, id) {
         const c = state.collection;
@@ -448,7 +455,14 @@ const Collection = {
                 { id: config.naitei.aruaru.id, who: config.naitei.aruaru.name, name: config.naitei.aruaru.special }
             ],
             trophies: Object.keys(config.trophy.colors).map(Number),
-            endCards: config.endCard.cards.map(card => card.id)
+            endCards: config.endCard.cards.map(card => card.id),
+            // レバーの 演出 (2026-10-24)
+            lever: [
+                { id: 'tataki', name: 'レバーを叩け!!' }, { id: 'tatakiRash', name: 'RASH 中の 叩け!! (確定)' }, { id: 'tatakiChange', name: 'PUSH から 叩け!! に 変化' },
+                { id: 'buru', name: 'レバブル' }, { id: 'okure', name: '遅れ' }, { id: 'reverse', name: '逆回転' },
+                { id: 'stopTier', name: 'STOP の 色' }, { id: 'stopRainbow', name: '虹の STOP (確定)' }, { id: 'longStop', name: '長押しの STOP (ため)' },
+                { id: 'pushLong', name: '長押しの PUSH (ため)' }, { id: 'pushMash', name: '連打の PUSH (連撃)' }, { id: 'question', name: '連続予告「？？」' }
+            ]
         };
     },
 
@@ -464,6 +478,8 @@ const Collection = {
             case 'specialKinds': return kinds(c.specials);
             case 'trophyKinds': return kinds(c.trophies);
             case 'endCardKinds': return kinds(c.endCards || {});
+            case 'lever': return (c.lever || {})[id] || 0;
+            case 'leverKinds': return kinds(c.lever || {});
             case 'furukawaKinds': return Object.keys(c.furukawaLines || {}).length;   // 聞いたセリフだけが入っている (毎ゲーム呼ばれるので軽く)
             default: return c.records[kind] || 0;
         }
@@ -475,7 +491,7 @@ const Collection = {
         if (a.stat === 'furukawaKinds') return Furukawa.catalogSet(config).size;   // 毎ゲーム呼ばれるので一覧を作らない
         const e = this.entries(config);
         return {
-            enemyKinds: e.enemies.length, specialKinds: e.specials.length, trophyKinds: e.trophies.length, endCardKinds: e.endCards.length
+            enemyKinds: e.enemies.length, specialKinds: e.specials.length, trophyKinds: e.trophies.length, endCardKinds: e.endCards.length, leverKinds: e.lever.length
         }[a.stat];
     }
 };
