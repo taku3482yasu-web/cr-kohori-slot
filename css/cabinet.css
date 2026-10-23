@@ -563,3 +563,83 @@ body.zencho .cab-pillar i { animation-duration: 0.9s; }
     border-color: #e8d0ff;
     box-shadow: 0 3px 0 #1a0a3a, 0 0 14px #a040ff;
 }
+
+/* ----- 演出の 光 (2026-10-23 ユーザー指定。js/lights.js が body[data-light] を 入れる) ----- */
+/* 当たったら 周りの ライトが 虹色。演出ごとに 色・速さを かえる */
+@property --cab-glow {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #7fd8ff;
+}
+
+/* 演出の 光は すぐ 切りかえる (ふだんの 0.5 秒の 移り変わりを 短く) */
+body[data-light] .slot-machine.cabinet { transition: border-color 0.5s, box-shadow 0.12s; }
+
+/* 虹色: 筐体の ふち・提灯・液晶の 額縁の 光が 虹色に 回る (疑似ボーナス中も) */
+body[data-light="rainbow"] .slot-machine.cabinet,
+body[data-phase="BONUS"] .slot-machine.cabinet {
+    animation: cab-glow-rainbow 0.8s linear infinite;
+    box-shadow: 0 0 0 2px #5a3a0a, 0 0 50px var(--cab-glow), 0 0 110px color-mix(in srgb, var(--cab-glow) 45%, transparent);
+}
+body[data-phase="BONUS"]:not([data-light="rainbow"]) .slot-machine.cabinet { animation-duration: 2.4s; }
+body[data-light="rainbow"] .cab-pillar i,
+body[data-phase="BONUS"] .cab-pillar i {
+    animation: cab-lantern-rainbow 0.6s linear infinite;
+}
+body[data-light="rainbow"] .cab-pillar i:nth-child(2n) { animation-delay: -0.2s; }
+body[data-light="rainbow"] .cab-pillar i:nth-child(3n) { animation-delay: -0.4s; }
+
+@keyframes cab-glow-rainbow {
+    0% { --cab-glow: #ff3030; }
+    17% { --cab-glow: #ff9a20; }
+    33% { --cab-glow: #ffe000; }
+    50% { --cab-glow: #30e060; }
+    67% { --cab-glow: #3090ff; }
+    83% { --cab-glow: #b040ff; }
+    100% { --cab-glow: #ff3030; }
+}
+
+/* 当たりの 瞬間: 虹色の 光の すじが 回って 消える */
+body.light-burst .slot-machine.cabinet::after {
+    content: '';
+    position: absolute;
+    inset: -40%;
+    z-index: 30;
+    pointer-events: none;
+    background: repeating-conic-gradient(from 0deg, rgba(255, 48, 48, 0.32) 0deg 6deg, transparent 6deg 20deg,
+        rgba(255, 224, 0, 0.32) 20deg 26deg, transparent 26deg 40deg, rgba(48, 144, 255, 0.32) 40deg 46deg, transparent 46deg 60deg);
+    mix-blend-mode: screen;
+    animation: light-burst 1.4s ease-out forwards;
+}
+@keyframes light-burst {
+    0% { opacity: 1; transform: rotate(0deg) scale(0.6); }
+    100% { opacity: 0; transform: rotate(90deg) scale(1.2); }
+}
+
+/* 色: その色で 速く 流れる (BATTLE・チャレンジ・カットイン など) */
+body[data-light="color"] .slot-machine.cabinet {
+    --cab-glow: var(--light-color, #ff3a2a);
+    box-shadow: 0 0 0 2px #5a3a0a, 0 0 54px var(--cab-glow);
+}
+body[data-light="color"] .cab-pillar i { animation-duration: 0.5s; }
+
+/* 白く 点滅 (大ダメージ・「？？」) */
+body[data-light="strobe"] .slot-machine.cabinet {
+    animation: cab-strobe 0.16s steps(1) infinite;
+}
+body[data-light="strobe"] .cab-pillar i { animation: cab-strobe-lantern 0.16s steps(1) infinite; }
+@keyframes cab-strobe {
+    0% { --cab-glow: #ffffff; box-shadow: 0 0 0 2px #5a3a0a, 0 0 70px #ffffff; }
+    50% { --cab-glow: #ffe066; box-shadow: 0 0 0 2px #5a3a0a, 0 0 20px #ffe066; }
+}
+@keyframes cab-strobe-lantern {
+    0% { background: #ffffff; box-shadow: 0 0 12px #ffffff; }
+    50% { background: #3a2a10; box-shadow: none; }
+}
+
+/* 暗く (外れ・終了) */
+body[data-light="dim"] .slot-machine.cabinet {
+    --cab-glow: #2a3044;
+    box-shadow: 0 0 0 2px #5a3a0a;
+}
+body[data-light="dim"] .cab-pillar i { animation: none; background: #1a1012; box-shadow: none; }

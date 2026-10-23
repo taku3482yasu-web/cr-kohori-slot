@@ -2613,6 +2613,7 @@ const Lcd = (() => {
     // GameFlow が返した events を順に演出する
     async function playEvents(events) {
         for (const event of events) {
+            if (typeof Lights !== 'undefined') Lights.event(event);   // 筐体の 光 (当たりは 虹色。js/lights.js)
             switch (event.type) {
                 case 'payout':
                     if (event.amount > 0) {

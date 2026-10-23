@@ -217,6 +217,7 @@
         if (hype.kakutei) Sound.kakutei();
         else if (hype.sakibare) Sound.sakibare();
         if (hype.cutin) Lcd.chanceCutIn(hype.cutin, hype.cutinWho);
+        Lights.hype(hype);   // 筐体の 光 (カットインの 色・確定は 虹色)
         if (hype.flash !== 'none') {
             const cls = `reel-flash-${hype.flash}`;
             document.body.classList.add(cls);
