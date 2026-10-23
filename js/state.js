@@ -22,7 +22,8 @@ const RASH_PHASES = Object.freeze({
     QUESTION: 'QUESTION', // 残りゲーム数「？？」: 揃えば継続、揃わなければ終了
     TREASURE: 'TREASURE', // 宝物庫ゾーン: BATTLE を中断し、揃った柄で次の BATTLE のゲーム数を上乗せ
     NAITEI: 'NAITEI',     // 内定の時ゾーン: SELECT で 7揃い・7・7・BAR → シーシャ・ナイテイ・ナイナイと真剣勝負
-    REVIVAL: 'REVIVAL'    // 復活待ち: 「？？」で負けたが復活が決まった。次のゲームで戦っていた敵を撃破して継続
+    REVIVAL: 'REVIVAL',   // 復活待ち: 「？？」で負けたが復活が決まった。次のゲームで戦っていた敵を撃破して継続
+    BONUS: 'BONUS'        // 疑似ボーナス (A5): 撃破の あと、次の 対戦相手を 決める 前に BIG・REG・エピソードBIG を 消化
 });
 
 const MODE_LABELS = {
@@ -157,13 +158,17 @@ function createInitialState(config, rng = Math.random) {
             castleWaitRemaining: 0, // SE城前でチャレンジ発生までの残りゲーム数
             revengeGames: 0,       // リベンジチャンスの残りゲーム数 (RASH 終了後)
             revengeCarry: null,    // リベンジで引き継ぐもの { defeatCount, oniUnlocked, wasSuper } (終わった RASH のもの)
-            dance: null            // ダンシングステージ { games, gamesRemaining, points, zone }
+            dance: null,           // ダンシングステージ { games, gamesRemaining, points, zone }
+            gameMode: null,        // モード A / B / C / heaven (A5。RASH が 終わったときに 抽選。はじめは 最初の ゲームで)
+            zone: null,            // いまの ゾーン { at, end, fireAt (SE城前へ 直行する ゲーム数。外れは null) }
+            ceilingHit: false      // 天井に 着いた
         },
 
         // 城突入チャレンジ
         challenge: {
             gamesRemaining: 0,
-            chanceBoost: false     // SE城前でチャンス目を引いた (このあとのチャレンジの突入率UP)
+            chanceBoost: false,    // SE城前でチャンス目を引いた (このあとのチャレンジの突入率UP)
+            guaranteed: false      // 天井: このあとの チャレンジは 突入 確定 (A5)
         },
 
         // RASH / SUPER_RASH
@@ -192,6 +197,10 @@ function createRashState() {
         treasureGames: 0,        // 宝物庫ゾーンの残りゲーム数
         treasureTotal: 0,        // 宝物庫ゾーンで上乗せしたゲーム数の合計
         treasureReturnPhase: null, // 宝物庫ゾーンが終わったら戻るフェーズ
+        bonusKind: null,         // 疑似ボーナス (A5): big / reg / episode
+        bonusLeft: 0,            // ボーナスの 残りゲーム数
+        bonusTotal: 0,           // ボーナスで 足した 枚数
+        bonusAdded: 0,           // ボーナス中の 7揃いで 上乗せした ゲーム数
         endingShown: false,      // このRASHでエンディングを流したか (SUPER 中におにおにを撃破すると流れる)
         coinsWon: 0              // このRASHでの獲得枚数
     };
@@ -541,6 +550,10 @@ const GameFlow = {
     // 通常時: マップループ・チャンスポイント・SE城前
     handleNormal(state, outcome, config, rng) {
         const normal = state.normal;
+        // モード・ゾーン・天井 (A5): 天井なら SE城前へ (城突入 確定)、ゾーンの 当たりなら SE城前へ 直行
+        const modeEvents = this.modeGame(state, config, rng);
+        if (modeEvents.go) return modeEvents.events;
+        const modePrefix = modeEvents.events;
 
         // SE城前: 待機ゲーム数を消化したら城突入チャレンジへ
         if (normal.map === config.map.castle) {
@@ -552,12 +565,12 @@ const GameFlow = {
                 events.push({ type: 'castleBoost', rate: config.castle.chanceBoost });
             }
             if (normal.castleWaitRemaining === 0) events.push(...this.startCastleChallenge(state, config));
-            return events;
+            return [...modePrefix, ...events];
         }
 
-        if (normal.dance) return this.danceGame(state, outcome, config, rng);
+        if (normal.dance) return [...modePrefix, ...this.danceGame(state, outcome, config, rng)];
 
-        const events = [];
+        const events = [...modePrefix];
         const cp = config.chancePoint;
 
         // リベンジチャンス: チャンス目で RASH に再突入
@@ -646,6 +659,67 @@ const GameFlow = {
         return events;
     },
 
+    // ----- モード・ゾーン・天井 (2026-10-23 アップグレード A5) -----
+    pickMode(state, config, rng) {
+        const w = config.modes.weights[state.setting] || config.modes.weights[1];
+        return Lottery.weightedPick(Object.keys(w), k => w[k], rng);
+    },
+
+    // 1 ゲームごと (通常時)。{ events, go: SE城前へ 行った (この ゲームの ほかの 処理は しない) }
+    modeGame(state, config, rng) {
+        const n = state.normal, m = config.modes;
+        if (!n.gameMode) n.gameMode = this.pickMode(state, config, rng);
+        const g = state.gamesSinceHit;
+        const events = [];
+        const atCastle = n.map === config.map.castle;
+        // 天井: SE城前へ。そのあとの 城突入チャレンジは 突入 確定
+        if (!n.ceilingHit && g >= m.ceiling[n.gameMode]) {
+            n.ceilingHit = true;
+            n.zone = null;
+            state.challenge.guaranteed = true;
+            events.push({ type: 'ceiling', games: g, who: rng() < m.aruaruCeilingRate ? 'aruaru' : 'nainai' });
+            if (atCastle) return { events, go: false };
+            n.dance = null;
+            events.push(this.goToCastle(state, config));
+            return { events, go: true };
+        }
+        // ゾーンの 出入り (入るときに 当たりか 決める。当たりなら ゾーンの どこかの ゲームで 直行)
+        const zone = m.zones[n.gameMode].find(z => g > z.at && g <= z.at + (z.length || m.zoneLength));
+        if (zone && (!n.zone || n.zone.at !== zone.at)) {
+            const len = zone.length || m.zoneLength;
+            n.zone = { at: zone.at, end: zone.at + len, fireAt: rng() < zone.hit ? zone.at + 1 + Math.floor(rng() * len) : null };
+            events.push({ type: 'zoneStart', heaven: n.gameMode === 'heaven' });
+        }
+        if (n.zone && g > n.zone.end && n.zone.fireAt === null) {
+            n.zone = null;
+            events.push({ type: 'zoneEnd' });
+        }
+        // 当たりの ゲームが 来たら SE城前へ 直行 (SE城前・ダンシングステージ中なら 終わってから)
+        if (n.zone && n.zone.fireAt !== null && g >= n.zone.fireAt && !atCastle && !n.dance) {
+            n.zone = null;
+            events.push({ type: 'zoneHit' });
+            events.push(this.goToCastle(state, config));
+            return { events, go: true };
+        }
+        return { events, go: false };
+    },
+
+    // RASH が 終わったら 次の モードを 決める (天国は ときどき カットインで 知らせる。ふるカワが ほのめかすことも)
+    nextMode(state, config, rng) {
+        const n = state.normal, m = config.modes;
+        n.gameMode = this.pickMode(state, config, rng);
+        n.zone = null;
+        n.ceilingHit = false;
+        state.challenge.guaranteed = false;
+        const events = [];
+        if (n.gameMode === 'heaven' && rng() < m.heavenCutinRate) events.push({ type: 'heavenHint', who: rng() < 0.5 ? 'nainai' : 'aruaru' });
+        else if (rng() < m.hintRate) {
+            const lines = m.hints[n.gameMode];
+            events.push({ type: 'modeHint', text: lines[Math.floor(rng() * lines.length)] });
+        }
+        return events;
+    },
+
     // SE城前へ (チャンスポイントが規定値に到達・ダンシングステージのチャンスゾーン突入)
     goToCastle(state, config) {
         state.normal.castleWaitRemaining = config.castle.waitGames;
@@ -722,12 +796,13 @@ const GameFlow = {
         const rate = Math.min(1, (config.castle.entryRate[outcome.role] || 0)
             * MachineSetting.multipliers(state, config).castleEntry
             * this.castleEntryBoost(state, config));
-        const success = rng() < rate;
-        const events = [{ type: 'challengeGame', remaining: challenge.gamesRemaining, role: outcome.role, success }];
+        const success = challenge.guaranteed || rng() < rate;   // 天井 (A5) は 突入 確定
+        const events = [{ type: 'challengeGame', remaining: challenge.gamesRemaining, role: outcome.role, success, guaranteed: challenge.guaranteed }];
 
         if (success || challenge.gamesRemaining <= 0) {
-            SettingEstimate.countChallenge(state, config, success);
+            if (!challenge.guaranteed) SettingEstimate.countChallenge(state, config, success);
             challenge.chanceBoost = false;
+            challenge.guaranteed = false;
         }
 
         if (success) {
@@ -766,6 +841,8 @@ const GameFlow = {
                 return Battle.questionGame(state, outcome, config, rng);
             case RASH_PHASES.TREASURE:
                 return Battle.treasureGame(state, outcome, config);
+            case RASH_PHASES.BONUS:
+                return Battle.bonusGame(state, outcome, config);
             case RASH_PHASES.NAITEI:
                 return Battle.naiteiGame(state, outcome, config, rng);
             case RASH_PHASES.REVIVAL:
@@ -781,7 +858,8 @@ const GameFlow = {
         state.normal.chancePoint = 0;
         state.normal.castleWaitRemaining = 0;
         state.normal.revengeGames = 0;
-        return [this.changeMap(state, config.map.castle), ...this.startCastleChallenge(state, config)];
+        const modeEvents = this.nextMode(state, config, Math.random);
+        return [this.changeMap(state, config.map.castle), ...this.startCastleChallenge(state, config), ...modeEvents];
     },
 
     // ロングフリーズの効果
@@ -823,6 +901,7 @@ const GameFlow = {
         state.normal.revengeGames = config.revenge.games;
         state.normal.revengeCarry = { defeatCount: rash.defeatCount, oniUnlocked: rash.oniUnlocked, wasSuper: events[0].wasSuper };
         events.push({ type: 'revengeStart', games: config.revenge.games });
+        events.push(...this.nextMode(state, config, rng));   // 次の モード (A5)
         return events;
     },
 
@@ -845,6 +924,9 @@ const GameFlow = {
         });
         state.hitHistory.length = Math.min(state.hitHistory.length, config.dataCounter.historySize);
         state.gamesSinceHit = 0;
+        state.normal.zone = null;
+        state.normal.ceilingHit = false;
+        state.challenge.guaranteed = false;
     },
 
     // RASH 終了: 獲得枚数・撃破数・SUPER 到達・出たトロフィーを記録 (トロフィーと終了画面の絵は設定推測の材料にも)
@@ -909,6 +991,29 @@ const DebugState = {
         state.normal.dance = null;
         state.challenge.chanceBoost = false;
         return [{ type: 'debug', label: '城突入チャレンジへ' }, ...GameFlow.startCastleChallenge(state, config)];
+    },
+    // 疑似ボーナス・モードの 確認用 (2026-10-23 A5)
+    startBonus(state, kind, config) {
+        const events = [];
+        if (!StateMachine.isRashMode(state)) events.push(...this.toRash(state));
+        state.rash.enemyId = null;
+        events.push({ type: 'debug', label: `ボーナス: ${config.pseudoBonus.kinds[kind].name}` }, Battle.startPseudoBonus(state, kind, config));
+        return events;
+    },
+    nearCeiling(state, config) {
+        const events = state.mode === MODES.NORMAL ? [] : this.toNormal(state, config);
+        if (!state.normal.gameMode) state.normal.gameMode = 'A';
+        state.gamesSinceHit = config.modes.ceiling[state.normal.gameMode] - 1;
+        state.normal.ceilingHit = false;
+        return [...events, { type: 'debug', label: `天井の 1G 前 (モード ${state.normal.gameMode})` }];
+    },
+    toHeaven(state, config) {
+        const events = state.mode === MODES.NORMAL ? [] : this.toNormal(state, config);
+        state.normal.gameMode = 'heaven';
+        state.normal.zone = null;
+        state.normal.ceilingHit = false;
+        state.gamesSinceHit = 0;
+        return [...events, { type: 'debug', label: '天国 モードへ' }];
     },
     toRash(state) {
         state.mode = MODES.RASH;

@@ -159,6 +159,9 @@ const Lcd = (() => {
             treasure = rash.phase === RASH_PHASES.TREASURE
                 ? { remaining: rash.treasureGames, games: config.treasure.games, total: rash.treasureTotal, chestOpenUntil: 0, coins: [] }
                 : null;
+            bonusView = rash.phase === RASH_PHASES.BONUS && rash.bonusKind
+                ? { kind: rash.bonusKind, remaining: rash.bonusLeft, games: config.pseudoBonus.kinds[rash.bonusKind].games, total: rash.bonusTotal, start: performance.now() }
+                : null;
             battle.probUpGames = rash.probUpGames;
             battle.probUpMultiplier = rash.probUpMultiplier;
             battle.breakActive = rash.breakActive;
@@ -655,6 +658,10 @@ const Lcd = (() => {
             drawTreasure(time);
             return;
         }
+        if (bonusView) {
+            drawBonus(time);
+            return;
+        }
         const hallId = logoSuper && !naiteiZone ? 'goldHall' : 'castleHall';
         const hall = Backgrounds.get(hallId);
         Backgrounds.draw(ctx, hallId, 0);
@@ -1018,6 +1025,140 @@ const Lcd = (() => {
             Sound.miss();
         }
         await sleep(700);
+    }
+
+    // ----- 疑似ボーナス (2026-10-23 A5)。BIG 金・REG 銀 は キャラ解説、エピソードBIG は 夕焼けで ストーリー -----
+    let bonusView = null;   // { kind, remaining, games, total, start }
+    const profileOf = id => (window.CHARACTER_PROFILES || {})[id] || {};
+    const nameOf = id => {
+        if (id === 'koori') return 'こおりくん';
+        if (id === 'tomoishi') return 'ともいし';
+        if (id === 'furukawa') return config.furukawa.name;
+        const m = config.companions.members.find(c => c.id === id);
+        if (m) return m.name;
+        const e = config.enemies.find(x => x.id === id) || (config.goldDog.id === id ? config.goldDog : null);
+        return e ? e.name : id;
+    };
+    // キャラの 絵 (地面 groundY・まんなか x)
+    function drawWho(id, x, groundY, scale = 2) {
+        if (id === 'koori') return drawSprite(ctx, SPRITES.koori, 'walk1', x - 8 * scale, groundY - 16 * scale, scale);
+        if (id === 'tomoishi') return drawSprite(ctx, SPRITES.tomoishi, 'idle', x - 9 * scale, groundY - 18 * scale, scale);
+        if (id === 'furukawa') return drawSprite(ctx, SPRITES.furukawa, 'talk', x - 10 * scale, groundY - 20 * scale, scale);
+        if (Characters.isCompanion(id)) return Characters.drawCompanion(ctx, id, x, groundY, { scale });
+        if (Characters.has(id)) {
+            const { w, h } = Characters.size(id);
+            return Characters.drawEnemy(ctx, id, x, groundY, { scale: Math.min(scale, 56 / h, 70 / w) });
+        }
+    }
+    function drawBonus(time) {
+        const b = bonusView;
+        const k = config.pseudoBonus.kinds[b.kind];
+        // 背景: BIG 金 / REG 銀 / エピソード 夕焼け
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        const stops = b.kind === 'episode' ? ['#2a1450', '#c8505a', '#ffb060'] : b.kind === 'big' ? ['#5a3a00', '#d8a020', '#fff0a0'] : ['#2a3440', '#8a9aac', '#e8eef4'];
+        stops.forEach((c, i) => g.addColorStop(i / 2, c));
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        // 光の すじ
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        for (let i = 0; i < 9; i++) {
+            const a = i / 9 * Math.PI * 2 + time / 2400;
+            ctx.beginPath();
+            ctx.moveTo(W / 2, H + 30);
+            ctx.lineTo(W / 2 + Math.cos(a) * W, H + 30 + Math.sin(a) * W);
+            ctx.lineTo(W / 2 + Math.cos(a + 0.12) * W, H + 30 + Math.sin(a + 0.12) * W);
+            ctx.fill();
+        }
+        // 名前・残り・獲得
+        const title = k.name;
+        const tcol = b.kind === 'episode' ? `hsl(${(time / 6) % 360}, 90%, 70%)` : b.kind === 'big' ? '#fff6c0' : '#ffffff';
+        text(title, W / 2, 6, { color: tcol, size: 16, align: 'center', outline: '#2a1a00' });
+        text(`残り ${b.remaining}G`, 8, 26, { color: '#fff', size: 10, outline: '#000' });
+        text(`+${b.total}枚`, W - 8, 26, { color: '#fff2a0', size: 12, align: 'right', outline: '#3a2a00' });
+        // 解説 / ストーリー (2 ゲームで 1 つ)
+        const page = Math.floor((b.games - b.remaining) / 2);
+        let who, line, head;
+        if (b.kind === 'episode') {
+            const list = config.pseudoBonus.episode;
+            ({ who, text: line } = list[Math.min(page, list.length - 1)]);
+            head = nameOf(who);
+        } else {
+            const list = config.pseudoBonus.guide;
+            who = list[page % list.length];
+            const pr = profileOf(who);
+            head = `${nameOf(who)}${pr.title ? ` ― ${pr.title}` : ''}`;
+            line = (pr.text || '').replace(/\n+/g, ' ');
+        }
+        const ground = 118;
+        drawWho(who, 40, ground + Math.round(Math.sin(time / 300) * 1.5), 2);
+        box(76, 46, W - 84, 74, 'rgba(0,0,0,0.6)', b.kind === 'big' ? '#ffd700' : b.kind === 'reg' ? '#d8e4f0' : '#ff9ad0');
+        text(head.length > 22 ? head.slice(0, 22) + '…' : head, 82, 50, { color: '#ffe680', size: 10 });
+        LcdKit.wrapText(line, 10, W - 96).slice(0, 4).forEach((row, i) => text(row, 82, 64 + i * 13, { color: '#fff', size: 10 }));
+        // 残りの ランプ
+        const n = Math.min(b.games, 40), lampW = Math.max(3, Math.floor((W - 20) / n) - 1);
+        for (let i = 0; i < n; i++) {
+            ctx.fillStyle = i < Math.round(b.remaining * n / b.games) ? '#fff2a0' : 'rgba(0,0,0,0.4)';
+            ctx.fillRect(10 + i * (lampW + 1), H - 10, lampW, 4);
+        }
+    }
+    async function pseudoBonusStart(event) {
+        clearMessage();
+        letterboxTarget = 1;
+        const k = config.pseudoBonus.kinds[event.kind];
+        startFlash(event.kind === 'reg' ? '#ffffff' : '#ffd700', 700);
+        startShake(config.effects.intensity.shakeLarge, 500);
+        Sound.fanfare();
+        if (event.kind !== 'reg') setTimeout(Sound.fanfare, 450);
+        if (event.kind === 'episode') Sound.rainbow();
+        bonusView = { kind: event.kind, remaining: event.games, games: event.games, total: 0, start: performance.now() };
+        showTitle(`${k.name}!!`, `${event.games}G ・ 約${Math.round(event.games * (k.perGame + 1.8))}枚`, k.color === 'rainbow' ? '#ff9ad0' : k.color, 2200);
+        await sleep(2200);
+        letterboxTarget = 0;
+    }
+    async function pseudoBonusGame(event) {
+        if (!bonusView) return;
+        bonusView.remaining = event.remaining;
+        bonusView.total += event.gained;
+        if (event.added > 0) {
+            startFlash('#ffffff', 400);
+            Sound.fanfare();
+            damageNumbers.push({ text: `次のBATTLE +${event.added}G`, color: '#ff6a3a', size: 14, born: performance.now() });
+            await sleep(600);
+        }
+    }
+    async function pseudoBonusEnd(event) {
+        nextBonusGames = event.bonusGames;
+        const k = config.pseudoBonus.kinds[event.kind];
+        showTitle(`${k.name} 終了`, `+${event.total}枚${event.added ? ` ・ 次のBATTLE +${event.added}G` : ''}`, k.color === 'rainbow' ? '#ff9ad0' : k.color, 2000);
+        Sound.win();
+        await sleep(2000);
+        bonusView = null;
+    }
+
+    // ----- モード・ゾーン・天井 (2026-10-23 A5) -----
+    const NAITEI_ID = () => config.naitei.enemy.id;
+    async function ceiling(event) {
+        const aruaru = event.who === 'aruaru';
+        startFlash(aruaru ? '#ffffff' : '#ffd700', 600);
+        startShake(config.effects.intensity.shakeLarge, 600);
+        if (aruaru) Sound.rainbow(); else Sound.fanfare();
+        await playCutIn(aruaru ? config.naitei.aruaru.id : NAITEI_ID(), aruaru ? '君には 内定が ある！！' : '…城へ 来るがいい', aruaru ? 'rainbow' : '#8a1a1a', 1600, '天井到達!!');
+        showTitle('城突入 確定!!', `${event.games}G`, aruaru ? '#ff9ad0' : '#ffd700', 1800);
+        await sleep(1800);
+    }
+    async function heavenHint(event) {
+        const aruaru = event.who === 'aruaru';
+        Sound.chance();
+        await playCutIn(aruaru ? config.naitei.aruaru.id : NAITEI_ID(), aruaru ? 'また すぐに 会おう…' : 'まだ 終わらせないぞ…', aruaru ? 'rainbow' : '#4a1a6a', 1600);
+    }
+    function modeHint(event) {
+        FurukawaView.show({ text: event.text, color: 1, heat: 0 });
+    }
+    async function zoneHit() {
+        startFlash('#d8a8ff', 500);
+        Sound.chance();
+        showMessage('SE城へ いそげ!!', '#d8a8ff', 1200);
+        await sleep(900);
     }
 
     // ----- 前兆と 違和感演出 (2026-10-23 A4。js/zencho.js) -----
@@ -2466,7 +2607,8 @@ const Lcd = (() => {
                 case 'payout':
                     if (event.amount > 0) {
                         if (scene === 'rash') {
-                            popups.push({ text: `+${event.amount}枚`, color: '#ffe45a', born: performance.now() });
+                            // ボーナス中は 画面の 右上に 合計が 出るので 出さない (解説の 枠に 重なる)
+                            if (!bonusView) popups.push({ text: `+${event.amount}枚`, color: '#ffe45a', born: performance.now() });
                         } else {
                             showMessage(`WIN!! +${event.amount}`, '#ffe45a');
                         }
@@ -2555,6 +2697,27 @@ const Lcd = (() => {
                     break;
                 case 'treasureStart':
                     await treasureStart(event);
+                    break;
+                case 'pseudoBonusStart':
+                    await pseudoBonusStart(event);
+                    break;
+                case 'pseudoBonusGame':
+                    await pseudoBonusGame(event);
+                    break;
+                case 'pseudoBonusEnd':
+                    await pseudoBonusEnd(event);
+                    break;
+                case 'ceiling':
+                    await ceiling(event);
+                    break;
+                case 'heavenHint':
+                    await heavenHint(event);
+                    break;
+                case 'modeHint':
+                    modeHint(event);
+                    break;
+                case 'zoneHit':
+                    await zoneHit(event);
                     break;
                 case 'treasureGame':
                     await treasureGame(event);

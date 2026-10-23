@@ -231,6 +231,7 @@ const Battle = {
         rash.winGuaranteed = false;
 
         const bonus = this.applyBonus(state, enemy.bonus);
+        const pseudo = this.pickPseudoBonus(state, enemy, config);
         if (enemy.nextForcedEnemy) rash.nextForcedEnemy = enemy.nextForcedEnemy;
         const forced = rash.nextForcedEnemy ? this.findEnemy(config, rash.nextForcedEnemy) : null;
         const events = [{
@@ -243,6 +244,7 @@ const Battle = {
         }];
 
         events.push(...this.checkOniUnlock(state, config));
+        if (pseudo) events.push(this.startPseudoBonus(state, pseudo, config));
 
         // SUPER 中におにおにを撃破: ともいし救出のエンディング (SUPER 1回につき1回)
         if (enemy.id === 'onioni' && state.mode === MODES.SUPER_RASH && !rash.endingShown) {
@@ -276,6 +278,50 @@ const Battle = {
                 break;
         }
         return { ...bonus };
+    },
+
+    // ----- 疑似ボーナス (2026-10-23 アップグレード A5) -----
+    // 撃破した 敵で 当たりを 決める (おにおには エピソードBIG 確定。強い 敵ほど BIG)
+    pickPseudoBonus(state, enemy, config, rng = Math.random) {
+        const pb = config.pseudoBonus;
+        if (!pb) return null;
+        // エピソードBIG は SUPER に 上がるとき (RASH 中に おにおにを 倒したとき) だけ。SUPER 中の おにおには ふつうの 抽選
+        if (pb.episodeEnemies.includes(enemy.id) && state.mode === MODES.RASH) return 'episode';
+        const row = pb.rates.find(r => enemy.hp <= r.maxHp) || pb.rates[pb.rates.length - 1];
+        const r = rng();
+        return r < row.big ? 'big' : r < row.big + row.reg ? 'reg' : null;
+    },
+
+    startPseudoBonus(state, kind, config) {
+        const rash = state.rash;
+        const k = config.pseudoBonus.kinds[kind];
+        rash.phase = RASH_PHASES.BONUS;
+        rash.bonusKind = kind;
+        rash.bonusLeft = k.games;
+        rash.bonusTotal = 0;
+        rash.bonusAdded = 0;
+        return { type: 'pseudoBonusStart', kind, name: k.name, games: k.games };
+    },
+
+    // ボーナスの 1 ゲーム: 枚数を 足す。7 が 揃ったら 次の BATTLE を 上乗せ。終わったら 次の 対戦相手へ
+    bonusGame(state, outcome, config) {
+        const rash = state.rash;
+        const pb = config.pseudoBonus;
+        const k = pb.kinds[rash.bonusKind];
+        state.coins += k.perGame;
+        state.totalCoinsWon += k.perGame;
+        rash.coinsWon += k.perGame;
+        rash.bonusTotal += k.perGame;
+        const added = pb.sevenRoles.includes(outcome.role) ? pb.sevenAdd : 0;
+        rash.bonusGames += added;
+        rash.bonusAdded += added;
+        rash.bonusLeft--;
+        const events = [{ type: 'pseudoBonusGame', kind: rash.bonusKind, remaining: rash.bonusLeft, gained: k.perGame, added }];
+        if (rash.bonusLeft > 0) return events;
+        events.push({ type: 'pseudoBonusEnd', kind: rash.bonusKind, total: rash.bonusTotal, added: rash.bonusAdded, bonusGames: rash.bonusGames });
+        rash.phase = RASH_PHASES.SELECT;
+        rash.bonusKind = null;
+        return events;
     },
 
     // ----- 宝物庫ゾーン -----

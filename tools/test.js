@@ -404,6 +404,73 @@ test('前兆と違和感演出 (A4): 前兆が出たら当たりやすく、違�
     console.log(`  前兆が出たら当たり: ダンシングステージ ${pct(R.dance.zwin / R.dance.z)} (ふだん ${pct(R.dance.win / R.dance.scenes)})・バトル ${pct(R.battle.zwin / R.battle.z)} (ふだん ${pct(R.battle.win / R.battle.scenes)}) / 違和感が出たら本前兆 ${pct(iw.real / (iw.real + iw.other))}`);
 });
 
+test('疑似ボーナス (A5): 撃破で BIG・REG、RASH 中の おにおに撃破は エピソードBIG。ボーナスの ゲーム数だけ 消化して 次の 対戦相手へ', () => {
+    const g = loadGame(51);
+    const { config: cfg, Lottery: L, GameFlow: GF, StateMachine: SM } = g;
+    const state = g.createInitialState(cfg);
+    const starts = { big: 0, reg: 0, episode: 0 };
+    let inBonus = null, counted = 0;
+    for (let i = 0; i < 800000; i++) {
+        state.coins = 1e6;
+        const before = state.mode;
+        const ev = GF.onGameEnd(state, L.draw(state, cfg), cfg);
+        for (const e of ev) {
+            if (e.type === 'pseudoBonusStart') {
+                starts[e.kind]++;
+                assertEqual(e.games, cfg.pseudoBonus.kinds[e.kind].games, 'ボーナスの ゲーム数');
+                if (e.kind === 'episode') assertEqual(before, 'RASH', 'エピソードBIG は RASH 中 (SUPER へ 上がるとき)');
+                inBonus = { kind: e.kind, games: 0 };
+            }
+            if (e.type === 'pseudoBonusGame' && inBonus) inBonus.games++;
+            if (e.type === 'pseudoBonusEnd') {
+                assertEqual(inBonus.games, cfg.pseudoBonus.kinds[e.kind].games, `${e.kind}: 消化した ゲーム数`);
+                assertEqual(state.rash.phase, 'SELECT', '終わったら 次の 対戦相手を 決める');
+                assertEqual(e.total, cfg.pseudoBonus.kinds[e.kind].perGame * inBonus.games, '足した 枚数');
+                inBonus = null;
+                counted++;
+            }
+        }
+        if (!SM.isRashMode(state)) inBonus = null;   // ボーナス中に RASH が 終わることは ない
+    }
+    assert(starts.big > 10 && starts.reg > starts.big && starts.episode > 5, `ボーナスが 出る: ${JSON.stringify(starts)}`);
+    assert(counted > 30, '最後まで 消化する');
+    console.log(`  疑似ボーナス: ${JSON.stringify(starts)} (80 万ゲーム)`);
+});
+
+test('モード・ゾーン・天井 (A5): 天井で 城突入 確定、天国は 100G 以内に SE城前へ、RASH が 終わると 次の モード', () => {
+    const g = loadGame(52);
+    const { config: cfg, Lottery: L, GameFlow: GF } = g;
+    // 天井: モード A の 777G で SE城前 → チャレンジは 必ず 突入
+    let state = g.createInitialState(cfg);
+    state.normal.gameMode = 'A';
+    state.gamesSinceHit = cfg.modes.ceiling.A - 1;
+    state.normal.chancePoint = 0;
+    let ev = GF.onGameEnd(state, L.makeOutcome('miss', cfg), cfg);
+    assert(ev.some(e => e.type === 'ceiling'), '天井の イベント');
+    assertEqual(state.normal.map, cfg.map.castle, 'SE城前へ');
+    assert(state.challenge.guaranteed, '突入 確定');
+    for (let i = 0; i < 20 && state.mode !== 'RASH'; i++) GF.onGameEnd(state, L.makeOutcome('miss', cfg), cfg);
+    assertEqual(state.mode, 'RASH', 'ハズレだけでも 突入する');
+    // 天国: 100G 以内に ゾーンの 当たりで SE城前へ
+    let reached = 0;
+    for (let t = 0; t < 30; t++) {
+        state = g.createInitialState(cfg);
+        state.normal.gameMode = 'heaven';
+        for (let i = 0; i < 100; i++) {
+            state.normal.chancePoint = 0;   // チャンスポイントでは 行かないように
+            ev = GF.onGameEnd(state, L.makeOutcome('miss', cfg), cfg);
+            if (ev.some(e => e.type === 'zoneHit')) { reached++; break; }
+        }
+    }
+    assertEqual(reached, 30, '天国は 100G 以内');
+    // RASH が 終わると 次の モード (設定の 重みから)
+    state = g.createInitialState(cfg);
+    state.mode = 'RASH';
+    const modes = new Set();
+    for (let i = 0; i < 400; i++) { GF.endRash(state, cfg); modes.add(state.normal.gameMode); state.mode = 'RASH'; }
+    assertEqual([...modes].sort().join(','), 'A,B,C,heaven', 'モードの 種類');
+});
+
 test('config.js: 確率表の合計が 1 以下', () => {
     for (const [name, table] of Object.entries(base.config.lottery)) {
         const sum = Object.values(table).reduce((a, b) => a + b, 0);

@@ -22,8 +22,8 @@ window.GAME_CONFIG = {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
             1: { chance: 0.86, castleEntry: 0.95, pointBig: 0.94 },
-            2: { chance: 0.89, castleEntry: 0.98, pointBig: 0.98 },
-            3: { chance: 0.92, castleEntry: 1.00, pointBig: 1.00 },
+            2: { chance: 0.87, castleEntry: 0.98, pointBig: 0.98 },   // 2026-10-23 A5: 0.89 → 0.87
+            3: { chance: 0.88, castleEntry: 1.00, pointBig: 1.00 },   // 2026-10-23 A5: 0.92 → 0.88 (設定3 まで 100% 未満)
             4: { chance: 1.24, castleEntry: 1.25, pointBig: 1.28 },
             5: { chance: 1.73, castleEntry: 1.76, pointBig: 1.62 },
             6: { chance: 2.75, castleEntry: 2.75, pointBig: 2.15 }
@@ -402,7 +402,7 @@ window.GAME_CONFIG = {
             id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
             lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！' },
             weight: 50, superWeight: 40, hp: 60,
-            bonus: { type: 'coins', value: 35 }
+            bonus: { type: 'coins', value: 20 }   // 2026-10-23 A5: BIG・REG を 足したので 35 → 20
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
@@ -420,13 +420,13 @@ window.GAME_CONFIG = {
             id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
             lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。' },
             weight: 8, superWeight: 12, hp: 150,
-            bonus: { type: 'coins', value: 120 }
+            bonus: { type: 'coins', value: 60 }   // 2026-10-23 A5: 120 → 60
         },
         {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
             lines: { special: '金返せ！' },
             weight: 16, superWeight: 15, hp: 200,
-            bonus: { type: 'coins', value: 200 },
+            bonus: { type: 'coins', value: 0 },   // 2026-10-23 A5: エピソードBIG (SUPER へ 上がるとき) を 足したので 200 → 0
             requiresUnlock: true          // 撃破数が oniUnlockDefeats に達するまで出ない
         }
     ],
@@ -568,6 +568,80 @@ window.GAME_CONFIG = {
             mashCount: 6,                                           // 連打の 回数
             autoMs: 8000,                                           // 押さなかったら この時間で 進む
             colorCodes: { white: '#f2f2f2', blue: '#3f8cff', red: '#ff3a3a', gold: '#ffd700', rainbow: 'rainbow' }
+        }
+    },
+
+    // ----- 疑似ボーナス (2026-10-23 アップグレード A5。ユーザー指定: バトルに 勝ったら BIG・REG などの ボーナス) -----
+    // 撃破したときに 抽選。当たったら 次の 対戦相手を 決める前に ボーナスの ゲームを 消化する (BATTLE の しくみは そのまま)
+    //   perGame: ボーナス中 1 ゲームごとに ふつうの 払い出しに 足す 枚数 (RASH の ふだんの 収支 約 +1.8 枚と 合わせて 1G 約 +9.8 枚)
+    //   ボーナス中に 7 が 揃うと 次の BATTLE +sevenAdd G
+    pseudoBonus: {
+        kinds: {
+            big: { name: 'BIG BONUS', games: 20, perGame: 8, color: '#ffd700' },          // 約 196 枚
+            reg: { name: 'REG BONUS', games: 8, perGame: 8, color: '#d8e4f0' },           // 約 78 枚
+            episode: { name: 'エピソードBIG', games: 40, perGame: 8, color: 'rainbow' }   // 約 392 枚
+        },
+        // 撃破した 敵の HP (強さ) ごとの 当選率。強い 敵ほど BIG
+        rates: [
+            { maxHp: 60, big: 0.02, reg: 0.06 },
+            { maxHp: 120, big: 0.04, reg: 0.09 },
+            { maxHp: Infinity, big: 0.08, reg: 0.12 }
+        ],
+        episodeEnemies: ['onioni'],   // RASH 中に おにおにを 倒したら (SUPER へ 上がるとき) エピソードBIG 確定
+        sevenAdd: 5,
+        sevenRoles: ['seven', 'sevenBar'],
+        // BIG・REG の 液晶: キャラ解説 (図鑑の 文章 js/profiles.js) を この 順に 流す (2 ゲームで 1 人)
+        guide: ['koori', 'tomoishi', 'furukawa', 'okagappa', 'hibikimakuri', 'shibata', 'sasaki', 'onioni', 'yasu', 'tamu', 'dake', 'goldDog'],
+        // エピソードBIG の ストーリー (2 ゲームで 1 場面。セリフは Claude の 案)
+        episode: [
+            { who: 'koori', text: 'おにおにを たおした…！ これで ともいしを 助けられる！' },
+            { who: 'onioni', text: 'ぐぬぬ… まだだ… SE城の 奥には 黄金の 間が あるのだ…' },
+            { who: 'koori', text: '黄金の 間…？ そこに ともいしが いるの！？' },
+            { who: 'furukawa', text: 'こおりくん、ここからが 本番だよ！' },
+            { who: 'yasu', text: 'わしらも ついていくで！' },
+            { who: 'tamu', text: '内定 もらうまで 帰られへんからな！' },
+            { who: 'dake', text: 'ここまで 来たら 最後まで いくばい！' },
+            { who: 'koori', text: 'みんな… ありがとう！' },
+            { who: 'tomoishi', text: 'こおり～！ 聞こえる～！？' },
+            { who: 'koori', text: 'ともいしの 声だ！ 奥から 聞こえる！' },
+            { who: 'onioni', text: 'ふん… 黄金の 間で 待っているぞ…！' },
+            { who: 'koori', text: 'ぜったい 助ける！ こおり、ばりきつよい！' },
+            { who: 'tomoishi', text: 'それと 借りた お金も 返しなさいよ～！' },
+            { who: 'koori', text: '…それは あとで！！' },
+            { who: 'furukawa', text: 'いくよ！ SUPERおにおにRASH へ！！' },
+            { who: 'koori', text: 'こおりいきていける！！' }
+        ]
+    },
+
+    // ----- モード・ゾーン・天井 (2026-10-23 アップグレード A5。最新のスロット koori-slot の 仕様書から) -----
+    // 前回の RASH からの ゲーム数 (gamesSinceHit) で 見る。モードは RASH が 終わったときに 設定ごとの 重みで 抽選 (画面には 出さない)
+    //   zones: { at: このゲーム数から zoneLength G (天国は length), hit: SE城前へ 直行する 確率 }。当たりなら ゾーンの どこかの ゲームで 直行
+    //   ceiling: ここに 着いたら 城突入 確定 (ナイナイ か アルアル の カットイン)
+    modes: {
+        weights: {
+            1: { A: 50, B: 30, C: 15, heaven: 5 },
+            2: { A: 49, B: 30, C: 16, heaven: 5 },
+            3: { A: 47, B: 31, C: 17, heaven: 5 },
+            4: { A: 43, B: 32, C: 18, heaven: 7 },
+            5: { A: 37, B: 32, C: 20, heaven: 11 },
+            6: { A: 31, B: 32, C: 22, heaven: 15 }
+        },
+        zones: {
+            A: [{ at: 300, hit: 0.25 }, { at: 600, hit: 0.5 }],
+            B: [{ at: 200, hit: 0.35 }, { at: 500, hit: 0.5 }],
+            C: [{ at: 100, hit: 0.4 }, { at: 300, hit: 0.6 }],
+            heaven: [{ at: 0, length: 100, hit: 1 }]
+        },
+        zoneLength: 30,
+        ceiling: { A: 777, B: 777, C: 400, heaven: 777 },
+        heavenCutinRate: 0.25,          // 天国の はじまりに シーシャ・ナイテイの カットイン (出たら 天国 確定)
+        aruaruCeilingRate: 0.2,         // 天井で アルアルが 出る 割合 (ほかは ナイナイ)
+        hintRate: 0.3,                  // RASH が 終わったとき ふるカワが モードを ほのめかす 確率
+        hints: {
+            A: ['のんびり いこう！', 'つぎも がんばろうね'],
+            B: ['ちょっと 早めに 来るかも？', 'そろそろ 何か ありそう…'],
+            C: ['なんだか すぐ 来そうな 気がする！', '早めに チャンスが 来るかも！'],
+            heaven: ['すぐに また 会えそう！！', 'まだまだ 終わらないよ！！']
         }
     },
 

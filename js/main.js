@@ -107,6 +107,7 @@
         playHypeAtLever(hype);
         // 前兆と 違和感演出 (2026-10-23 A4。js/zencho.js)
         const zc = Zencho.beforeGame(state, config);
+        if (!zc.zencho && state.mode === MODES.NORMAL && state.normal.zone) zc.zencho = 'zone';   // モードの ゾーン (A5)
         playZencho(zc);
 
         const stopOrder = [];
@@ -177,7 +178,7 @@
         if (defeated) Bgm.play('defeat');
         await Lcd.playEvents(events);
         endIwakan();
-        if (Zencho.afterGame(state)) setZenchoView(null);
+        if (Zencho.afterGame(state) || !(state.mode === MODES.NORMAL && state.normal.zone)) setZenchoView(Zencho.active());
         Bgm.setPaused(false);
         refresh();
         UI.showAchievements(events);
@@ -311,7 +312,12 @@
         },
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },
         forceGold: debugAction(() => DebugState.forceEnemy(state, config.goldDog.id)),
-        coins: debugAction(() => { state.coins += 1000; })
+        coins: debugAction(() => { state.coins += 1000; }),
+        bonusBig: debugAction(() => DebugState.startBonus(state, 'big', config)),
+        bonusReg: debugAction(() => DebugState.startBonus(state, 'reg', config)),
+        bonusEpisode: debugAction(() => DebugState.startBonus(state, 'episode', config)),
+        nearCeiling: debugAction(() => DebugState.nearCeiling(state, config)),
+        heaven: debugAction(() => DebugState.toHeaven(state, config))
     });
     document.querySelectorAll('[data-next-role]').forEach(btn => {
         btn.addEventListener('click', () => { debugNextRole = btn.dataset.nextRole; });
