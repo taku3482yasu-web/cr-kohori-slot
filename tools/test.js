@@ -18,7 +18,7 @@ const path = require('path');
 const vm = require('vm');
 
 const JS_DIR = path.join(__dirname, '..', 'js');
-const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'save.js', 'furukawa.js', 'hype.js', 'updates.js'];
+const GAME_FILES = ['config.js', 'state.js', 'lottery.js', 'battle.js', 'save.js', 'furukawa.js', 'hype.js', 'zencho.js', 'updates.js'];
 
 // ----- 引数 -----
 const args = process.argv.slice(2);
@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, ReelMap, Hype, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, ReelMap, Hype, Zencho, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -367,6 +367,41 @@ test('期待度の演出 (A3): カットイン・PUSH は 色の 順に 熱い �
     for (let i = 1; i < cut.length; i++) assert(cut[i] >= cut[i - 1], `カットインの 色の 順: ${cut.map(pct).join(' < ')}`);
     for (let i = 1; i < push.length; i++) assert(push[i] >= push[i - 1], `PUSH の 色の 順: ${push.map(pct).join(' < ')}`);
     console.log(`  熱いゲーム (熱さ 4 以上) の 割合: ぜんぶ ${pct(hot('all'))} / カットイン ${Hy.TIERS.map(t => `${t} ${stat['cutin:' + t] ? pct(hot('cutin:' + t)) : '-'}`).join('・')} / PUSH ${Hy.PUSH_TIERS.map(t => `${t} ${stat['push:' + t] ? pct(hot('push:' + t)) : '-'}`).join('・')}`);
+});
+
+test('前兆と違和感演出 (A4): 前兆が出たら当たりやすく、違和感は 出たら 本前兆のことが多い。結果は変えない', () => {
+    const g = loadGame(41);
+    const { config: cfg, Lottery: L, GameFlow: GF, Zencho: Z, StateMachine: SM } = g;
+    const state = g.createInitialState(cfg);
+    const R = { dance: { scenes: 0, win: 0, z: 0, zwin: 0 }, battle: { scenes: 0, win: 0, z: 0, zwin: 0 } };
+    const iw = { real: 0, other: 0 };
+    const kindOf = s => (s.mode === 'NORMAL' && s.normal.dance ? 'dance' : SM.isRashMode(s) && s.rash.phase === 'BATTLE' ? 'battle' : null);
+    let scene = null;
+    for (let i = 0; i < 600000; i++) {
+        state.coins = 1e6;
+        const kind = kindOf(state);
+        if (kind && !scene) scene = { kind, z: false, win: false };
+        const zc = Z.beforeGame(state, cfg);
+        if (scene && zc.zencho) scene.z = true;
+        if (scene) scene.win = kind === 'dance' ? state.normal.dance.zone : state.rash.setWillWin;
+        if (zc.iwakan) { if (zc.zencho && scene.win) iw.real++; else iw.other++; }
+        GF.onGameEnd(state, L.draw(state, cfg), cfg);
+        if (scene && kind === 'dance' && state.normal.dance) scene.win = state.normal.dance.zone;
+        if (scene && kindOf(state) !== scene.kind) {
+            const r = R[scene.kind];
+            r.scenes++;
+            if (scene.win) r.win++;
+            if (scene.z) { r.z++; if (scene.win) r.zwin++; }
+            scene = null;
+            Z.afterGame(state);
+        }
+    }
+    for (const [k, r] of Object.entries(R)) {
+        assert(r.z > 50, `${k}: 前兆が 出る`);
+        assert(r.zwin / r.z > r.win / r.scenes + 0.15, `${k}: 前兆が 出たら 当たりやすい (${pct(r.zwin / r.z)} / ふだん ${pct(r.win / r.scenes)})`);
+    }
+    assert(iw.real / (iw.real + iw.other) > 0.6, `違和感が 出たら 本前兆: ${pct(iw.real / (iw.real + iw.other))}`);
+    console.log(`  前兆が出たら当たり: ダンシングステージ ${pct(R.dance.zwin / R.dance.z)} (ふだん ${pct(R.dance.win / R.dance.scenes)})・バトル ${pct(R.battle.zwin / R.battle.z)} (ふだん ${pct(R.battle.win / R.battle.scenes)}) / 違和感が出たら本前兆 ${pct(iw.real / (iw.real + iw.other))}`);
 });
 
 test('config.js: 確率表の合計が 1 以下', () => {

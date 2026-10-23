@@ -550,3 +550,16 @@ body.reel-flash-strong .cabinet .reel::before {
     .cab-kanabo { width: 44px; height: 13px; }
     .cabinet #spin-button .key-hint { display: none; }
 }
+
+/* ----- 前兆と 違和感演出 (2026-10-23 A4。js/zencho.js) ----- */
+/* 前兆の あいだ、提灯と 筐体の 光が 紫 (ダンシングステージ) / 赤黒 (バトル) に */
+body.zencho .slot-machine.cabinet { --cab-glow: #a040ff; }
+body[data-zencho="battle"] .slot-machine.cabinet { --cab-glow: #c01020; }
+body.zencho .cab-pillar i { animation-duration: 0.9s; }
+
+/* 違和感: STOP が 紫に 光る */
+:where(.cabinet) .stop-button.iwakan:not(:disabled) {
+    background: radial-gradient(circle at 50% 35%, #d8a8ff, #8a3aff 60%, #3a0a7a);
+    border-color: #e8d0ff;
+    box-shadow: 0 3px 0 #1a0a3a, 0 0 14px #a040ff;
+}

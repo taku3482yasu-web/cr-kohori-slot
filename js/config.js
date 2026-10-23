@@ -571,6 +571,17 @@ window.GAME_CONFIG = {
         }
     },
 
+    // ----- 前兆と 違和感演出 (2026-10-23 アップグレード A4。js/zencho.js。数字は Claude の 案) -----
+    // 残りの ゲームが minLeft〜startWithin の あいだ、ゲームごとに 本物 (当たりが 決まっている) なら realRate・
+    // 外れなら fakeRate で 前兆が 始まる (ガセ前兆)。dance の 最後の ゲームは 発表の ゲームなので minLeft 2
+    zencho: {
+        dance: { minLeft: 2, startWithin: 4, realRate: 0.55, fakeRate: 0.05 },
+        battle: { minLeft: 1, startWithin: 3, realRate: 0.5, fakeRate: 0.08 },
+        // 違和感演出: 本前兆の ゲーム real・ガセ前兆の ゲーム fake・前兆なし random の 確率。種類は 重み
+        //   noise 液晶に ノイズ / silent 音が 消える / reverse リールが 逆に 回って 始まる / button STOP が 紫に 光る
+        iwakan: { real: 0.2, fake: 0.04, random: 0.0008, kinds: { noise: 35, silent: 25, reverse: 20, button: 20 } }
+    },
+
     // ----- 必殺技 -----
     // こおりくんがとどめを刺したときのカットイン (killRole: 一撃必殺の役 = BAR揃い・7揃い・7・7・BAR、内定の時の 7揃い・7・7・BAR)
     // 敵・仲間の必殺技は enemies / goldDog / naitei.enemy / companions.members の special

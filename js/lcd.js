@@ -230,6 +230,8 @@ const Lcd = (() => {
             if (scene === 'challenge') drawChallengeHud(time);
         }
         ctx.restore();
+        drawZencho(time);
+        drawNoise(time);
         drawRevival(time);
         drawPopups(time);
         drawMessage(time);
@@ -1016,6 +1018,48 @@ const Lcd = (() => {
             Sound.miss();
         }
         await sleep(700);
+    }
+
+    // ----- 前兆と 違和感演出 (2026-10-23 A4。js/zencho.js) -----
+    let zencho = null;      // { kind: 'dance' / 'battle', start }
+    let noiseUntil = 0;
+    function setZencho(kind) {
+        if ((zencho && zencho.kind) === kind) return;
+        zencho = kind ? { kind, start: performance.now() } : null;
+    }
+    // 前兆: 画面の まわりに 黒い 靄 (バトルは 赤黒い)。ゆらゆら 動く 影と、ときどき 出る ひとこと
+    function drawZencho(time) {
+        if (!zencho) return;
+        const k = Math.min(1, (time - zencho.start) / 700);
+        const rgb = zencho.kind === 'battle' ? '90,0,0' : '20,0,40';
+        const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.28, W / 2, H / 2, W * 0.62);
+        g.addColorStop(0, `rgba(${rgb},0)`);
+        g.addColorStop(1, `rgba(${rgb},${0.8 * k})`);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = `rgba(0,0,0,${0.22 * k})`;
+        for (let i = 0; i < 10; i++) {
+            const a = i / 10 * Math.PI * 2 + time / 1800;
+            const x = W / 2 + Math.cos(a) * W * 0.5, y = H / 2 + Math.sin(a) * H * 0.55;
+            ctx.beginPath();
+            ctx.arc(x, y, 18 + 6 * Math.sin(time / 300 + i), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        if (Math.floor((time - zencho.start) / 900) % 3 === 2) return;
+        const msg = zencho.kind === 'battle' ? '決着の 時が 近い…' : 'なにかが 近づいてくる…';
+        text(msg, W / 2 + 30, 12, { color: zencho.kind === 'battle' ? '#ff9a8a' : '#d8a8ff', size: 10, align: 'center', outline: '#000' });
+    }
+    // 違和感: 液晶に ノイズ (横の すじと 砂あらし)
+    function noiseFx(ms = 700) {
+        noiseUntil = performance.now() + ms;
+    }
+    function drawNoise(time) {
+        if (time > noiseUntil) return;
+        for (let i = 0; i < 26; i++) {
+            const v = Math.floor(Math.random() * 255);
+            ctx.fillStyle = `rgba(${v},${v},${v},${0.25 + Math.random() * 0.4})`;
+            ctx.fillRect(0, Math.floor(Math.random() * H), W, 1 + Math.floor(Math.random() * 3));
+        }
     }
 
     // 期待度の カットイン (2026-10-23 A3。js/hype.js): 青 < 緑 < 赤 < 金 < 虹。待たずに 出す
@@ -2556,7 +2600,7 @@ const Lcd = (() => {
 
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
-        reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash,
+        reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, setZencho, noiseFx,
         playOpening: () => StoryView.play('opening'),
         skipStory: () => StoryView.skip(),
         storyActive: () => StoryView.active(),

@@ -83,7 +83,8 @@ const Reels = (() => {
     // 回転開始。stops の位置で止まり、全リール停止で resolve する
     // onStop(reelIndex, stoppedCount) は各リール停止時に呼ばれる
     // choose(reel, press, fixed): 押した位置 press から 止める コマと すべる 数 { stop, slide } を返す (なければ stops の 位置)
-    function spin(stops, staggerMs, onStop, choose = null) {
+    // reverse: 違和感演出 (A4)。回り始めの reverseMs だけ 逆向きに 回す
+    function spin(stops, staggerMs, onStop, choose = null, { reverse = false, reverseMs = 520 } = {}) {
         clearHighlight();
         targetStops = [...stops];
         onStopCallback = onStop;
@@ -98,7 +99,8 @@ const Reels = (() => {
             // 回り始める前に STOP されたリールは回さない
             startTimers[i] = setTimeout(() => {
                 if (stopped[i]) return;
-                strip.style.animation = 'reel-spin 0.25s linear infinite';
+                strip.style.animation = `reel-spin 0.25s linear infinite${reverse ? ' reverse' : ''}`;
+                if (reverse) setTimeout(() => { if (!stopped[i]) strip.style.animationDirection = 'normal'; }, reverseMs);
             }, i * staggerMs);
         });
         stopButtons.forEach((btn, i) => setStoppable(i, true));

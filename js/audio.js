@@ -4,13 +4,14 @@
 
 const Sound = (() => {
     let ctx = null;
+    let muted = false;   // 違和感演出の 無音 (2026-10-23 A4)
 
     function init() {
         if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
     }
 
     function tone(freq, type, duration, volume = 0.1) {
-        if (!ctx) return;
+        if (!ctx || muted) return;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = type;
@@ -25,7 +26,7 @@ const Sound = (() => {
 
     // ザーッというノイズ (ロングフリーズ)
     function noise(duration, volume = 0.12) {
-        if (!ctx) return;
+        if (!ctx || muted) return;
         const length = Math.floor(ctx.sampleRate * duration);
         const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -46,7 +47,7 @@ const Sound = (() => {
 
     // 音程が from → to に動く音 (ビーム・振り下ろしなど)
     function sweep(from, to, type, duration, volume = 0.1, delay = 0) {
-        if (!ctx) return;
+        if (!ctx || muted) return;
         setTimeout(() => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -81,6 +82,7 @@ const Sound = (() => {
 
     return {
         init,
+        setMuted: on => { muted = on; },
         context: () => ctx,
         noise,
         special: (kind) => SPECIAL_SOUNDS[kind] && SPECIAL_SOUNDS[kind](),
@@ -96,6 +98,7 @@ const Sound = (() => {
         defeat: () => sequence([523.25, 659.25, 783.99, 1046.5], 120, 'square', 0.25, 0.08),
         miss: () => sequence([220, 160], 200, 'sawtooth', 0.4, 0.06),
         // 期待度の 演出 (2026-10-23 A3): 先バレ音・確定音・PUSH
+        zencho: () => { sweep(70, 45, 'sawtooth', 0.8, 0.09); setTimeout(() => sweep(90, 50, 'sawtooth', 0.7, 0.07), 500); },   // 前兆の はじまり (ゴゴゴ)
         sakibare: () => { sweep(900, 1900, 'square', 0.16, 0.06); sweep(900, 1900, 'square', 0.16, 0.06, 170); },
         kakutei: () => [0, 180, 360].forEach(d => sweep(1200, 2600, 'triangle', 0.2, 0.08, d)),
         pushReady: tier => sequence(tier === 'rainbow' || tier === 'gold' ? [880, 1175, 1568] : [660, 880], 70, 'square', 0.08, 0.06),

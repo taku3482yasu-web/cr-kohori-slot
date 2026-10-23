@@ -105,6 +105,9 @@
         const heat = talk ? talk.heat : Furukawa.canAppear(state, config) ? Furukawa.heat(state, outcome, config) : 0;
         const hype = Hype.plan(heat, config);
         playHypeAtLever(hype);
+        // 前兆と 違和感演出 (2026-10-23 A4。js/zencho.js)
+        const zc = Zencho.beforeGame(state, config);
+        playZencho(zc);
 
         const stopOrder = [];
         let reach = null;
@@ -135,7 +138,8 @@
         };
         spinSound = setInterval(Sound.spin, 200);
         // 押した 位置から 引き込む (取りこぼしなし。Lottery.retarget)
-        await Reels.spin(outcome.stops, effects.timing.reelSpinStagger, onStop, (i, press, fixed) => Lottery.retarget(outcome, i, press, fixed, config, { keepLine: Boolean(reach) }));
+        await Reels.spin(outcome.stops, effects.timing.reelSpinStagger, onStop, (i, press, fixed) => Lottery.retarget(outcome, i, press, fixed, config, { keepLine: Boolean(reach) }),
+            { reverse: zc.iwakan === 'reverse' });
         if (freezePlaying) await freezePlaying;
         clearInterval(spinSound);
         stopButtons.forEach(btn => btn.classList.remove('reach', 'push'));
@@ -172,12 +176,38 @@
         const defeated = events.some(e => (e.type === 'questionResult' && !e.continued) || (e.type === 'naiteiResult' && !e.win));
         if (defeated) Bgm.play('defeat');
         await Lcd.playEvents(events);
+        endIwakan();
+        if (Zencho.afterGame(state)) setZenchoView(null);
         Bgm.setPaused(false);
         refresh();
         UI.showAchievements(events);
         SaveData.save(state);
 
         setTimeout(() => { spinButton.disabled = false; }, 300);
+    }
+
+    // 前兆 (黒い 靄・筐体の 紫の 光) と 違和感演出
+    function setZenchoView(kind) {
+        Lcd.setZencho(kind);
+        document.body.classList.toggle('zencho', Boolean(kind));
+        document.body.dataset.zencho = kind || '';
+    }
+    function playZencho(zc) {
+        setZenchoView(zc.zencho);
+        if (zc.started) Sound.zencho();
+        if (zc.iwakan === 'noise') {
+            Lcd.noiseFx(700);
+            Sound.noise(0.35, 0.08);
+        }
+        if (zc.iwakan === 'silent') {
+            Sound.setMuted(true);
+            Bgm.setPaused(true);
+        }
+        if (zc.iwakan === 'button') stopButtons.forEach(btn => btn.classList.add('iwakan'));
+    }
+    function endIwakan() {
+        Sound.setMuted(false);
+        stopButtons.forEach(btn => btn.classList.remove('iwakan'));
     }
 
     // レバー ON の 演出 (期待度。js/hype.js)
