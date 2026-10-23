@@ -23,7 +23,6 @@ const RASH_PHASES = Object.freeze({
     TREASURE: 'TREASURE', // 宝物庫ゾーン: BATTLE を中断し、揃った柄で次の BATTLE のゲーム数を上乗せ
     NAITEI: 'NAITEI',     // 内定の時ゾーン: SELECT で 7揃い・7・7・BAR → シーシャ・ナイテイ・ナイナイと真剣勝負
     REVIVAL: 'REVIVAL',   // 復活待ち: 「？？」で負けたが復活が決まった。次のゲームで戦っていた敵を撃破して継続
-    BONUS: 'BONUS',        // 疑似ボーナス (A5): 撃破の あと、次の 対戦相手を 決める 前に BIG・REG・エピソードBIG を 消化
     TOKKA: 'TOKKA'        // 上乗せ特化ゾーン: おにおに撃破などの報酬。BATTLE を中断し、役に応じて枚数を上乗せ (300枚保障)
 });
 
@@ -203,10 +202,6 @@ function createRashState() {
         treasureGames: 0,        // 宝物庫ゾーンの残りゲーム数
         treasureTotal: 0,        // 宝物庫ゾーンで上乗せしたゲーム数の合計
         treasureReturnPhase: null, // 宝物庫ゾーンが終わったら戻るフェーズ
-        bonusKind: null,         // 疑似ボーナス (A5): big / reg / episode
-        bonusLeft: 0,            // ボーナスの 残りゲーム数
-        bonusTotal: 0,           // ボーナスで 足した 枚数
-        bonusAdded: 0,           // ボーナス中の 7揃いで 上乗せした ゲーム数
         endingShown: false,      // このRASHでエンディングを流したか (SUPER 中におにおにを撃破すると流れる)
         coinsWon: 0              // このRASHでの獲得枚数
     };
@@ -882,8 +877,6 @@ const GameFlow = {
                 return Battle.questionGame(state, outcome, config, rng);
             case RASH_PHASES.TREASURE:
                 return Battle.treasureGame(state, outcome, config);
-            case RASH_PHASES.BONUS:
-                return Battle.bonusGame(state, outcome, config);
             case RASH_PHASES.NAITEI:
                 return Battle.naiteiGame(state, outcome, config, rng);
             case RASH_PHASES.REVIVAL:
@@ -1037,14 +1030,7 @@ const DebugState = {
         state.challenge.chanceBoost = false;
         return [{ type: 'debug', label: '城突入チャレンジへ' }, ...GameFlow.startCastleChallenge(state, config)];
     },
-    // 疑似ボーナス・モードの 確認用 (2026-10-23 A5)
-    startBonus(state, kind, config) {
-        const events = [];
-        if (!StateMachine.isRashMode(state)) events.push(...this.toRash(state));
-        state.rash.enemyId = null;
-        events.push({ type: 'debug', label: `ボーナス: ${config.pseudoBonus.kinds[kind].name}` }, Battle.startPseudoBonus(state, kind, config));
-        return events;
-    },
+    // モードの 確認用 (2026-10-23 A5)
     nearCeiling(state, config) {
         const events = state.mode === MODES.NORMAL ? [] : this.toNormal(state, config);
         if (!state.normal.gameMode) state.normal.gameMode = 'A';

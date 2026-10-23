@@ -2,12 +2,12 @@
 // 筐体の 光 (2026-10-23 ユーザー指定: 当たったら 周りの ライトが 虹色。演出に 合わせて 光り方を かえて 盛り上げる)
 // ---------------------------------------------------------------------
 // body.dataset.light に 光り方を 入れ、css/cabinet.css が 提灯・筐体の ふち・液晶の 額縁の 光を かえる。
-//   rainbow 虹色 (当たり: 城突入・撃破・継続・疑似ボーナス など。はじめに 虹色の 光の すじ)
+//   rainbow 虹色 (当たり: 城突入・撃破・継続・特化ゾーン など。はじめに 虹色の 光の すじ)
 //   color   --light-color の 色で 速く 流れる (BATTLE・城突入チャレンジ・カットイン など)
 //   strobe  白く 点滅 (大ダメージ・「？？」)
 //   dim     暗く (外れ・終了)
 // ms たつと 元 (台の モードの 光) に 戻る。強い 光 (rainbow) の あいだは 弱い 光で 上書きしない。
-// 疑似ボーナス中 (body[data-phase="BONUS"]) は ずっと 虹色 (css)。
+// 上乗せ特化ゾーン中 (body[data-phase="TOKKA"]) は ずっと 虹色 (css)。
 // Lcd.playEvents が イベントごとに Lights.event を 呼ぶ (演出と 同じ 時に 光る)
 // =====================================================================
 
@@ -40,7 +40,7 @@ const Lights = (() => {
     function event(e) {
         switch (e.type) {
             case 'castleEntry': case 'rashStart': case 'superStart': case 'zoneHit': case 'freezeBonus':
-            case 'revival': case 'companionSave': case 'revengeSuccess': case 'pseudoBonusStart':
+            case 'revival': case 'companionSave': case 'revengeSuccess': case 'tokkaStart':
                 return set('rainbow', 4000);
             case 'defeat':
                 return set('rainbow', 3500);

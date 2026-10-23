@@ -19,7 +19,7 @@
     const setPayout = n => { if (payoutDisplay) payoutDisplay.textContent = n; };
     const lightLine = line => lineLamps.forEach(el => el.classList.toggle('on', line !== null && Number(el.dataset.line) === line));
     let debugNextRole = null;   // デバッグ: 次のゲームの役を指定
-    let debugNotice = null;     // デバッグ: 次のゲームの予告の種類を指定 ('cutin' | 'stepUp' | 'gun')
+    let debugNotice = null;     // デバッグ: 次のゲームの予告の種類を指定 ('stepUp' | 'gun')
     let debugEndCard = -1;      // デバッグ: 最後に見た RASH 終了画面の絵の番号
 
     function refresh() {
@@ -95,9 +95,6 @@
         debugNextRole = null;
         const effects = config.effects;
         Lcd.tokkaLever(outcome);   // 上乗せ特化ゾーン「おかランプ」: チャンス役でランプが点灯
-        // 通常時の予告 (カットイン・ステップアップ予告・群予告。役で選ぶ)
-        Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
-        debugNotice = null;
 
         // 先読み予告 (レバーON で雪が降る)
         const previewRate = effects.preview[outcome.role] || 0;
@@ -116,6 +113,9 @@
         const heat = talk ? talk.heat : Furukawa.canAppear(state, config) ? Furukawa.heat(state, outcome, config) : 0;
         const hype = Hype.plan(heat, config);
         playHypeAtLever(hype);
+        // 通常時の予告 (ステップアップ予告・群予告。役で選ぶ)。期待度のカットインが出たゲームでは出さない
+        if (!hype.cutin || debugNotice) Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
+        debugNotice = null;
         // 前兆と 違和感演出 (2026-10-23 A4。js/zencho.js)
         const zc = Zencho.beforeGame(state, config);
         if (!zc.zencho && state.mode === MODES.NORMAL && state.normal.zone) zc.zencho = 'zone';   // モードの ゾーン (A5)
@@ -344,9 +344,6 @@
         setting: (s) => { DebugState.setSetting(state, s); refresh(); SaveData.save(state); },
         forceGold: debugAction(() => DebugState.forceEnemy(state, config.goldDog.id)),
         coins: debugAction(() => { state.coins += 1000; }),
-        bonusBig: debugAction(() => DebugState.startBonus(state, 'big', config)),
-        bonusReg: debugAction(() => DebugState.startBonus(state, 'reg', config)),
-        bonusEpisode: debugAction(() => DebugState.startBonus(state, 'episode', config)),
         nearCeiling: debugAction(() => DebugState.nearCeiling(state, config)),
         heaven: debugAction(() => DebugState.toHeaven(state, config)),
         tokkaFire: debugAction(() => DebugState.forceTokka(state, config, 'fire')),
@@ -355,7 +352,6 @@
         tokkaAsahara: debugAction(() => DebugState.forceTokka(state, config, 'asahara')),
         streak10: debugAction(() => DebugState.setStreak(state, config.rash.oni.maxStreak)),
         chanceTime: debugAction(() => DebugState.forceChanceTime(state, config)),
-        noticeCutin: () => { debugNotice = 'cutin'; },
         noticeStepUp: () => { debugNotice = 'stepUp'; },
         noticeGun: () => { debugNotice = 'gun'; }
     });

@@ -427,39 +427,6 @@ test('前兆と違和感演出 (A4): 前兆が出たら当たりやすく、違�
     console.log(`  前兆が出たら当たり: ダンシングステージ ${pct(R.dance.zwin / R.dance.z)} (ふだん ${pct(R.dance.win / R.dance.scenes)})・バトル ${pct(R.battle.zwin / R.battle.z)} (ふだん ${pct(R.battle.win / R.battle.scenes)}) / 違和感が出たら本前兆 ${pct(iw.real / (iw.real + iw.other))}`);
 });
 
-test('疑似ボーナス (A5): 撃破で BIG・REG、RASH 中の おにおに撃破は エピソードBIG。ボーナスの ゲーム数だけ 消化して 次の 対戦相手へ', () => {
-    const g = loadGame(51);
-    const { config: cfg, Lottery: L, GameFlow: GF, StateMachine: SM } = g;
-    const state = g.createInitialState(cfg);
-    const starts = { big: 0, reg: 0, episode: 0 };
-    let inBonus = null, counted = 0;
-    for (let i = 0; i < 800000; i++) {
-        state.coins = 1e6;
-        const before = state.mode;
-        const ev = GF.onGameEnd(state, L.draw(state, cfg), cfg);
-        for (const e of ev) {
-            if (e.type === 'pseudoBonusStart') {
-                starts[e.kind]++;
-                assertEqual(e.games, cfg.pseudoBonus.kinds[e.kind].games, 'ボーナスの ゲーム数');
-                if (e.kind === 'episode') assertEqual(before, 'RASH', 'エピソードBIG は RASH 中 (SUPER へ 上がるとき)');
-                inBonus = { kind: e.kind, games: 0 };
-            }
-            if (e.type === 'pseudoBonusGame' && inBonus) inBonus.games++;
-            if (e.type === 'pseudoBonusEnd') {
-                assertEqual(inBonus.games, cfg.pseudoBonus.kinds[e.kind].games, `${e.kind}: 消化した ゲーム数`);
-                assertEqual(state.rash.phase, 'SELECT', '終わったら 次の 対戦相手を 決める');
-                assertEqual(e.total, cfg.pseudoBonus.kinds[e.kind].perGame * inBonus.games, '足した 枚数');
-                inBonus = null;
-                counted++;
-            }
-        }
-        if (!SM.isRashMode(state)) inBonus = null;   // ボーナス中に RASH が 終わることは ない
-    }
-    assert(starts.big > 10 && starts.reg > starts.big && starts.episode > 5, `ボーナスが 出る: ${JSON.stringify(starts)}`);
-    assert(counted > 30, '最後まで 消化する');
-    console.log(`  疑似ボーナス: ${JSON.stringify(starts)} (80 万ゲーム)`);
-});
-
 test('モード・ゾーン・天井 (A5): 天井で 城突入 確定、天国は 100G 以内に SE城前へ、RASH が 終わると 次の モード', () => {
     const g = loadGame(52);
     const { config: cfg, Lottery: L, GameFlow: GF } = g;
@@ -492,22 +459,6 @@ test('モード・ゾーン・天井 (A5): 天井で 城突入 確定、天国�
     const modes = new Set();
     for (let i = 0; i < 400; i++) { GF.endRash(state, cfg); modes.add(state.normal.gameMode); state.mode = 'RASH'; }
     assertEqual([...modes].sort().join(','), 'A,B,C,heaven', 'モードの 種類');
-});
-
-test('js/episode.js (エピソードBIG の ストーリー): 場面が あり、キャラの 名前が 正しく、セリフが 枠に 入る', () => {
-    const ctx = { window: {} };
-    vm.createContext(ctx);
-    vm.runInContext(fs.readFileSync(path.join(JS_DIR, 'episode.js'), 'utf8'), ctx);
-    const list = ctx.window.EPISODE_STORY;
-    assert(Array.isArray(list) && list.length > 0, 'window.EPISODE_STORY に 場面が ない');
-    const cfg = base.config;
-    const ok = new Set(['koori', 'tomoishi', 'furukawa', ...cfg.companions.members.map(m => m.id), ...cfg.enemies.map(e => e.id),
-        cfg.goldDog.id, cfg.naitei.enemy.id, cfg.naitei.aruaru.id]);
-    list.forEach((scene, i) => {
-        assert(ok.has(scene.who), `${i + 1} 番目の 場面: who '${scene.who}' は 使えない (使える: ${[...ok].join(', ')})`);
-        assert(typeof scene.text === 'string' && scene.text.length > 0, `${i + 1} 番目の 場面: text が ない`);
-        assert(scene.text.length <= 64, `${i + 1} 番目の 場面: セリフが 長すぎる (${scene.text.length} 文字。64 文字まで)`);
-    });
 });
 
 test('config.js: 確率表の合計が 1 以下', () => {
@@ -925,7 +876,7 @@ test('上乗せ特化ゾーン: おにおに撃破で必ず突入し、ほかの
     }
 });
 
-test('通常時の予告: 虹のカットインは7揃い・7・7・BAR だけ、ひびきまくり群はチャンス目以上だけ。出るのは通常時のマップだけ', () => {
+test('通常時の予告: ステップアップ予告・群予告だけ (カットインは期待度の演出のもの)。ひびきまくり群はチャンス目以上だけ。出るのは通常時のマップだけ', () => {
     const game = loadGame(11);
     const { createInitialState, Lottery, Notice, MODES, config } = game;
     const state = createInitialState(config);
@@ -938,21 +889,21 @@ test('通常時の予告: 虹のカットインは7揃い・7・7・BAR だけ�
             const n = Notice.pick(state, outcome, config);
             if (!n) continue;
             shown++;
-            const key = n.kind === 'cutin' ? `cutin:${n.color}` : n.kind === 'gun' ? `gun:${n.who}` : `step:${n.steps}${n.textColor}`;
+            assert(n.kind === 'stepUp' || n.kind === 'gun', `予告の種類 ${n.kind}`);
+            const key = n.kind === 'gun' ? `gun:${n.who}` : `step:${n.steps}${n.textColor}`;
             (seen[key] = seen[key] || new Set()).add(role);
         }
         seen[`rate:${role}`] = shown / 4000;
     }
-    const premium = ['seven', 'sevenBar'];
     const hotUp = ['bar', 'chance', 'seven', 'sevenBar'];
-    for (const role of seen['cutin:rainbow'] || []) assert(premium.includes(role), `虹のカットインが ${role} で出た`);
     for (const role of seen['gun:hibikimakuri'] || []) assert(hotUp.includes(role), `ひびきまくり群が ${role} で出た`);
-    assert(seen['cutin:rainbow'] && seen['gun:hibikimakuri'], '虹のカットイン・ひびきまくり群が一度も出ない');
-    assertBetween(seen['rate:miss'], 0.015, 0.05, 'ハズレで予告が出る割合');
-    assert(seen['rate:seven'] > 0.8, '7揃いで予告が出にくい');
+    assert(seen['gun:hibikimakuri'], 'ひびきまくり群が一度も出ない');
+    for (const role of seen['step:3gold'] || []) assert(role !== 'miss', '金のステップアップがハズレで出た');
+    assertBetween(seen['rate:miss'], 0.01, 0.035, 'ハズレで予告が出る割合');
+    assert(seen['rate:seven'] > 0.5, '7揃いで予告が出にくい');
     // RASH 中・ダンシングステージ中は出さない
     state.mode = MODES.RASH;
-    assertEqual(Notice.pick(state, Lottery.makeOutcome('seven', config), config, Math.random, 'cutin'), null, 'RASH 中の予告');
+    assertEqual(Notice.pick(state, Lottery.makeOutcome('seven', config), config, Math.random, 'stepUp'), null, 'RASH 中の予告');
 });
 
 test('こおりチャンスタイム: チャンス目などで突入し、10G のあいだチャンスポイントの加算が2倍。SE城前に着いたら終わる', () => {

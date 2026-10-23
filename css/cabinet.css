@@ -575,15 +575,15 @@ body.zencho .cab-pillar i { animation-duration: 0.9s; }
 /* 演出の 光は すぐ 切りかえる (ふだんの 0.5 秒の 移り変わりを 短く) */
 body[data-light] .slot-machine.cabinet { transition: border-color 0.5s, box-shadow 0.12s; }
 
-/* 虹色: 筐体の ふち・提灯・液晶の 額縁の 光が 虹色に 回る (疑似ボーナス中も) */
+/* 虹色: 筐体の ふち・提灯・液晶の 額縁の 光が 虹色に 回る (上乗せ特化ゾーン中も) */
 body[data-light="rainbow"] .slot-machine.cabinet,
-body[data-phase="BONUS"] .slot-machine.cabinet {
+body[data-phase="TOKKA"] .slot-machine.cabinet {
     animation: cab-glow-rainbow 0.8s linear infinite;
     box-shadow: 0 0 0 2px #5a3a0a, 0 0 50px var(--cab-glow), 0 0 110px color-mix(in srgb, var(--cab-glow) 45%, transparent);
 }
-body[data-phase="BONUS"]:not([data-light="rainbow"]) .slot-machine.cabinet { animation-duration: 2.4s; }
+body[data-phase="TOKKA"]:not([data-light="rainbow"]) .slot-machine.cabinet { animation-duration: 2.4s; }
 body[data-light="rainbow"] .cab-pillar i,
-body[data-phase="BONUS"] .cab-pillar i {
+body[data-phase="TOKKA"] .cab-pillar i {
     animation: cab-lantern-rainbow 0.6s linear infinite;
 }
 body[data-light="rainbow"] .cab-pillar i:nth-child(2n) { animation-delay: -0.2s; }

@@ -191,33 +191,19 @@ window.GAME_CONFIG = {
 
     // ----- 通常時の予告 (ユーザー指定 2026-10-23。キャラとセリフはパチンコ・新作のスロットを参考にした) -----
     // レバー ON で出す。どれを出すかはそのゲームの役で決める (期待度は役しだい。演出だけで、出目や抽選は変えない)。
+    // カットインは期待度の演出 (config.hype・js/hype.js) のものを使う (ユーザー指定)。そのカットインが出たゲームでは、この予告は出さない
     // 役の分類: premium (7揃い・7・7・BAR = SE城前へ直行) / hot (チャンス目・BAR = ポイント大量) / warm (スイカ・チェリー) / cold (ほか)
     //   rate:   何かの予告が出る確率 / kinds: 出たときの種類の振り分け
-    //   cutin:  カットインの色の振り分け。虹は premium だけ (確定)。cast は色ごとに出るキャラとセリフ (新作のスロットと同じ顔ぶれ)
     //   stepUp: ステップアップ予告 (パチンコと同じ)。何段目まで行くか・3段目の文字の色。series はキャラの組 (期待度は同じ)
     //   gun:    群予告 (パチンコと同じ)。ひびきまくり群は hot 以上だけ (チャンス目以上確定)
     notice: {
         classes: { seven: 'premium', sevenBar: 'premium', chance: 'hot', bar: 'hot', melon: 'warm', cherry: 'warm' },
-        rate: { premium: 0.9, hot: 0.55, warm: 0.25, cold: 0.03 },
+        rate: { premium: 0.6, hot: 0.35, warm: 0.15, cold: 0.02 },
         kinds: {
-            premium: { cutin: 40, stepUp: 30, gun: 30 },
-            hot: { cutin: 45, stepUp: 35, gun: 20 },
-            warm: { cutin: 50, stepUp: 45, gun: 5 },
-            cold: { cutin: 50, stepUp: 45, gun: 5 }
-        },
-        cutin: {
-            premium: { rainbow: 35, gold: 45, red: 20 },
-            hot: { gold: 25, red: 45, green: 20, blue: 10 },
-            warm: { gold: 3, red: 22, green: 40, blue: 35 },
-            cold: { red: 5, green: 30, blue: 65 }
-        },
-        colors: { blue: '#2a5ac8', green: '#2a9a48', red: '#b01828', gold: '#c89a10', rainbow: 'rainbow' },
-        cast: {
-            blue: [['koori', 'いくぞ！'], ['yasu', 'いけるかも…？'], ['tamu', 'まだまだやな'], ['dake', '気合いだ！'], ['furukawa', 'チャンスかも！']],
-            green: [['koori', 'チャンスだ！'], ['yasu', 'チャンスですの！'], ['tamu', 'ええ流れやん'], ['dake', 'こぶしが燃える！'], ['furukawa', 'いい感じだよ！']],
-            red: [['koori', '勝つぞ！！'], ['dake', 'たたきつぶしてくれる！'], ['onioni', '負けたら金返せよ！'], ['tomoishi', 'こおり、がんばり！']],
-            gold: [['koori', '激アツ！！'], ['onioni', 'ここで決めろ、こおり！'], ['tomoishi', 'こおりなにしよっと！いけー！'], ['furukawa', '激アツだよ！！']],
-            rainbow: [['koori', 'こおりいきていける！']]
+            premium: { stepUp: 50, gun: 50 },
+            hot: { stepUp: 65, gun: 35 },
+            warm: { stepUp: 90, gun: 10 },
+            cold: { stepUp: 90, gun: 10 }
         },
         stepUp: {
             outcomes: {
@@ -308,9 +294,9 @@ window.GAME_CONFIG = {
         //               負けセットでもガード崩し・ブレイク・仲間の肩代わり・復活で続くぶん、continueRate より低くしてある。
         //               ダメージ・確率・ブレイク率を変えたら、シミュレーションで continueRate に合うよう調整する
         // 2026-10-23: 上乗せ特化ゾーン・おにおにの出やすさの追加と、SE城前のポイント 100→150 に合わせて、
-        //   出玉率を元くらい (設定1 約98%) にするために下げた (presetRate 通常 0.380→0.345 / SUPER 0.848→0.800。特化ゾーンの突入率も調整)
-        normal: { continueRate: 0.68, presetRate: 0.345 },   // おにおにRASH
-        super: { continueRate: 0.91, presetRate: 0.800 },    // SUPERおにおにRASH
+        //   出玉率を元くらい (設定1 約98%) にするために下げた (presetRate 通常 0.380→0.330 / SUPER 0.848→0.795。特化ゾーンの突入率も調整。BIG・REG を消したあとに合わせ直した)
+        normal: { continueRate: 0.68, presetRate: 0.330 },   // おにおにRASH
+        super: { continueRate: 0.91, presetRate: 0.795 },    // SUPERおにおにRASH
         // BATTLE開始時のゲーム数 (重み付き抽選)
         initialGames: [
             { games: 5, weight: 45 },
@@ -524,7 +510,7 @@ window.GAME_CONFIG = {
             id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
             lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！' },
             weight: 50, superWeight: 40, hp: 60,
-            bonus: { type: 'coins', value: 20 }   // 2026-10-23 A5: BIG・REG を 足したので 35 → 20
+            bonus: { type: 'coins', value: 35 }   // 2026-10-23 A5 で BIG・REG を足して 35 → 20 にしたが、BIG・REG を消したので 35 に戻した
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
@@ -542,7 +528,7 @@ window.GAME_CONFIG = {
             id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
             lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。' },
             weight: 8, superWeight: 12, hp: 150,
-            bonus: { type: 'coins', value: 60 }   // 2026-10-23 A5: 120 → 60
+            bonus: { type: 'coins', value: 120 }   // 2026-10-23 A5 で 120 → 60 にしたが、BIG・REG を消したので 120 に戻した
         },
         {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
@@ -691,30 +677,6 @@ window.GAME_CONFIG = {
             autoMs: 8000,                                           // 押さなかったら この時間で 進む
             colorCodes: { white: '#f2f2f2', blue: '#3f8cff', red: '#ff3a3a', gold: '#ffd700', rainbow: 'rainbow' }
         }
-    },
-
-    // ----- 疑似ボーナス (2026-10-23 アップグレード A5。ユーザー指定: バトルに 勝ったら BIG・REG などの ボーナス) -----
-    // 撃破したときに 抽選。当たったら 次の 対戦相手を 決める前に ボーナスの ゲームを 消化する (BATTLE の しくみは そのまま)
-    //   perGame: ボーナス中 1 ゲームごとに ふつうの 払い出しに 足す 枚数 (RASH の ふだんの 収支 約 +1.8 枚と 合わせて 1G 約 +9.8 枚)
-    //   ボーナス中に 7 が 揃うと 次の BATTLE +sevenAdd G
-    pseudoBonus: {
-        kinds: {
-            big: { name: 'BIG BONUS', games: 20, perGame: 8, color: '#ffd700' },          // 約 196 枚
-            reg: { name: 'REG BONUS', games: 8, perGame: 8, color: '#d8e4f0' },           // 約 78 枚
-            episode: { name: 'エピソードBIG', games: 40, perGame: 8, color: 'rainbow' }   // 約 392 枚
-        },
-        // 撃破した 敵の HP (強さ) ごとの 当選率。強い 敵ほど BIG
-        rates: [
-            { maxHp: 60, big: 0.02, reg: 0.06 },
-            { maxHp: 120, big: 0.04, reg: 0.09 },
-            { maxHp: Infinity, big: 0.08, reg: 0.12 }
-        ],
-        episodeEnemies: ['onioni'],   // RASH 中に おにおにを 倒したら (SUPER へ 上がるとき) エピソードBIG 確定
-        sevenAdd: 5,
-        sevenRoles: ['seven', 'sevenBar'],
-        // BIG・REG の 液晶: キャラ解説 (図鑑の 文章 js/profiles.js) を この 順に 流す (2 ゲームで 1 人)
-        guide: ['koori', 'tomoishi', 'furukawa', 'okagappa', 'hibikimakuri', 'shibata', 'sasaki', 'onioni', 'yasu', 'tamu', 'dake', 'goldDog']
-        // エピソードBIG の ストーリーは js/episode.js (ユーザーが 書きかえる。2026-10-23)
     },
 
     // ----- モード・ゾーン・天井 (2026-10-23 アップグレード A5。最新のスロット koori-slot の 仕様書から) -----
