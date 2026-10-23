@@ -155,6 +155,7 @@ const Lottery = {
         const grid = ReelMap.gridFor(entry.stops, config.reels.strips);
         return {
             role,                                   // 'bell' / 'chance' / 'miss' など
+            key,                                    // 出目の表 (ReelMap) の種類。STOP を押した位置で 出目を 選びなおすのに使う
             stops: entry.stops,                     // 各リールの止まり位置 (中段のコマ番号)
             grid,                                   // 見えている出目 grid[リール][段]
             winLine: entry.winLine ?? null,         // 揃ったライン (LINES の番号)
@@ -165,6 +166,33 @@ const Lottery = {
             freezeCells: role === 'longFreeze' ? config.longFreeze.cells.map(([reel, row]) => [reel, row]) : null,
             chanceName
         };
+    },
+
+    // STOP を押した位置からの引き込み (2026-10-23 ユーザー指定: 取りこぼしなし・押した位置で止まる)。
+    //   役は レバー ON で決まっている。押した位置 press (中段に来ようとしている コマ) から すべる コマ数が
+    //   いちばん 少ない 出目を、同じ 種類 (outcome.key) の中から 選びなおす。止まった リールの 位置は そのまま。
+    //   揃う ライン は、リーチを 見せた (keepLine) ときは 変えない (リーチの ラインと 揃う ラインが ずれないように)。
+    //   outcome を 書きかえ、止める コマ番号と すべる コマ数を 返す
+    retarget(outcome, reel, press, fixed, config, { keepLine = false } = {}) {
+        const strips = config.reels.strips;
+        const n = strips[reel].length;
+        const list = ReelMap.categories(config)[outcome.key] || [];
+        const fits = e => fixed.every((s, r) => s === null || r === reel || e.stops[r] === s) && (!keepLine || (e.winLine ?? null) === outcome.winLine);
+        let best = null, bestD = Infinity;
+        for (const e of list) {
+            if (!fits(e)) continue;
+            const d = (e.stops[reel] - press + n) % n;
+            if (d < bestD || (d === bestD && Math.random() < 0.5)) {
+                best = e;
+                bestD = d;
+            }
+        }
+        if (!best) return { stop: outcome.stops[reel], slide: (outcome.stops[reel] - press + n) % n };   // ありえないが 念のため
+        outcome.stops = [...best.stops];
+        outcome.grid = ReelMap.gridFor(best.stops, strips);
+        outcome.chance = best.chance || null;
+        outcome.winLine = best.winLine ?? null;
+        return { stop: best.stops[reel], slide: bestD };
     },
 
     // 2本止まった時点のリーチ: 止まった2本で同じ図柄が並ぶラインを探す

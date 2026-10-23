@@ -387,3 +387,27 @@ body.long-freeze .cab-pillar i {
         min-height: 56px;
     }
 }
+
+/* ----- リールの 上の ランプ (2026-10-23 A2。js/reels.js の setLamp) -----
+   回っている間は 白・リーチは 赤・押せ!! は 金・揃うと 金・チャンス目は ピンク・ロングフリーズは 虹 */
+.reel-lamp {
+    display: block;
+    width: 70%;
+    height: 7px;
+    border-radius: 4px;
+    background: #2a1a0a;
+    border: 1px solid #5a3a10;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+
+.reel-lamp.lamp-spin { background: #e8f4ff; box-shadow: 0 0 6px #bfe4ff; }
+.reel-lamp.lamp-reach { background: #ff3030; animation: lamp-blink 0.25s infinite alternate; --lamp: #ff3030; }
+.reel-lamp.lamp-push { background: #ffd700; animation: lamp-blink 0.2s infinite alternate; --lamp: #ffd700; }
+.reel-lamp.lamp-win { background: #ffe680; box-shadow: 0 0 10px #ffd700; }
+.reel-lamp.lamp-chance { background: #ff6ad8; box-shadow: 0 0 10px #ff6ad8; }
+.reel-lamp.lamp-freeze { animation: cab-lantern-rainbow 0.9s linear infinite; }
+
+@keyframes lamp-blink {
+    from { box-shadow: 0 0 2px var(--lamp); filter: brightness(0.8); }
+    to { box-shadow: 0 0 14px var(--lamp); filter: brightness(1.3); }
+}

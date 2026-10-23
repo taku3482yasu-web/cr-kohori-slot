@@ -118,16 +118,19 @@
                 reach = Lottery.findReach(outcome, stopOrder, config);
                 if (reach) {
                     stopButtons[remaining].classList.add('reach');
+                    Reels.setLamp(remaining, 'reach');
                     Lcd.reach(reach.symbol, reach.lineName);
                     Sound.chance();
                 } else if (outcome.isChance && Math.random() < effects.pushRate) {
                     stopButtons[remaining].classList.add('push');
+                    Reels.setLamp(remaining, 'push');
                     Lcd.push();
                 }
             }
         };
         spinSound = setInterval(Sound.spin, 200);
-        await Reels.spin(outcome.stops, effects.timing.reelSpinStagger, onStop);
+        // 押した 位置から 引き込む (取りこぼしなし。Lottery.retarget)
+        await Reels.spin(outcome.stops, effects.timing.reelSpinStagger, onStop, (i, press, fixed) => Lottery.retarget(outcome, i, press, fixed, config, { keepLine: Boolean(reach) }));
         if (freezePlaying) await freezePlaying;
         clearInterval(spinSound);
         stopButtons.forEach(btn => btn.classList.remove('reach', 'push'));
@@ -136,6 +139,9 @@
         // 揃ったライン・チャンス目の図柄を光らせる
         if (outcome.winLine !== null) Reels.highlight(Lottery.lineCells(outcome.winLine), 'win');
         lightLine(outcome.winLine);
+        // リールの 上の ランプ: 揃ったら 金、チャンス目は ピンク、ロングフリーズは 虹
+        const lamp = outcome.isFreeze ? 'freeze' : outcome.winLine !== null ? 'win' : outcome.isChance ? 'chance' : '';
+        [0, 1, 2].forEach(i => Reels.setLamp(i, lamp));
         if (outcome.chance) Reels.highlight(outcome.chance.cells, 'chance-cell');
         if (outcome.isFreeze) Reels.highlight(outcome.freezeCells, 'freeze-cell');
 

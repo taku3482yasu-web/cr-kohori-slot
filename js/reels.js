@@ -18,6 +18,10 @@ const Reels = (() => {
     let resolveSpin = null;
     let litCells = [];
     let startTimers = [];      // リールを少しずつずらして回し始めるタイマー
+    let ends = [0, 0, 0];      // 各リールが すべり 終わる 時刻
+    let chooser = null;        // STOP を押した位置から 止める コマを 選ぶ (main.js が Lottery.retarget を渡す)
+    let lamps = [];            // リールの 上の ランプ (筐体。css/cabinet.css)
+    const SLIDE_BASE_MS = 70, SLIDE_FRAME_MS = 32;   // 止まるまでの 時間: すべる コマ数で 長くなる (いちばん 長くて 約 0.7 秒)
 
     // 1コマの高さ (リールの窓は3コマ分)
     function symbolHeight() {
@@ -38,6 +42,7 @@ const Reels = (() => {
         strips = config.reels.strips;
         reelEls = reelElements;
         stopButtons = buttons;
+        lamps = reelEls.map(el => el.parentElement.querySelector('.reel-lamp'));
         // 最初はハズレの出目で止めておく (当たりに見える並びを避ける)
         const misses = ReelMap.categories(config).miss;
         const initialStops = misses[Math.floor(Math.random() * misses.length)].stops;
@@ -68,13 +73,23 @@ const Reels = (() => {
         reelEls[i].classList.toggle('stoppable', on);
     }
 
+    // リールの 上の ランプ: state は '' (消灯) / 'spin' / 'reach' / 'push' / 'chance' / 'win'
+    function setLamp(i, state) {
+        const el = lamps[i];
+        if (!el) return;
+        el.className = `reel-lamp${state ? ` lamp-${state}` : ''}`;
+    }
+
     // 回転開始。stops の位置で止まり、全リール停止で resolve する
     // onStop(reelIndex, stoppedCount) は各リール停止時に呼ばれる
-    function spin(stops, staggerMs, onStop) {
+    // choose(reel, press, fixed): 押した位置 press から 止める コマと すべる 数 { stop, slide } を返す (なければ stops の 位置)
+    function spin(stops, staggerMs, onStop, choose = null) {
         clearHighlight();
-        targetStops = stops;
+        targetStops = [...stops];
         onStopCallback = onStop;
+        chooser = choose;
         stopped = [false, false, false];
+        reelEls.forEach((reel, i) => setLamp(i, 'spin'));
         reelEls.forEach((reel, i) => {
             const strip = reel.querySelector('.reel-strip');
             strip.style.setProperty('--cycle', `-${strips[i].length * symbolHeight()}px`);
@@ -97,18 +112,47 @@ const Reels = (() => {
 
         clearTimeout(startTimers[i]);
         const strip = reelEls[i].querySelector('.reel-strip');
+        // 押した ときに 見えている 位置 (回転の アニメーションの 途中の 値) を 読んで、そこから すべらせて 止める
+        const h = symbolHeight();
+        const n = strips[i].length;
+        const m = new DOMMatrixReadOnly(getComputedStyle(strip).transform);
+        const y = Math.max(0, -m.m42) % (n * h);
         strip.style.animation = 'none';
-        strip.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)';
-        strip.style.transform = `translateY(-${offsetFor(i, targetStops[i])}px)`;
+        const base = Math.ceil(y / h - 1e-6);          // これから 中段に 来る コマの 位置 (上段の コマ番号)
+        const press = (base + 1) % n;                  // 中段に 来ようとしている コマ
+        const fixed = targetStops.map((s, r) => (stopped[r] && r !== i ? s : null));
+        let slide = (targetStops[i] - press + n) % n;
+        if (chooser) {
+            const pick = chooser(i, press, fixed);
+            targetStops[i] = pick.stop;
+            slide = pick.slide;
+        }
+        const ms = SLIDE_BASE_MS + slide * SLIDE_FRAME_MS + Math.round((base - y / h) * SLIDE_FRAME_MS);
+        strip.style.transition = 'none';
+        strip.style.transform = `translateY(-${y}px)`;
+        void strip.offsetHeight;   // いまの 位置を 先に 決めてから すべらせる
+        strip.style.transition = `transform ${ms}ms cubic-bezier(0.2, 0.6, 0.35, 1)`;
+        strip.style.transform = `translateY(-${(base + slide) * h}px)`;
+        // すべり 終わったら、光らせる コマの ある 周 (STOP_OFFSET) の 同じ 位置へ 見た目を 変えずに うつす
+        setTimeout(() => {
+            if (!stopped[i]) return;
+            strip.style.transition = 'none';
+            strip.style.transform = `translateY(-${offsetFor(i, targetStops[i])}px)`;
+        }, ms + 10);
+        setLamp(i, '');
+        ends[i] = performance.now() + ms;
 
         const stoppedCount = stopped.filter(s => s).length;
         if (onStopCallback) onStopCallback(i, stoppedCount);
         if (stoppedCount === 3 && resolveSpin) {
             const resolve = resolveSpin;
             resolveSpin = null;
-            setTimeout(resolve, 500); // 停止アニメーションの完了を待つ
+            setTimeout(resolve, Math.max(Math.max(...ends) - performance.now() + 30, 380)); // いちばん 遅い リールが 止まるのを 待つ
         }
     }
+
+    // いまの 止まり位置 (STOP で 選びなおした あと)
+    const stops = () => [...targetStops];
 
     // STOP ボタンを一時的に押せなくする (ロングフリーズ中)。解除すると止まっていないリールの STOP が押せる
     function lockStops(locked) {
@@ -145,5 +189,5 @@ const Reels = (() => {
         litCells = [];
     }
 
-    return { init, spin, stop, relayout, isSpinning, highlight, clearHighlight, lockStops };
+    return { init, spin, stop, relayout, isSpinning, highlight, clearHighlight, lockStops, setLamp, stops };
 })();

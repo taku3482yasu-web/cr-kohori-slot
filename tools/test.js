@@ -62,7 +62,7 @@ function loadGame(seed) {
         vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), 'utf8'), context, { filename: file });
     }
     const game = vm.runInContext(
-        '({ createInitialState, Lottery, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
+        '({ createInitialState, Lottery, ReelMap, GameFlow, Battle, MachineMove, SaveData, SettingEstimate, Collection, Furukawa, EndCard, UpdateNotes, UPDATES, DebugState, StateMachine, MODES, RASH_PHASES })', context);
     game.config = context.GAME_CONFIG;
     game.config.dataCounter.historySize = Infinity;   // 履歴の件数を数えるため、すべて残す
     return game;
@@ -303,6 +303,44 @@ const base = loadGame(SEED);
 test('config.js: どの役にも出目が用意できる (Lottery.validate)', () => {
     const errors = base.Lottery.validate(base.config);
     assert(errors.length === 0, errors.join(' / '));
+});
+
+test('リールの引き込み: どこで STOP を押しても 役は変わらず (取りこぼしなし)、たいてい 4 コマ以内で止まる (Lottery.retarget)', () => {
+    const { config, Lottery, ReelMap } = base;
+    const strips = config.reels.strips;
+    const roles = ['miss', 'replay', 'bell', 'diamond', 'cherry', 'melon', 'bar', 'seven', 'sevenBar', 'chance', 'longFreeze'];
+    let presses = 0, within4 = 0, maxSlide = 0;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    for (const role of roles) {
+        for (let t = 0; t < 60; t++) {
+            const o = Lottery.makeOutcome(role, config, rnd);
+            const key = o.key;
+            let line = null;
+            const order = [[0, 1, 2], [2, 1, 0], [1, 0, 2]][t % 3];
+            const fixed = [null, null, null];
+            for (const r of order) {
+                const press = Math.floor(rnd() * strips[r].length);
+                const keepLine = line !== null;   // リーチを 見せた ことに する (2 本 止まったら)
+                const pick = Lottery.retarget(o, r, press, fixed, config, { keepLine: keepLine && t % 2 === 0 });
+                fixed[r] = pick.stop;
+                if (fixed.filter(x => x !== null).length === 2 && t % 2 === 0) line = o.winLine;   // リーチを 見せたら ラインは 変わらない
+                presses++;
+                if (pick.slide <= 4) within4++;
+                maxSlide = Math.max(maxSlide, pick.slide);
+                assertEqual((pick.stop - press + strips[r].length) % strips[r].length, pick.slide, `${role}: すべる コマ数`);
+            }
+            assertEqual(fixed.join(','), o.stops.join(','), `${role}: 止まった 位置と 出目`);
+            assert(ReelMap.categories(config)[key].some(e => e.stops.join() === o.stops.join()), `${role}: 出目が 同じ 種類 (${key}) の 中`);
+            if (line !== null) assertEqual(o.winLine, line, `${role}: リーチの あとは 揃う ラインが 変わらない`);
+            const c = ReelMap.classify(ReelMap.gridFor(o.stops, strips), config);
+            if (role === 'chance') assertEqual(c.chances.length, 1, 'チャンス目は 1 つ');
+            if (role === 'miss') assertEqual(c.wins.length + c.specials.length, 0, 'ハズレは 揃わない');
+        }
+    }
+    assert(within4 / presses > 0.7,   // ハズレ・ベルは ほとんど 4 コマ以内。7・BAR は 1 本に 2 つなので 遠いと 長く すべる
+    `4 コマ以内: ${pct(within4 / presses)} (最大 ${maxSlide} コマ)`);
+    console.log(`  引き込み: 4 コマ以内 ${pct(within4 / presses)}・いちばん すべって ${maxSlide} コマ`);
 });
 
 test('config.js: 確率表の合計が 1 以下', () => {
