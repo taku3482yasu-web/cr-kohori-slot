@@ -18,6 +18,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
     <link rel="stylesheet" href="css/style.css?v=cec0791d">
+    <link rel="stylesheet" href="css/cabinet.css?v=9029d84e">
 </head>
 <body>
     <div class="game-container">
@@ -52,13 +53,60 @@
             <button id="buy-coins-button">BUY COINS</button>
         </div>
 
-        <div class="slot-machine">
-            <!-- 液晶 (ドット絵を canvas に描画) -->
-            <div class="lcd-frame">
-                <canvas id="lcd" class="lcd"></canvas>
+        <!-- 筐体 (2026-10-23 ユーザー指定: 新しい台に。おにおにの SE城 がテーマ。css/cabinet.css) -->
+        <div class="slot-machine cabinet">
+            <!-- 天守閣の屋根: 瓦・鬼の角・金の額 (ロゴ) -->
+            <div class="cab-roof" aria-hidden="true">
+                <svg class="cab-roof-art" viewBox="0 0 600 110" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="cab-tile" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#3a4256"/><stop offset="1" stop-color="#141824"/>
+                        </linearGradient>
+                        <linearGradient id="cab-gold" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#fff2a8"/><stop offset=".5" stop-color="#e0a82a"/><stop offset="1" stop-color="#8a5a10"/>
+                        </linearGradient>
+                        <linearGradient id="cab-horn" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0" stop-color="#f4ead0"/><stop offset="1" stop-color="#ffd34a"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- 上の屋根 (反りのある 三角) -->
+                    <path d="M150 64 Q300 2 450 64 L430 70 Q300 22 170 70 Z" fill="url(#cab-tile)"/>
+                    <path d="M150 64 Q300 2 450 64" fill="none" stroke="url(#cab-gold)" stroke-width="4"/>
+                    <!-- 下の屋根 (台の 幅いっぱい) -->
+                    <path d="M0 104 Q40 70 120 66 L480 66 Q560 70 600 104 L600 110 L0 110 Z" fill="url(#cab-tile)"/>
+                    <path d="M0 104 Q40 70 120 66 L480 66 Q560 70 600 104" fill="none" stroke="url(#cab-gold)" stroke-width="5"/>
+                    <!-- 瓦の すじ -->
+                    <g stroke="#0a0c12" stroke-width="2" opacity=".55">
+                        <path d="M60 90 L70 76 M110 92 L116 70 M160 94 L162 68 M210 94 L210 68 M260 94 L260 68 M310 94 L310 68 M360 94 L360 68 M410 94 L408 68 M460 92 L454 70 M520 90 L510 76"/>
+                    </g>
+                    <!-- 鬼の角 (屋根の 両はし) -->
+                    <path d="M14 98 Q2 50 30 20 Q26 56 46 92 Z" fill="url(#cab-horn)" stroke="#8a5a10" stroke-width="2"/>
+                    <path d="M586 98 Q598 50 570 20 Q574 56 554 92 Z" fill="url(#cab-horn)" stroke="#8a5a10" stroke-width="2"/>
+                    <!-- てっぺんの 氷の 宝珠 -->
+                    <circle cx="300" cy="14" r="9" fill="#bff0ff" stroke="url(#cab-gold)" stroke-width="3"/>
+                </svg>
+                <div class="cab-plaque">
+                    <span class="cab-logo">こおりくんの大冒険</span>
+                    <span class="cab-sub">～おにおにの野望～</span>
+                </div>
             </div>
 
-            <!-- リール -->
+            <div class="cab-body">
+                <!-- 左右の 朱塗りの 柱と 提灯の LED (台の 状態で 色が かわる) -->
+                <div class="cab-pillar cab-pillar-left" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="cab-center">
+                    <!-- 液晶 (ドット絵を canvas に描画)。城門の 形の 金の 額縁 -->
+                    <div class="lcd-frame">
+                        <canvas id="lcd" class="lcd"></canvas>
+                    </div>
+
+                    <!-- リール。左右に 5 ラインの 番号 (当たった ラインが 光る。main.js) -->
+                    <div class="cab-reel-window">
+                        <div class="cab-lines cab-lines-left" aria-hidden="true">
+                            <span class="cab-line" data-line="0">1</span><span class="cab-line" data-line="3">4</span>
+                            <span class="cab-line" data-line="1">2</span>
+                            <span class="cab-line" data-line="2">3</span><span class="cab-line" data-line="4">5</span>
+                        </div>
             <div class="reels-container">
                 <div class="reel-column">
                     <div class="reel" id="reel1"><div class="reel-strip"></div></div>
@@ -74,10 +122,28 @@
                 </div>
             </div>
 
-            <div class="controls">
+                        <div class="cab-lines cab-lines-right" aria-hidden="true">
+                            <span class="cab-line" data-line="0">1</span><span class="cab-line" data-line="4">5</span>
+                            <span class="cab-line" data-line="1">2</span>
+                            <span class="cab-line" data-line="2">3</span><span class="cab-line" data-line="3">4</span>
+                        </div>
+                    </div>
+
+                    <!-- クレジットと 払い出し (7 セグの 数字) -->
+                    <div class="cab-meter" aria-label="クレジットと払い出し">
+                        <span class="cab-meter-label">CREDIT</span><span id="cab-credit" class="cab-seg">0</span>
+                        <span class="cab-bet" aria-hidden="true">3 BET</span>
+                        <span class="cab-meter-label">PAYOUT</span><span id="cab-payout" class="cab-seg">0</span>
+                    </div>
+                </div>
+                <div class="cab-pillar cab-pillar-right" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+
+            <!-- 石垣の 台座と 金棒の レバー -->
+            <div class="controls cab-base">
                 <!-- 全画面のときだけ出す、コイン枚数と BUY (js/layout.js) -->
                 <div class="fs-coins">COINS <span id="fs-coin-display">0</span><button id="fs-buy-button" type="button">BUY</button></div>
-                <button id="spin-button">LEVER ON<span class="key-hint" data-action="lever"></span></button>
+                <button id="spin-button"><span class="cab-kanabo" aria-hidden="true"></span><span class="cab-lever-text">LEVER ON</span><span class="key-hint" data-action="lever"></span></button>
             </div>
         </div>
 
@@ -331,14 +397,14 @@
     </div>
 
     <!-- 読み込み順: 設定 → データ → 各機能 → 起動 -->
-    <script src="js/config.js?v=31f65c38"></script>
+    <script src="js/config.js?v=d5dc2fdd"></script>
     <script src="js/sprites.js?v=056d5554"></script>
     <script src="js/backgrounds.js?v=772c65c2"></script>
     <script src="js/characters.js?v=5ad35d02"></script>
     <script src="js/audio.js?v=41c6ca85"></script>
     <script src="js/state.js?v=0286b79f"></script>
     <script src="js/lottery.js?v=ef41b4a7"></script>
-    <script src="js/battle.js?v=5f4bdf9d"></script>
+    <script src="js/battle.js?v=96b44151"></script>
     <script src="js/furukawa.js?v=906ea7e6"></script>
     <script src="js/save.js?v=4165304e"></script>
     <script src="js/bgm.js?v=007b4b6e"></script>
@@ -355,8 +421,8 @@
     <script src="js/lcd.js?v=a1044537"></script>
     <script src="js/profiles.js?v=9335b576"></script>
     <script src="js/updates.js?v=484b8627"></script>
-    <script src="js/ui.js?v=e72c573c"></script>
+    <script src="js/ui.js?v=0b91c058"></script>
     <script src="js/layout.js?v=14bd5f38"></script>
-    <script src="js/main.js?v=66a75fbf"></script>
+    <script src="js/main.js?v=190c4a22"></script>
 </body>
 </html>

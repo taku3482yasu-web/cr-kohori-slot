@@ -1,0 +1,389 @@
+/* =====================================================================
+   筐体 (2026-10-23 ユーザー指定: 新しい台を作る。ASO の台とは ちがう見た目に)
+   ---------------------------------------------------------------------
+   テーマは おにおにの「SE城」: 瓦屋根の天守閣と鬼の角・金の額のロゴ / 朱塗りの柱と提灯の LED /
+   城門の形の金の額縁の液晶 / 5 ラインの番号ランプ / 7 セグの CREDIT・PAYOUT / 石垣の台座と金棒のレバー。
+   台の状態 (body[data-mode]) で LED の色が変わる (--cab-glow)。
+   style.css のあとに読み込み、ボタンの状態の色 (リーチ・押せ!!・城突入など) は style.css のものを残す。
+   ===================================================================== */
+
+.slot-machine.cabinet {
+    --cab-glow: #7fd8ff;
+    --cab-lacquer: #b8281a;
+    --cab-gold: #e0a82a;
+    position: relative;
+    padding: 0 14px 0;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(255, 80, 40, 0.18), transparent 60%),
+        linear-gradient(180deg, #2a1418, #160a0e 60%, #120a0c);
+    border: 5px solid var(--cab-gold);
+    border-radius: 18px 18px 14px 14px;
+    box-shadow: 0 0 0 2px #5a3a0a, 0 0 36px color-mix(in srgb, var(--cab-glow) 40%, transparent);
+    overflow: hidden;
+}
+
+body[data-mode="CASTLE_CHALLENGE"] .slot-machine.cabinet { --cab-glow: #ff5a3a; }
+body[data-mode="RASH"] .slot-machine.cabinet { --cab-glow: #ff3a2a; }
+body[data-mode="SUPER_RASH"] .slot-machine.cabinet { --cab-glow: #ffd700; }
+
+/* ----- 天守閣の屋根 ----- */
+.cab-roof {
+    position: relative;
+    height: 104px;
+    margin: 0 -14px;
+}
+
+.cab-roof-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* 金の額 (ロゴ) */
+.cab-plaque {
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    transform: translateX(-50%);
+    padding: 3px 18px 4px;
+    background: linear-gradient(180deg, #d8382a, #8a160e);
+    border: 3px solid var(--cab-gold);
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px #3a0a06, 0 4px 10px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.cab-logo {
+    font-family: 'DotGothic16', sans-serif;
+    font-size: 1.35rem;
+    font-weight: bold;
+    letter-spacing: 0.06em;
+    background: linear-gradient(180deg, #fff6c0, #ffd34a 50%, #c88a10);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 2px 0 #3a0a06);
+}
+
+.cab-sub {
+    font-size: 0.66rem;
+    color: #bff0ff;
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 6px #6ad0ff;
+}
+
+/* ----- 本体: 柱 + まんなか ----- */
+.cab-body {
+    display: grid;
+    grid-template-columns: 18px 1fr 18px;
+    gap: 8px;
+    padding-top: 8px;
+}
+
+.cab-center {
+    min-width: 0;
+}
+
+/* 朱塗りの柱と提灯の LED (上から順に流れて光る) */
+.cab-pillar {
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.35), transparent 35%, transparent 65%, rgba(0, 0, 0, 0.35)),
+        linear-gradient(180deg, #d8382a, var(--cab-lacquer) 40%, #7a140c);
+    border: 2px solid var(--cab-gold);
+    border-radius: 9px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    align-items: center;
+    padding: 6px 0;
+}
+
+.cab-pillar i {
+    width: 10px;
+    height: 14px;
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--cab-glow) 35%, #2a0a06);
+    box-shadow: 0 0 2px #000 inset;
+    animation: cab-lantern 1.4s ease-in-out infinite;
+}
+
+.cab-pillar i:nth-child(2) { animation-delay: 0.2s; }
+.cab-pillar i:nth-child(3) { animation-delay: 0.4s; }
+.cab-pillar i:nth-child(4) { animation-delay: 0.6s; }
+.cab-pillar i:nth-child(5) { animation-delay: 0.8s; }
+.cab-pillar i:nth-child(6) { animation-delay: 1s; }
+.cab-pillar i:nth-child(7) { animation-delay: 1.2s; }
+
+@keyframes cab-lantern {
+    0%, 70%, 100% { background: color-mix(in srgb, var(--cab-glow) 35%, #2a0a06); box-shadow: 0 0 2px #000 inset; }
+    20% { background: var(--cab-glow); box-shadow: 0 0 10px var(--cab-glow), 0 0 2px #fff inset; }
+}
+
+/* ロングフリーズ: 提灯も虹色 */
+body.long-freeze .cab-pillar i {
+    animation: cab-lantern-rainbow 0.9s linear infinite;
+}
+
+@keyframes cab-lantern-rainbow {
+    0% { background: #ff3030; box-shadow: 0 0 10px #ff3030; }
+    33% { background: #ffe000; box-shadow: 0 0 10px #ffe000; }
+    66% { background: #3090ff; box-shadow: 0 0 10px #3090ff; }
+    100% { background: #ff3030; box-shadow: 0 0 10px #ff3030; }
+}
+
+/* ----- 液晶: 城門の 形の 金の 額縁 ----- */
+.cabinet .lcd-frame {
+    background: #000;
+    padding: 6px;
+    border: 5px solid transparent;
+    border-radius: 40px 40px 6px 6px / 22px 22px 6px 6px;
+    background:
+        linear-gradient(#000, #000) padding-box,
+        linear-gradient(180deg, #fff2a8, #e0a82a 40%, #8a5a10) border-box;
+    box-shadow: 0 0 0 2px #3a0a06, 0 0 18px color-mix(in srgb, var(--cab-glow) 35%, transparent);
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.cabinet .lcd {
+    border-radius: 32px 32px 2px 2px / 16px 16px 2px 2px;
+}
+
+/* ----- リールの 窓と 5 ラインの 番号 ----- */
+.cab-reel-window {
+    display: grid;
+    grid-template-columns: 22px 1fr 22px;
+    align-items: stretch;
+    background: #0a0f1c;
+    border: 3px solid var(--cab-gold);
+    border-radius: 10px;
+    box-shadow: 0 0 0 2px #3a0a06, inset 0 0 14px rgba(0, 0, 0, 0.8);
+    padding: 0 2px;
+}
+
+.cabinet .reels-container {
+    background: transparent;
+    padding: 10px 4px;
+}
+
+/* 番号は リールの 上段・中段・下段 の 高さに 合わせる (ふたつ ある 段は 上と 下に よせる) */
+.cab-lines {
+    display: grid;
+    grid-template-rows: repeat(3, var(--symbol-height));
+    padding-top: 10px;
+    justify-items: center;
+}
+
+.cab-line {
+    grid-column: 1;
+    width: 18px;
+    height: 16px;
+    line-height: 16px;
+    font-size: 0.62rem;
+    font-weight: bold;
+    color: #8a6a2a;
+    background: #2a1a0a;
+    border: 1px solid #5a3a10;
+    border-radius: 4px;
+    align-self: center;
+}
+
+.cab-lines-left .cab-line[data-line="0"], .cab-lines-right .cab-line[data-line="0"] { grid-row: 1; align-self: start; margin-top: 8px; }
+.cab-lines-left .cab-line[data-line="3"], .cab-lines-right .cab-line[data-line="4"] { grid-row: 1; align-self: end; margin-bottom: 8px; }
+.cab-line[data-line="1"] { grid-row: 2; }
+.cab-lines-left .cab-line[data-line="2"], .cab-lines-right .cab-line[data-line="2"] { grid-row: 3; align-self: start; margin-top: 8px; }
+.cab-lines-left .cab-line[data-line="4"], .cab-lines-right .cab-line[data-line="3"] { grid-row: 3; align-self: end; margin-bottom: 8px; }
+
+/* 当たった ライン */
+.cab-line.on {
+    color: #3a2a00;
+    background: #ffe680;
+    border-color: #fff6c0;
+    box-shadow: 0 0 8px #ffd700;
+    animation: cab-line-blink 0.3s infinite alternate;
+}
+
+@keyframes cab-line-blink {
+    from { filter: brightness(1); }
+    to { filter: brightness(1.4); }
+}
+
+/* STOP: 金の ふちの 丸い ボタン (押せるときは 朱色。リーチ・押せ!! の 色は style.css) */
+.cabinet .stop-button {
+    width: min(100%, 78px);
+    min-height: 40px;
+    border-radius: 20px;
+    border: 2px solid #8a5a10;
+    background: radial-gradient(circle at 50% 35%, #4a3a2a, #1a120a);
+    color: #7a6a4a;
+    box-shadow: 0 3px 0 #000;
+}
+
+:where(.cabinet) .stop-button:not(:disabled) {
+    color: #fff;
+    border-color: var(--cab-gold);
+    background: radial-gradient(circle at 50% 35%, #ff7a5a, #c8321e 60%, #7a140c);
+    box-shadow: 0 3px 0 #3a0a06, 0 0 10px rgba(255, 90, 60, 0.6);
+}
+
+/* ----- CREDIT・PAYOUT (7 セグの 数字) ----- */
+.cab-meter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px 0 0;
+    padding: 5px 10px;
+    background: #0a0404;
+    border: 2px solid #5a3a10;
+    border-radius: 6px;
+    font-size: 0.66rem;
+    color: var(--cab-gold);
+    letter-spacing: 0.08em;
+}
+
+.cab-seg {
+    min-width: 4.2ch;
+    padding: 1px 6px;
+    background: #1a0606;
+    border-radius: 3px;
+    font-family: 'DotGothic16', monospace;
+    font-size: 1.05rem;
+    text-align: right;
+    color: #ff4a2a;
+    text-shadow: 0 0 6px #ff3a1a;
+    letter-spacing: 0.12em;
+}
+
+.cab-bet {
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: #0a2a0a;
+    color: #5aff7a;
+    text-shadow: 0 0 6px #3aff5a;
+    margin: 0 6px;
+}
+
+/* ----- 石垣の 台座と 金棒の レバー ----- */
+.cab-base.controls {
+    margin: 12px -14px 0;
+    padding: 14px 14px 16px;
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent 30%),
+        repeating-linear-gradient(0deg, transparent 0 22px, #2a2620 22px 24px),
+        repeating-linear-gradient(90deg, transparent 0 46px, #2a2620 46px 48px),
+        linear-gradient(180deg, #6a6458, #4a463e);
+    border-top: 3px solid var(--cab-gold);
+}
+
+.cabinet #spin-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 26px 10px 18px;
+    background: linear-gradient(180deg, #3a3a44, #16161c);
+    color: #ffe680;
+    border: 3px solid var(--cab-gold);
+    border-radius: 30px;
+    box-shadow: 0 5px 0 #000, 0 0 12px color-mix(in srgb, var(--cab-glow) 45%, transparent);
+    font-size: 1.25rem;
+    letter-spacing: 0.06em;
+}
+
+.cabinet #spin-button:disabled {
+    background: linear-gradient(180deg, #2a2a30, #141418);
+    color: #6a6a6a;
+    border-color: #5a4a2a;
+    box-shadow: 0 2px 0 #000;
+}
+
+.cab-lever-text {
+    display: inline-block;
+}
+
+/* 金棒: 黒い 鉄の 棒に 金の いぼ */
+.cab-kanabo {
+    display: inline-block;
+    width: 62px;
+    height: 16px;
+    border-radius: 3px 9px 9px 3px;
+    background:
+        radial-gradient(circle, #ffe680 0 2px, transparent 2.5px) 4px 0 / 9px 8px,
+        linear-gradient(180deg, #5a5a66, #1a1a22);
+    box-shadow: inset 0 0 0 1px #000, 0 0 6px color-mix(in srgb, var(--cab-glow) 50%, transparent);
+    transform: rotate(-12deg);
+}
+
+.cabinet #spin-button:not(:disabled):active .cab-kanabo {
+    transform: rotate(10deg);
+}
+
+/* ----- スマホ ----- */
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+    .slot-machine.cabinet {
+        padding: 0 8px;
+        border-width: 4px;
+    }
+
+    .cab-roof {
+        height: 70px;
+        margin: 0 -8px;
+    }
+
+    .cab-logo {
+        font-size: 1rem;
+    }
+
+    .cab-sub {
+        font-size: 0.56rem;
+    }
+
+    .cab-body {
+        grid-template-columns: 10px 1fr 10px;
+        gap: 5px;
+    }
+
+    .cab-pillar i {
+        width: 6px;
+        height: 10px;
+    }
+
+    .cab-reel-window {
+        grid-template-columns: 16px 1fr 16px;
+    }
+
+    .cab-line {
+        width: 14px;
+        font-size: 0.55rem;
+    }
+
+    .cabinet .reels-container {
+        padding: 6px 2px;
+    }
+
+    .cab-lines {
+        padding-top: 6px;
+    }
+
+    .cabinet .stop-button {
+        width: 100%;
+        max-width: 110px;
+        min-height: 44px;
+    }
+
+    .cab-base.controls {
+        margin: 10px -8px 0;
+        padding: 10px 8px 12px;
+    }
+
+    .cabinet #spin-button {
+        width: 100%;
+        justify-content: center;
+        min-height: 56px;
+    }
+}

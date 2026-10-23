@@ -13,6 +13,11 @@
     const fsBuyButton = document.getElementById('fs-buy-button');
     const stopButtons = [1, 2, 3].map(n => document.getElementById(`stop-button-${n}`));
     const reelElements = [1, 2, 3].map(n => document.getElementById(`reel${n}`));
+    // 筐体 (css/cabinet.css): 払い出しの 7 セグと、当たった ラインの 番号ランプ
+    const payoutDisplay = document.getElementById('cab-payout');
+    const lineLamps = [...document.querySelectorAll('.cab-line')];
+    const setPayout = n => { if (payoutDisplay) payoutDisplay.textContent = n; };
+    const lightLine = line => lineLamps.forEach(el => el.classList.toggle('on', line !== null && Number(el.dataset.line) === line));
     let debugNextRole = null;   // デバッグ: 次のゲームの役を指定
     let debugEndCard = -1;      // デバッグ: 最後に見た RASH 終了画面の絵の番号
 
@@ -67,6 +72,8 @@
 
         spinButton.disabled = true;
         state.coins -= cost;
+        setPayout(0);
+        lightLine(null);
         Lcd.clearMessage();
         Lcd.hideTrophy();
         Lcd.hideFurukawa();
@@ -128,6 +135,7 @@
 
         // 揃ったライン・チャンス目の図柄を光らせる
         if (outcome.winLine !== null) Reels.highlight(Lottery.lineCells(outcome.winLine), 'win');
+        lightLine(outcome.winLine);
         if (outcome.chance) Reels.highlight(outcome.chance.cells, 'chance-cell');
         if (outcome.isFreeze) Reels.highlight(outcome.freezeCells, 'freeze-cell');
 
@@ -142,7 +150,9 @@
         // チャンス目ごとの演出
         if (outcome.isChance) await Lcd.playChanceEffect(outcome.chanceName);
 
+        const coinsBefore = state.coins;
         const events = GameFlow.onGameEnd(state, outcome, config);
+        setPayout(Math.max(0, state.coins - coinsBefore));
         if (config.debug) console.log('outcome', outcome, 'events', events);
         refresh();
         // バトルに負けたときは、演出のあいだ敗北の BGM

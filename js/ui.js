@@ -32,6 +32,7 @@ const UI = (() => {
         els = {
             coins: $('coin-display'),
             fsCoins: $('fs-coin-display'),
+            credit: $('cab-credit'),   // 筐体の CREDIT (css/cabinet.css)
             spentLabel: $('status-label-spent'),
             spent: $('spending-display'),
             games: $('game-display'),
@@ -154,6 +155,7 @@ const UI = (() => {
         gameState = state;
         els.coins.textContent = state.coins;
         els.fsCoins.textContent = state.coins;   // 全画面のときのコイン枚数
+        if (els.credit) els.credit.textContent = state.coins;
         els.games.textContent = state.totalGames;
         // 復活待ちは RASH が終わったように見せる (次のレバー ON で復活演出)
         const reviving = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL;
