@@ -248,7 +248,7 @@ const Lcd = (() => {
             }
             const groundY = Backgrounds.get(displayMap).groundY;
             drawParty(time, valueAt(koori.x, time), groundY, 1.5);
-            if (chanceTimeView && scene === 'field') drawChanceTimeTomoishi(time, groundY);
+            if (chanceTimeView && scene === 'field') drawChanceTimeFurukawa(time, groundY);
             drawKoori(time);
             drawVisitor(time, groundY);
             drawBubbles(time);
@@ -2309,21 +2309,21 @@ const Lcd = (() => {
     }
 
     // ----- こおりチャンスタイム (通常時) -----
-    // ともいしが「こおり、チャンスよ！」と飛び出してきて、こおりくんの後ろを応援しながら付いてくる
-    function drawChanceTimeTomoishi(time, groundY) {
+    // ふるカワが「こおりくん、チャンスだよ！」と飛び出してきて、こおりくんの後ろを応援しながら付いてくる (ユーザー指定 2026-10-24: ともいし → ふるカワ)
+    function drawChanceTimeFurukawa(time, groundY) {
         const x = valueAt(koori.x, time) + 8 - COMPANION_GAP * (party.length + 1) - 10;
-        const frame = Math.floor(time / 300) % 2 ? 'shout' : 'idle';
+        const frame = Math.floor(time / 300) % 2 ? 'talk' : 'idle';
         const hop = Math.floor(time / 140) % 2 ? -2 : 0;
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.fillRect(x - 8, groundY - 2, 16, 3);
-        drawSprite(ctx, SPRITES.tomoishi, frame, x - 12, groundY - 18 * 1.5 + hop, 1.5);
-        if (Math.floor(time / 1800) % 3 === 0) text('がんばり！', x, groundY - 40, { color: '#ffe45a', size: 8, align: 'center' });
+        drawSprite(ctx, SPRITES.furukawa, frame, x - 12, groundY - 20 * 1.5 + hop, 1.5);
+        if (Math.floor(time / 1800) % 3 === 0) text('がんばって！', x, groundY - 42, { color: '#ffe45a', size: 8, align: 'center' });
     }
 
     async function chanceTimeStart(event) {
         clearMessage();
         startFlash('#ff8ad8', 500);
-        await playCutIn('tomoishi', 'こおり、チャンスよ！', '#c03a8a', 1300);
+        await playCutIn('furukawa', 'こおりくん、チャンスだよ！', '#c03a8a', 1300);
         chanceTimeView = { games: event.games, remaining: event.games, points: 0 };
         startShake(config.effects.intensity.shakeSmall, 300);
         Sound.fanfare();
