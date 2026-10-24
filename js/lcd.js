@@ -2317,13 +2317,16 @@ const Lcd = (() => {
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.fillRect(x - 8, groundY - 2, 16, 3);
         drawSprite(ctx, SPRITES.furukawa, frame, x - 12, groundY - 20 * 1.5 + hop, 1.5);
-        if (Math.floor(time / 1800) % 3 === 0) text('がんばって！', x, groundY - 42, { color: '#ffe45a', size: 8, align: 'center' });
+        // 吹き出しは 1.8 秒 出して 3.6 秒 休む。出るたびに 次の セリフへ
+        const turn = Math.floor(time / 1800), lines = config.chanceTime.cheerLines;
+        if (turn % 3 === 0) text(lines[(turn / 3) % lines.length], x, groundY - 42, { color: '#ffe45a', size: 8, align: 'center' });
     }
 
     async function chanceTimeStart(event) {
         clearMessage();
         startFlash('#ff8ad8', 500);
-        await playCutIn('furukawa', 'こおりくん、チャンスだよ！', '#c03a8a', 1300);
+        const startLines = config.chanceTime.startLines;
+        await playCutIn('furukawa', startLines[Math.floor(Math.random() * startLines.length)], '#c03a8a', 1300);
         chanceTimeView = { games: event.games, remaining: event.games, points: 0 };
         startShake(config.effects.intensity.shakeSmall, 300);
         Sound.fanfare();
