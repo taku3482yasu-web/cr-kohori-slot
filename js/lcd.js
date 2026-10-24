@@ -201,6 +201,7 @@ const Lcd = (() => {
         letterbox += (letterboxTarget - letterbox) * Math.min(1, dt / 120);
         draw(time);
         drawHotFrame(time);   // 熱いときに 震える 枠 (2026-10-24)
+        drawCrackFx(time);    // プレミア: 液晶が ひび割れて おにおに (2026-10-24)
         requestAnimationFrame(loop);
     }
 
@@ -3189,6 +3190,7 @@ const Lcd = (() => {
     function renderFrame(time = performance.now()) {
         draw(time);
         drawHotFrame(time);
+        drawCrackFx(time);
     }
 
     // ----- 熱いときに 震える 枠 (2026-10-24 ユーザー指定: 映像の 中の 外枠が 震える) -----
@@ -3224,8 +3226,170 @@ const Lcd = (() => {
         ctx.restore();
     }
 
+    // ----- プレミア: 液晶が ひび割れて おにおにが 出てくる (2026-10-24 ユーザー指定。パチンコの 1・3・5 の ひび割れと 同じ 流れ) -----
+    // 確定 (熱さ 6) の ゲームの 一部で、リールが 回る 前に 流す (js/main.js)。CRACK_MS の 時刻 (ミリ秒) で 場面が かわる:
+    //   暗くなる → まっぷたつに ひび割れ → 割れた 左右が ずれて すき間から おにおに → 粉々に 砕ける → 咆哮 → 「確定!!」
+    const CRACK_MS = { dark: 0, crack: 500, split: 1300, smash: 2400, roar: 2900, kakutei: 4000, end: 4800 };
+    const CRACK_PATH = [[0, 0], [-0.025, 0.1], [0.02, 0.19], [-0.016, 0.29], [0.03, 0.38], [-0.012, 0.49], [0.024, 0.58], [-0.02, 0.68], [0.012, 0.78], [-0.008, 0.89], [0, 1]];
+    let crackFx = null;   // { start, snap (割れる 画面の 写し) }
+    function playCrack() {
+        crackFx = { start: performance.now(), snap: null, sounds: new Set() };
+        return sleep(CRACK_MS.end).then(() => { crackFx = null; });
+    }
+    function crackSound(key, fn) {
+        if (crackFx.sounds.has(key)) return;
+        crackFx.sounds.add(key);
+        fn();
+    }
+    function crackPath(k) {
+        const n = CRACK_PATH.length - 1, upto = k * n;
+        ctx.beginPath();
+        ctx.moveTo(W / 2 + CRACK_PATH[0][0] * W, 0);
+        for (let i = 1; i <= n; i++) {
+            const f = Math.min(1, Math.max(0, upto - (i - 1)));
+            if (f <= 0) break;
+            const [x0, y0] = CRACK_PATH[i - 1], [x1, y1] = CRACK_PATH[i];
+            ctx.lineTo(W / 2 + (x0 + (x1 - x0) * f) * W, (y0 + (y1 - y0) * f) * H);
+        }
+    }
+    function drawCrackFx(time) {
+        if (!crackFx) return;
+        const e = time - crackFx.start;
+        const jolt = m => [Math.round((Math.random() * 2 - 1) * m), Math.round((Math.random() * 2 - 1) * m)];
+        if (e < CRACK_MS.crack) {
+            ctx.fillStyle = `rgba(0,0,0,${0.5 * e / CRACK_MS.crack})`;
+            ctx.fillRect(0, 0, W, H);
+            return;
+        }
+        if (e < CRACK_MS.split) {
+            crackSound('crack', () => Sound.premiumCrack());
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(0, 0, W, H);
+            const k = Math.min(1, (e - CRACK_MS.crack) / 450);
+            ctx.save();
+            const [dx, dy] = jolt(k >= 1 ? 2 : 1);
+            ctx.translate(dx, dy);
+            crackPath(k);
+            ctx.strokeStyle = 'rgba(255,40,40,0.8)';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            crackPath(k);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.restore();
+            // 割れる 画面を 写して おく
+            if (!crackFx.snap) {
+                crackFx.snap = document.createElement('canvas');
+                crackFx.snap.width = W;
+                crackFx.snap.height = H;
+            }
+            const g = crackFx.snap.getContext('2d');
+            g.clearRect(0, 0, W, H);
+            g.drawImage(canvas, 0, 0);
+            return;
+        }
+        if (e < CRACK_MS.smash) {
+            // 左右が ずれて、赤い すき間から おにおにが せり上がる
+            const k = (e - CRACK_MS.split) / (CRACK_MS.smash - CRACK_MS.split);
+            const gap = Math.round(Math.min(1, k / 0.35) * 30 + Math.max(0, k - 0.3) * 40);
+            const rise = Math.min(1, Math.max(0, (k - 0.2) / 0.6));
+            ctx.fillStyle = '#140000';
+            ctx.fillRect(0, 0, W, H);
+            const glow = ctx.createLinearGradient(W / 2 - gap - 10, 0, W / 2 + gap + 10, 0);
+            glow.addColorStop(0, 'rgba(255,0,0,0)');
+            glow.addColorStop(0.5, `rgba(255,${90 + Math.floor(60 * Math.sin(time / 50))},40,0.95)`);
+            glow.addColorStop(1, 'rgba(255,0,0,0)');
+            ctx.fillStyle = glow;
+            ctx.fillRect(W / 2 - gap - 10, 0, gap * 2 + 20, H);
+            Characters.drawEnemy(ctx, 'onioni', W / 2, H + 4 + (1 - rise) * 110, { scale: 3, frame: Math.floor(time / 250) % 2 });
+            if (crackFx.snap) {
+                const [dx, dy] = jolt(1 + rise * 2);
+                for (const side of [-1, 1]) {
+                    ctx.save();
+                    ctx.translate(side * gap + dx, dy);
+                    ctx.beginPath();
+                    ctx.moveTo(side < 0 ? -2 : W + 2, 0);
+                    for (const [x, y] of CRACK_PATH) ctx.lineTo(W / 2 + x * W, y * H);
+                    ctx.lineTo(side < 0 ? -2 : W + 2, H);
+                    ctx.closePath();
+                    ctx.save();
+                    ctx.clip();
+                    ctx.drawImage(crackFx.snap, 0, 0);
+                    ctx.restore();
+                    ctx.strokeStyle = '#ffb0a0';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+            if (rise > 0.5) LcdKit.text('グ……', W / 2, 10, { color: '#ff6060', size: 12, align: 'center' });
+            return;
+        }
+        if (e < CRACK_MS.roar) {
+            // 粉々に 砕けて 飛び散る
+            crackSound('smash', () => Sound.premiumSmash());
+            const k = (e - CRACK_MS.smash) / (CRACK_MS.roar - CRACK_MS.smash), q = k * k;
+            ctx.fillStyle = '#200000';
+            ctx.fillRect(0, 0, W, H);
+            if (crackFx.snap) {
+                const cols = 6, rows = 4, cw = W / cols, ch = H / rows;
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const cx = (c + 0.5) * cw, cy = (r + 0.5) * ch;
+                        const vx = (cx - W / 2) * 3.2 + ((r * 7 + c * 13) % 9 - 4) * 12, vy = (cy - H / 2) * 3.2 - 40;
+                        ctx.save();
+                        ctx.globalAlpha = Math.max(0, 1 - k * 1.1);
+                        ctx.translate(cx + vx * q, cy + vy * q + 160 * q * q);
+                        ctx.rotate(((r + c) % 2 ? 1 : -1) * k * 4);
+                        ctx.drawImage(crackFx.snap, cx - cw / 2, cy - ch / 2, cw, ch, -cw / 2, -ch / 2, cw, ch);
+                        ctx.restore();
+                    }
+                }
+            }
+            if (k < 0.3) {
+                ctx.fillStyle = `rgba(255,255,255,${0.9 * (1 - k / 0.3)})`;
+                ctx.fillRect(0, 0, W, H);
+            }
+            return;
+        }
+        if (e < CRACK_MS.kakutei) {
+            // 赤い 画面で おにおにが 咆哮
+            crackSound('roar', () => Sound.premiumRoar());
+            const bg = ctx.createRadialGradient(W / 2, H * 0.55, 6, W / 2, H * 0.55, W * 0.7);
+            bg.addColorStop(0, '#ff4020');
+            bg.addColorStop(0.5, '#801010');
+            bg.addColorStop(1, '#100000');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, W, H);
+            for (let j = 0; j < 3; j++) {
+                const r = ((time / 600 + j / 3) % 1) * W * 0.7;
+                ctx.strokeStyle = `rgba(255,255,255,${0.6 * (1 - r / (W * 0.7))})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(W / 2, H * 0.45, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            const [dx, dy] = jolt(3);
+            Characters.drawEnemy(ctx, 'onioni', W / 2 + dx, H - 2 + dy, { scale: 3.4, frame: 1 });
+            const [tx, ty] = jolt(2);
+            LcdKit.text('グオオオオオ!!', W / 2 + tx, 6 + ty, { color: Math.floor(time / 100) % 2 ? '#ffe066' : '#ffffff', size: 20, align: 'center', outline: '#000' });
+            return;
+        }
+        // 確定!! (虹色の 光)
+        crackSound('kakutei', () => Sound.kakutei());
+        const k = (e - CRACK_MS.kakutei) / (CRACK_MS.end - CRACK_MS.kakutei);
+        if (k < 0.25) {
+            ctx.fillStyle = `rgba(255,255,255,${0.9 * (1 - k / 0.25)})`;
+            ctx.fillRect(0, 0, W, H);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, H / 2 - 18, W, 36);
+        LcdKit.text('確定!!', W / 2, H / 2 - 13, { color: `hsl(${(time / 3) % 360}, 95%, 62%)`, size: 26, align: 'center', outline: '#000' });
+    }
+
     return {
-        init, showMessage, clearMessage, playEvents, renderFrame, setHotFrame, startPreview, stopPreview,
+        init, showMessage, clearMessage, playEvents, renderFrame, setHotFrame, playCrack, startPreview, stopPreview,
         reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, startShake, setCharge, setZencho, noiseFx,
         tokkaLever, tokkaSelectInput, playNotice,
         tokkaSelecting: () => Boolean(tokkaSelect),
