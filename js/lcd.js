@@ -200,6 +200,7 @@ const Lcd = (() => {
         if (isWalking()) scroll += dt * WALK_SPEED;
         letterbox += (letterboxTarget - letterbox) * Math.min(1, dt / 120);
         draw(time);
+        drawHotFrame(time);   // 熱いときに 震える 枠 (2026-10-24)
         requestAnimationFrame(loop);
     }
 
@@ -3187,10 +3188,44 @@ const Lcd = (() => {
     // テスト用: 指定時刻のフレームをその場で描く
     function renderFrame(time = performance.now()) {
         draw(time);
+        drawHotFrame(time);
+    }
+
+    // ----- 熱いときに 震える 枠 (2026-10-24 ユーザー指定: 映像の 中の 外枠が 震える) -----
+    // レバー ON で そのゲームの 熱さが 高ければ、液晶の ふちに 太い 枠を 出して ぶるぶる 震わせる。ゲームが 終わったら 消す。
+    //   level 1 赤 (熱さ 4) / 2 金 (熱さ 5) / 3 虹 (熱さ 6 = 確定)。震えも 段階で 大きく なる
+    let hotFrame = 0;
+    function setHotFrame(level) { hotFrame = level; }
+    function drawHotFrame(time) {
+        if (!hotFrame) return;
+        const mag = hotFrame + 1;
+        const dx = Math.round((Math.random() * 2 - 1) * mag), dy = Math.round((Math.random() * 2 - 1) * mag);
+        const th = 4 + hotFrame;
+        const color = hotFrame >= 3 ? `hsl(${(time / 3) % 360}, 95%, 60%)` : hotFrame === 2 ? '#ffd23a' : '#ff3040';
+        ctx.save();
+        ctx.translate(dx, dy);
+        ctx.globalAlpha = 0.75 + 0.25 * Math.sin(time / 60);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(-4, -4, W + 8, th + 5);
+        ctx.fillRect(-4, H - th - 1, W + 8, th + 5);
+        ctx.fillRect(-4, -4, th + 5, H + 8);
+        ctx.fillRect(W - th - 1, -4, th + 5, H + 8);
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, W, th);
+        ctx.fillRect(0, H - th, W, th);
+        ctx.fillRect(0, 0, th, H);
+        ctx.fillRect(W - th, 0, th, H);
+        // 内側の 光る すじ
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillRect(th, th, W - th * 2, 1);
+        ctx.fillRect(th, H - th - 1, W - th * 2, 1);
+        ctx.fillRect(th, th, 1, H - th * 2);
+        ctx.fillRect(W - th - 1, th, 1, H - th * 2);
+        ctx.restore();
     }
 
     return {
-        init, showMessage, clearMessage, playEvents, renderFrame, startPreview, stopPreview,
+        init, showMessage, clearMessage, playEvents, renderFrame, setHotFrame, startPreview, stopPreview,
         reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, startShake, setCharge, setZencho, noiseFx,
         tokkaLever, tokkaSelectInput, playNotice,
         tokkaSelecting: () => Boolean(tokkaSelect),

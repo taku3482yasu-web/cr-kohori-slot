@@ -121,6 +121,9 @@
         const leverFx = LeverFx.atLever(state, outcome, heat, config);   // レバブル・遅れ・逆回転 (2026-10-24)
         playHypeAtLever(hype);
         playLeverFx(leverFx);
+        // 熱い ゲームは 液晶の 枠が 震える (2026-10-24 ユーザー指定)。熱さ 4 赤 / 5 金 / 6 虹
+        const hf = config.hotFrame;
+        Lcd.setHotFrame(heat >= hf.rainbow ? 3 : heat >= hf.gold ? 2 : heat >= hf.red ? 1 : 0);
         // 図鑑の「レバーの演出」(2026-10-24)
         if (hype.push && hype.push.lever) {
             Collection.seeLever(state, StateMachine.isRashMode(state) ? 'tatakiRash' : 'tataki');
@@ -230,6 +233,7 @@
         const defeated = events.some(e => (e.type === 'questionResult' && !e.continued) || (e.type === 'naiteiResult' && !e.win));
         if (defeated) Bgm.play('defeat');
         await Lcd.playEvents(events);
+        Lcd.setHotFrame(0);
         endIwakan();
         if (Zencho.afterGame(state) || !(state.mode === MODES.NORMAL && state.normal.zone)) setZenchoView(Zencho.active());
         Bgm.setPaused(false);
