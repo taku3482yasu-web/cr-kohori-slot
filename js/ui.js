@@ -639,7 +639,7 @@ const UI = (() => {
         els.colLeverCount.textContent = count(entries.lever.filter(x => lever[x.id]).length, entries.lever.length);
         els.colLever.innerHTML = entries.lever.map(x => {
             const n = lever[x.id] || 0;
-            return `<li class="${n ? '' : 'col-unknown'}"><span class="col-who">レバー</span>` +
+            return `<li class="${n ? '' : 'col-unknown'}"><span class="col-who">${x.premium ? 'プレミア' : 'レバー'}</span>` +
                 `<span class="col-name">${n ? x.name : '？？？'}</span><span class="col-times">${n ? `×${n.toLocaleString()}` : ''}</span></li>`;
         }).join('');
 

@@ -192,7 +192,10 @@
             setTimeout(() => document.body.classList.remove('reel-gyaku'), config.lever.reverse.ms);
         }
         // プレミア (2026-10-24 ユーザー指定): 確定 (熱さ 6) の ゲームの 一部で、液晶が ひび割れて おにおにが 出てくる
-        if (heat >= 6 && Math.random() < config.premiumCrack.rate) await Lcd.playCrack();
+        if (heat >= 6 && Math.random() < config.premiumCrack.rate) {
+            Collection.seeLever(state, 'crack');   // 図鑑と 実績
+            await Lcd.playCrack();
+        }
         spinSound = setInterval(Sound.spin, 200);
         // 押した 位置から 引き込む (取りこぼしなし。Lottery.retarget)
         await Reels.spin(outcome.stops, effects.timing.reelSpinStagger, onStop, (i, press, fixed) => Lottery.retarget(outcome, i, press, fixed, config, { keepLine: Boolean(reach) }),

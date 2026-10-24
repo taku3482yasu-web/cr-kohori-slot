@@ -1069,6 +1069,7 @@ window.GAME_CONFIG = {
             { id: 'tatakiRash', name: '叩け確定', desc: 'RASH 中に「レバーを叩け!!」を見る', stat: 'lever:tatakiRash', value: 1 },
             { id: 'gyaku', name: '逆回転', desc: 'リールの逆回転を見る', stat: 'lever:reverse', value: 1 },
             { id: 'longStop', name: 'ためて止めろ', desc: '長押しの STOP でリールを止める', stat: 'lever:longStop', value: 1 },
+            { id: 'premiumCrack', name: 'ひび割れ', desc: '液晶が ひび割れて おにおにが 出てくる (プレミア) を見る', stat: 'lever:crack', value: 1 },
             { id: 'allLeverFx', name: 'レバー演出マスター', desc: 'レバーの演出を全種類見る', stat: 'leverKinds', value: 'all' }
         ]
     },

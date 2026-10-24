@@ -461,7 +461,9 @@ const Collection = {
                 { id: 'tataki', name: 'レバーを叩け!!' }, { id: 'tatakiRash', name: 'RASH 中の 叩け!! (確定)' }, { id: 'tatakiChange', name: 'PUSH から 叩け!! に 変化' },
                 { id: 'buru', name: 'レバブル' }, { id: 'okure', name: '遅れ' }, { id: 'reverse', name: '逆回転' },
                 { id: 'stopTier', name: 'STOP の 色' }, { id: 'stopRainbow', name: '虹の STOP (確定)' }, { id: 'longStop', name: '長押しの STOP (ため)' },
-                { id: 'pushLong', name: '長押しの PUSH (ため)' }, { id: 'pushMash', name: '連打の PUSH (連撃)' }, { id: 'question', name: '連続予告「？？」' }
+                { id: 'pushLong', name: '長押しの PUSH (ため)' }, { id: 'pushMash', name: '連打の PUSH (連撃)' }, { id: 'question', name: '連続予告「？？」' },
+                // プレミア (2026-10-24): レバーの 演出の 「全種類」には 数えない
+                { id: 'crack', name: '液晶の ひび割れ (プレミア)', premium: true }
             ]
         };
     },
@@ -479,7 +481,7 @@ const Collection = {
             case 'trophyKinds': return kinds(c.trophies);
             case 'endCardKinds': return kinds(c.endCards || {});
             case 'lever': return (c.lever || {})[id] || 0;
-            case 'leverKinds': return kinds(c.lever || {});
+            case 'leverKinds': return kinds(Object.fromEntries(Object.entries(c.lever || {}).filter(([k]) => k !== 'crack')));   // プレミアは 数えない
             case 'furukawaKinds': return Object.keys(c.furukawaLines || {}).length;   // 聞いたセリフだけが入っている (毎ゲーム呼ばれるので軽く)
             default: return c.records[kind] || 0;
         }
@@ -491,7 +493,7 @@ const Collection = {
         if (a.stat === 'furukawaKinds') return Furukawa.catalogSet(config).size;   // 毎ゲーム呼ばれるので一覧を作らない
         const e = this.entries(config);
         return {
-            enemyKinds: e.enemies.length, specialKinds: e.specials.length, trophyKinds: e.trophies.length, endCardKinds: e.endCards.length, leverKinds: e.lever.length
+            enemyKinds: e.enemies.length, specialKinds: e.specials.length, trophyKinds: e.trophies.length, endCardKinds: e.endCards.length, leverKinds: e.lever.filter(x => !x.premium).length
         }[a.stat];
     }
 };
