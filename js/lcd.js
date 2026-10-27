@@ -173,7 +173,8 @@ const Lcd = (() => {
         naiteiZone = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.NAITEI;
         dance = state.mode === MODES.NORMAL && state.normal.dance ? { hype: 0, hypeAt: 0, cp: state.normal.chancePoint } : null;
         const mg = state.mode === MODES.NORMAL && state.normal.mini;
-        miniView = mg && mg.started ? { kind: mg.kind, games: mg.games, remaining: mg.remaining, rainbow: mg.rainbow, msg: null, msgAt: 0 } : null;
+        // 決まって まだ 始まって いない ときも ミニゲームの 画面 (タイトルは 決まった ゲームで 出す)
+        miniView = mg ? { kind: mg.kind, games: mg.games, remaining: mg.remaining, rainbow: mg.rainbow, msg: null, msgAt: 0 } : null;
         chanceTimeView = state.mode === MODES.NORMAL && state.normal.chanceTime ? { ...state.normal.chanceTime } : null;
         NoticeView.clear();
         if (StateMachine.isRashMode(state)) {
@@ -780,8 +781,15 @@ const Lcd = (() => {
         startFlash(event.rainbow ? '#ffffff' : k.color, 300, 0.5);
         if (event.rainbow) Sound.rainbow(); else Sound.chance();
         await sleep(500);
+        // タイトルは 決まった ゲームの うちに 出す (2026-10-27 ユーザー指定)。内部では 次の ゲームが 1G 目なので、
+        // 次の ゲームで タイトルを 出すと 出た とたんに 1G 減って、見た目では 4 回しか 回せなかった
+        await miniIntro({ kind: event.kind, games: k.games, rainbow: event.rainbow });
     }
     async function miniStart(event) {
+        if (miniView) return;   // タイトルは 決まった ゲームで 出した
+        await miniIntro(event);
+    }
+    async function miniIntro(event) {
         const k = config.mini.kinds[event.kind];
         miniView = { kind: event.kind, games: event.games, remaining: event.games, rainbow: event.rainbow, msg: null, msgAt: 0, act: performance.now(), res: null };
         startFlash(k.color, 400);
