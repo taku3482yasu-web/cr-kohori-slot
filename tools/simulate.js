@@ -70,7 +70,7 @@ function simulate(setting, games, overrides) {
         const phase = state.rash.phase;
         const before = state.totalCoinsWon;
         const outcome = Lottery.draw(state, config);
-        const events = GameFlow.onGameEnd(state, outcome, config);
+        const events = GameFlow.playWithCharge(state, outcome, config);   // 長押しの チャージは ためきる として
         const won = state.totalCoinsWon - before;
         s.coinIn += cost;
         s.coinOut += won;

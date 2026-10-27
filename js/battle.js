@@ -187,13 +187,11 @@ const Battle = {
 
         const damage = this.damageFor(outcome.role, config);
         const kill = damage === 'kill';
-        // 撃破率 (2026-10-27): 役・ブレイク・長押しのチャージで上げる。撃破役は 100%
+        // 撃破率 (2026-10-27): 役・ブレイクで上げる。撃破役は 100% (長押しのチャージは PUSH のあと。GameFlow.applyBattleCharge)
         const kr = config.killRate;
         const wasWinning = rash.setWillWin;
-        const charge = !kill && rng() < config.charge.battle.rate;
-        if (charge) events.push({ type: 'charge', scene: 'battle', add: config.charge.battle.add });
-        const add = (kr.add[outcome.role] || 0) + (broke ? kr.breakAdd : 0) + (charge ? config.charge.battle.add : 0);
-        const reason = kill ? 'kill' : charge ? 'charge' : broke ? 'break' : outcome.role;
+        const add = (kr.add[outcome.role] || 0) + (broke ? kr.breakAdd : 0);
+        const reason = kill ? 'kill' : broke ? 'break' : outcome.role;
         const up = this.raiseKillRate(state, kill ? 1 : (rash.killRate ?? 0) + add, reason, rng);
         if (up) events.push(up);
         // 仲間の追加ダメージ (ダメージが入ったときだけ)

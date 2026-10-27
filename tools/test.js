@@ -170,7 +170,7 @@ function play(setting, games, seed) {
                 if (saidEnemy && talk.color === config.furukawa.battleIntro.color) f.intro.hotIntroLine++;
             }
         }
-        const events = GameFlow.onGameEnd(state, outcome, config);
+        const events = GameFlow.playWithCharge(state, outcome, config);   // 長押しの チャージは ためきる として (simulate.js と 同じ)
 
         if (wasBattle && outcome.role === 'chance' && !breakBefore && !outcome.isFreeze) {
             log.chanceBreak.eligible++;
@@ -438,26 +438,44 @@ test('レバーの 演出 (2026-10-24): 叩け！は 熱い ゲームで 出て 
     console.log(`  叩け！ 通常時 ${n.tataki} 回 (熱い ${pct(n.tatakiHot / n.tataki)})・RASH 中 ${n.rashTataki} 回 (確定)・遅れ ${n.okure} 回・逆回転 ${n.reverse} 回・レバブル ${n.buru} 回 (熱い ${pct(n.buruHot / n.buru)})`);
 });
 
-test('撃破率・結果に合わせた PUSH (2026-10-27): 撃破率どおりに勝ち、赤以上の PUSH は 80% 以上・叩け!! は 約90% で 撃破 / 突入。長押しは チャージの ゲームだけ', () => {
+test('撃破率・結果に合わせた PUSH (2026-10-27): 撃破率どおりに勝ち、赤以上の PUSH は 80% 以上・叩け!! は 約90% で 撃破 / 突入。長押しは チャージの ゲームだけで、ためきれなかったら 効果なし', () => {
     const g = loadGame(43);
-    const { config: cfg, Lottery: L, Furukawa: F, Hype: Hy, LeverFx: LF, GameFlow: GF, StateMachine: SM } = g;
+    const { config: cfg, Lottery: L, Furukawa: F, Hype: Hy, LeverFx: LF, GameFlow: GF } = g;
     const state = g.createInitialState(cfg);
     const scenes = { battle: { hot: [0, 0], lever: [0, 0], all: [0, 0] }, castle: { hot: [0, 0], lever: [0, 0], all: [0, 0] } };
     const add = (c, win) => { c[0]++; if (win) c[1]++; };
-    let charges = 0, longs = 0, longBad = 0, rateSum = 0, sets = 0, badRate = 0;
+    const ch = { chances: 0, longs: 0, longBad: 0, done: 0, effects: 0, missedEffects: 0 };
+    let rateSum = 0, sets = 0, badRate = 0;
     for (let i = 0; i < 400000; i++) {
         state.coins = 1e6;
         const o = L.draw(state, cfg);
         const heat = F.canAppear(state, cfg) ? F.heat(state, o, cfg) : 0;
         const planned = LF.tataki(state, Hy.plan(heat, cfg).push, heat, cfg);
-        const events = GF.onGameEnd(state, o, cfg);
+        // main.js と 同じ 順番: 通常時・城突入チャレンジの チャージは 結果を PUSH の あとに、BATTLE は 結果の あとに 決める
+        const scene = GF.drawCharge(state, o, cfg);
+        let events = null, battleCharge = false, ctx;
+        if (scene) ctx = GF.chargePreview(state, o, cfg);
+        else {
+            events = GF.onGameEnd(state, o, cfg);
+            battleCharge = GF.battleChargeChance(state, events, cfg);
+            ctx = { ...Hy.contextOf(events, state), charge: battleCharge };
+        }
+        const push = Hy.reveal(planned, ctx, cfg);
+        const isCharge = Boolean(scene || battleCharge);
+        if (isCharge) ch.chances++;
+        if (push && push.mode === 'long') { ch.longs++; if (!isCharge) ch.longBad++; }
+        const completed = isCharge && Math.random() < 0.5;   // 半分は ためきれなかった ことに する
+        if (completed) ch.done++;
+        if (scene) {
+            o.charged = completed;
+            events = GF.onGameEnd(state, o, cfg);
+        } else if (battleCharge && completed) events.push(...GF.applyBattleCharge(state, cfg));
+        const effect = events.some(e => e.type === 'charge');
+        if (effect) ch.effects++;
+        if (effect && !completed) ch.missedEffects++;
         for (const e of events) {
             if (e.type === 'battleStart') { sets++; rateSum += e.killRate; if (e.killRate < 0 || e.killRate > 1) badRate++; }
-            if (e.type === 'charge') charges++;
         }
-        const ctx = Hy.contextOf(events, state);
-        const push = Hy.reveal(planned, ctx, cfg);
-        if (push && push.mode === 'long') { longs++; if (!ctx.charge) longBad++; }
         if (ctx.win == null || !push) continue;
         const sc = scenes[events.some(e => e.type === 'challengeGame') ? 'castle' : 'battle'];
         add(sc.all, ctx.win);
@@ -465,7 +483,9 @@ test('撃破率・結果に合わせた PUSH (2026-10-27): 撃破率どおりに
         else if (['red', 'gold', 'rainbow'].includes(push.tier)) add(sc.hot, ctx.win);
     }
     assertEqual(badRate, 0, '撃破率は 0〜100%');
-    assert(charges > 100 && longs === charges && longBad === 0, `長押しは チャージの ゲームだけ (チャージ ${charges}・長押し ${longs}・ちがう ${longBad})`);
+    assert(ch.chances > 100 && ch.longs === ch.chances && ch.longBad === 0, `長押しは チャージの ゲームだけ (チャージ ${ch.chances}・長押し ${ch.longs}・ちがう ${ch.longBad})`);
+    assertEqual(ch.missedEffects, 0, 'ためきれなかった チャージは 効果なし');
+    assert(ch.effects > 0.9 * ch.done && ch.effects <= ch.done, `ためきった チャージは 効果あり (ためきった ${ch.done}・効果 ${ch.effects}。通常時は SE城前に 着いた ゲームなどで 出ない ことが ある)`);
     const r = c => c[1] / c[0];
     // RASH の BATTLE は 台を まわして 数える (城突入チャレンジは 回数が 少ないので 下で 突入率ごとに 確かめる)
     const bt = scenes.battle;
@@ -485,7 +505,7 @@ test('撃破率・結果に合わせた PUSH (2026-10-27): 撃破率どおりに
         assert(r(hot) >= 0.785, `勝つ 確率 ${pct(base)} の 赤以上の PUSH ${pct(r(hot))} (80% 以上のはず)`);
         assertBetween(r(lever), 0.885, 0.915, `勝つ 確率 ${pct(base)} の 叩け!! ${pct(r(lever))} (90% のはず)`);
     }
-    console.log(`  セットの 始めの 撃破率の 平均 ${pct(rateSum / sets)} (${sets} セット)・長押しの チャージ ${charges} 回`);
+    console.log(`  セットの 始めの 撃破率の 平均 ${pct(rateSum / sets)} (${sets} セット)・長押しの チャージ ${ch.chances} 回 (ためきった ${ch.done})`);
 });
 
 test('前兆と違和感演出 (A4): 前兆が出たら当たりやすく、違和感は 出たら 本前兆のことが多い。結果は変えない', () => {
@@ -664,7 +684,7 @@ test('とどめの一撃: ガードされたリプレイ・ダイヤ・スイカ
     const sum = (key, role) => runs.reduce((a, r) => a + (r.log.finalBlow[key][role] || 0), 0);
     for (const role of Object.keys(rates)) {
         const guarded = sum('guarded', role);
-        assert(guarded > 1000, `${role} のガードが少ない (${guarded})`);
+        assert(guarded > 500, `${role} のガードが少ない (${guarded})`);   // 2026-10-27: 継続率を 上げて 負けセットが 減ったので 1000 → 500 (割合の 幅は 回数で 決まる)
         const sd = Math.sqrt(rates[role] * (1 - rates[role]) / guarded);
         assertBetween(sum('blows', role) / guarded, rates[role] - 4 * sd, rates[role] + 4 * sd, `${role} のとどめの一撃の割合`);
     }

@@ -49,7 +49,7 @@ const Hype = {
     // PUSH を 選び直す ための、この ゲームの 結果 (reveal の ctx。events は GameFlow.onGameEnd の 返り値)
     //   RASH の BATTLE: 撃破率と そのセットを 勝つか / 城突入チャレンジ: 突入率と 突入したか / 長押しの チャージ
     contextOf(events, state) {
-        const charge = events.some(e => e.type === 'charge');
+        const charge = false;   // 長押しの チャージは GameFlow.drawCharge / battleChargeChance で 決める
         const challenge = events.find(e => e.type === 'challengeGame');
         if (challenge) return { charge, win: challenge.success, base: challenge.rate };
         const dmg = events.find(e => e.type === 'damage' && e.killRate != null);

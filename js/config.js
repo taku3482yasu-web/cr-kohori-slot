@@ -21,12 +21,14 @@ window.GAME_CONFIG = {
     machine: {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
-            1: { chance: 0.86, castleEntry: 0.95, pointBig: 0.94 },
-            2: { chance: 0.87, castleEntry: 0.98, pointBig: 0.98 },   // 2026-10-23 A5: 0.89 → 0.87
-            3: { chance: 0.88, castleEntry: 1.00, pointBig: 1.00 },   // 2026-10-23 A5: 0.92 → 0.88 (設定3 まで 100% 未満)
-            4: { chance: 1.24, castleEntry: 1.25, pointBig: 1.28 },
-            5: { chance: 1.73, castleEntry: 1.76, pointBig: 1.62 },
-            6: { chance: 2.50, castleEntry: 2.55, pointBig: 2.15 }   // 2026-10-23: チャンスタイム追加で上がった分 2.75 / 2.75 から下げた
+            // 2026-10-27: RASH の継続率を 約70% に上げた (ユーザー指定) ぶん、chance / castleEntry を下げて 出玉率を 設定1 約98%・設定3 約100%・設定6 約130% に合わせた
+            //   (前は 1: 0.86 / 0.95、2: 0.87 / 0.98、3: 0.88 / 1.00、4: 1.24 / 1.25、5: 1.73 / 1.76、6: 2.50 / 2.55)
+            1: { chance: 0.63, castleEntry: 0.75, pointBig: 0.94 },
+            2: { chance: 0.66, castleEntry: 0.79, pointBig: 0.98 },
+            3: { chance: 0.69, castleEntry: 0.83, pointBig: 1.00 },
+            4: { chance: 0.97, castleEntry: 1.03, pointBig: 1.28 },
+            5: { chance: 1.30, castleEntry: 1.38, pointBig: 1.62 },
+            6: { chance: 1.76, castleEntry: 1.81, pointBig: 2.15 }
         }
     },
 
@@ -106,7 +108,7 @@ window.GAME_CONFIG = {
         },
         // RASH / BATTLE 中 (リプレイ多めでコインが減りにくい)
         battle: {
-            replay: 1 / 2.2,
+            replay: 1 / 3,      // 2026-10-27: 継続率 約70% に 上げた ぶん、RASH 中の 収支を 下げるため 1/2.2 → 1/3
             bell: 1 / 8,
             diamond: 1 / 15,
             cherry: 1 / 20,
@@ -294,7 +296,7 @@ window.GAME_CONFIG = {
         chanceBoost: 1.5,     // SE城前 (チャレンジ前の待機中) でチャンス目を引いたときの突入率の倍率 (こおりくんが赤いオーラをまとう)
         // 仲間・オーラの倍率がこれより小さいときは、この倍率にする (ユーザー指定: 仲間なし・オーラなしの成功率を少し上げる)。
         // 仲間なし・オーラなしの設定1で約28% → 約31% (出玉率を戻すために下げた設定1〜5 のチャンス目の倍率込み)。やすさんだけ (×1.15) も同じになる
-        minBoost: 1.3
+        minBoost: 1.15        // 2026-10-27: 継続率を 上げた ぶん 1.3 → 1.15
     },
 
     // ----- おにおにRASH -----
@@ -302,8 +304,9 @@ window.GAME_CONFIG = {
         // continueRate: 目標の継続率 (1セットごと。撃破役・役での撃破率 UP・仲間の肩代わり・復活で続くぶんも含めた最終的な値)
         // 2026-10-27 から、セットを勝ちにする確率は キャラごとの 撃破率 (enemies の killRate / superKillRate と config.killRate) で決める
         //   (前の 先決めの確率 presetRate 通常 0.330 / SUPER 0.795 の かわり)。数字を変えたら シミュレーションで 出玉率を 合わせ直す
-        normal: { continueRate: 0.68 },   // おにおにRASH
-        super: { continueRate: 0.91 },    // SUPERおにおにRASH
+        //   2026-10-27 ユーザー指定: 通常の RASH は 約70% (シミュレーターの セット継続率 70.4%)。SUPER は 撃破率を 少し 下げて 約85% (85.3%)
+        normal: { continueRate: 0.70 },   // おにおにRASH
+        super: { continueRate: 0.85 },    // SUPERおにおにRASH
         // BATTLE開始時のゲーム数 (重み付き抽選)
         initialGames: [
             { games: 5, weight: 45 },
@@ -509,7 +512,8 @@ window.GAME_CONFIG = {
     },
 
     // ----- 長押しの チャージ (2026-10-27 ユーザー指定。js/state.js・battle.js) -----
-    // 結果の 前の PUSH が「長押し」に なる ゲームは、ためきる (押さなくても 進めば) と 得を する。長押しに なるかは 台の 抽選 (rate)。
+    // 結果の 前の PUSH が「長押し」に なる ゲームは、ためきる (フルチャージ) と 得を する。ためきれなかったら 何も ない (2026-10-27 ユーザー指定)。
+    //   長押しに なるかは 台の 抽選 (rate。js/state.js の GameFlow.drawCharge / battleChargeChance)。シミュレーターは いつも ためきる として 数える
     //   normal: 通常時 (マップ)。その ゲームの チャンスポイントの 加算が mult 倍
     //   castle: 城突入チャレンジ。その ゲームの 突入率が mult 倍
     //   battle: RASH の BATTLE。撃破率が add 上がる
@@ -550,31 +554,31 @@ window.GAME_CONFIG = {
         {
             id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
             lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！' },
-            weight: 50, superWeight: 40, hp: 60, killRate: 0.23, superKillRate: 0.72,
+            weight: 50, superWeight: 40, hp: 60, killRate: 0.4, superKillRate: 0.66,
             bonus: { type: 'coins', value: 35 }   // 2026-10-23 A5 で BIG・REG を足して 35 → 20 にしたが、BIG・REG を消したので 35 に戻した
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
             lines: { intro: '響きです。', special: 'これが４DXだ！' },
-            weight: 30, superWeight: 25, hp: 90, killRate: 0.19, superKillRate: 0.67,
+            weight: 30, superWeight: 25, hp: 90, killRate: 0.36, superKillRate: 0.61,
             bonus: { type: 'games', value: 5 }
         },
         {
             id: 'shibata', name: 'シバター', special: 'シバタードライバー',
             lines: { intro: 'ぶんぶん！', special: 'バーイ！' },
-            weight: 15, superWeight: 15, hp: 120, killRate: 0.15, superKillRate: 0.62,
+            weight: 15, superWeight: 15, hp: 120, killRate: 0.32, superKillRate: 0.56,
             bonus: { type: 'probUp', value: 1.5, games: 10 }
         },
         {
             id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
             lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。' },
-            weight: 8, superWeight: 12, hp: 150, killRate: 0.11, superKillRate: 0.57,
+            weight: 8, superWeight: 12, hp: 150, killRate: 0.28, superKillRate: 0.51,
             bonus: { type: 'coins', value: 120 }   // 2026-10-23 A5 で 120 → 60 にしたが、BIG・REG を消したので 120 に戻した
         },
         {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
             lines: { special: '金返せ！' },
-            weight: 16, superWeight: 15, hp: 200, killRate: 0.07, superKillRate: 0.47,
+            weight: 16, superWeight: 15, hp: 200, killRate: 0.07, superKillRate: 0.41,
             bonus: { type: 'tokka' },     // 撃破の報酬は上乗せ特化ゾーン (300枚保障。tokka)
             requiresUnlock: true          // 連数が rash.oni.unlockStreak に達するまで出ない (SUPER 中は常に候補)
         }

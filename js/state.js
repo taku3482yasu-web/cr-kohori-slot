@@ -634,8 +634,8 @@ const GameFlow = {
             reason = 'aligned';
         }
         // こおりチャンスタイム中は加算が multiplier 倍
-        // 長押しの チャージ (2026-10-27 ユーザー指定): その ゲームの 加算が charge.normal.mult 倍 (リベンジチャンス中は なし)
-        const charge = !inRevenge && rng() < config.charge.normal.rate;
+        // 長押しの チャージ (2026-10-27 ユーザー指定): ためきれたら その ゲームの 加算が charge.normal.mult 倍 (GameFlow.drawCharge)
+        const charge = Boolean(outcome.charged && outcome.chargeScene === 'normal');
         if (charge) events.push({ type: 'charge', scene: 'normal', mult: config.charge.normal.mult });
         const mult = (normal.chanceTime ? config.chanceTime.multiplier : 1) * (charge ? config.charge.normal.mult : 1);
         const added = (cp.perGame + bonus) * mult;
@@ -850,16 +850,73 @@ const GameFlow = {
         return events;
     },
 
+    // その ゲームの 城突入率 (charged: 長押しの チャージを ためきった)
+    castleRate(state, outcome, config, charged) {
+        if (state.challenge.guaranteed) return 1;
+        return Math.min(1, (config.castle.entryRate[outcome.role] || 0)
+            * MachineSetting.multipliers(state, config).castleEntry
+            * this.castleEntryBoost(state, config) * (charged ? config.charge.castle.mult : 1));
+    },
+
+    // ----- 長押しの チャージ (2026-10-27 ユーザー指定。config.charge) -----
+    // ためきれた (フルチャージ) ときだけ 得を する。ためきれなかったら 何も ない。
+    //   通常時 (マップ)・城突入チャレンジ: レバー ON (結果より 前) に drawCharge で チャージの ゲームか を 決め、
+    //     PUSH の あと outcome.charged (ためきれたか) を つけて onGameEnd
+    //   RASH の BATTLE: 結果の あと battleChargeChance で 決め、ためきれたら applyBattleCharge で 撃破率を 上げる
+    chargeScene(state, config) {
+        const n = state.normal;
+        if (state.mode === MODES.NORMAL) return n.map !== config.map.castle && !n.dance && n.revengeGames <= 0 ? 'normal' : null;
+        if (state.mode === MODES.CASTLE_CHALLENGE) return state.challenge.guaranteed ? null : 'castle';
+        return null;
+    },
+    drawCharge(state, outcome, config, rng = Math.random) {
+        const scene = outcome.isFreeze ? null : this.chargeScene(state, config);
+        outcome.chargeScene = scene && rng() < config.charge[scene].rate ? scene : null;
+        outcome.charged = false;
+        if (outcome.chargeScene === 'castle') outcome.entryRoll = rng();
+        return outcome.chargeScene;
+    },
+    // チャージの ゲームの、ためきれなかった ときの 結果 (PUSH の 色を 選ぶ Hype.reveal の ctx)
+    chargePreview(state, outcome, config) {
+        if (outcome.chargeScene !== 'castle') return { charge: true, win: null };
+        const base = this.castleRate(state, outcome, config, false);
+        return { charge: true, win: state.challenge.guaranteed || outcome.entryRoll < base, base };
+    },
+    // BATTLE: この ゲームの あとも 同じ セットが 続くとき (撃破・撃破役で ない) に、charge.battle.rate で チャージの ゲーム
+    battleChargeChance(state, events, config, rng = Math.random) {
+        const rash = state.rash;
+        if (!StateMachine.isRashMode(state) || !rash.enemyId) return false;
+        if (rash.phase !== RASH_PHASES.BATTLE && rash.phase !== RASH_PHASES.QUESTION) return false;
+        const dmg = events.find(e => e.type === 'damage' && e.killRate != null);
+        if (!dmg || dmg.kill || events.some(e => e.type === 'defeat') || (rash.killRate ?? 0) >= 1) return false;
+        return rng() < config.charge.battle.rate;
+    },
+    applyBattleCharge(state, config, rng = Math.random) {
+        const add = config.charge.battle.add;
+        const up = Battle.raiseKillRate(state, (state.rash.killRate ?? 0) + add, 'charge', rng);
+        return [{ type: 'charge', scene: 'battle', add }, ...(up ? [up] : [])];
+    },
+    // シミュレーター・テスト用: チャージは いつも ためきる (completes) ものとして 1 ゲーム まわす
+    playWithCharge(state, outcome, config, rng = Math.random, completes = true) {
+        this.drawCharge(state, outcome, config, rng);
+        outcome.charged = completes && Boolean(outcome.chargeScene);
+        const events = this.onGameEnd(state, outcome, config, rng);
+        if (this.battleChargeChance(state, events, config, rng)) {
+            events.push({ type: 'chargeChance', scene: 'battle' });
+            if (completes) events.push(...this.applyBattleCharge(state, config, rng));
+        }
+        return events;
+    },
+
     // 城突入チャレンジ: 出目ごとの突入率で毎ゲーム判定。成功でRASHへ、規定ゲーム数で失敗なら通常時へ
     handleCastleChallenge(state, outcome, config, rng) {
         const challenge = state.challenge;
         challenge.gamesRemaining--;
-        // 長押しの チャージ (2026-10-27 ユーザー指定): その ゲームの 突入率が charge.castle.mult 倍
-        const charge = !challenge.guaranteed && rng() < config.charge.castle.rate;
-        const rate = challenge.guaranteed ? 1 : Math.min(1, (config.castle.entryRate[outcome.role] || 0)
-            * MachineSetting.multipliers(state, config).castleEntry
-            * this.castleEntryBoost(state, config) * (charge ? config.charge.castle.mult : 1));
-        const success = challenge.guaranteed || rng() < rate;   // 天井 (A5) は 突入 確定
+        // 長押しの チャージ (2026-10-27 ユーザー指定): ためきれたら その ゲームの 突入率が charge.castle.mult 倍 (GameFlow.drawCharge)
+        const charge = Boolean(outcome.charged && outcome.chargeScene === 'castle');
+        const rate = this.castleRate(state, outcome, config, charge);
+        // チャージの ゲームは、PUSH の 色を 先に 選ぶため 乱数を レバー ON で 引いて おく (entryRoll)
+        const success = challenge.guaranteed || (outcome.entryRoll ?? rng()) < rate;   // 天井 (A5) は 突入 確定
         const events = [];
         if (charge) events.push({ type: 'charge', scene: 'castle', mult: config.charge.castle.mult });
         // rate: この ゲームの 突入率 (PUSH の 色を 選ぶのに 使う。js/hype.js の reveal)

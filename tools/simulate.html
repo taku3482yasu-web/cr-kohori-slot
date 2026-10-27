@@ -41,10 +41,10 @@
     </div>
     <pre id="json" hidden></pre>
 
-    <script src="../js/config.js?v=18f05867"></script>
-    <script src="../js/state.js?v=bb9b195e"></script>
+    <script src="../js/config.js?v=75a232e4"></script>
+    <script src="../js/state.js?v=180f4a98"></script>
     <script src="../js/lottery.js?v=acffe958"></script>
-    <script src="../js/battle.js?v=661b2301"></script>
+    <script src="../js/battle.js?v=e973562e"></script>
     <script src="../js/furukawa.js?v=6222c42e"></script>
     <script>
         // 設定 setting で games ゲーム自動プレイした統計を返す
@@ -60,7 +60,7 @@
                 const mode = state.mode;
                 const before = state.totalCoinsWon;
                 const outcome = Lottery.draw(state, config);
-                const events = GameFlow.onGameEnd(state, outcome, config);
+                const events = GameFlow.playWithCharge(state, outcome, config);   // 長押しの チャージは ためきる として
                 const won = state.totalCoinsWon - before;
                 stats.coinIn += cost;
                 stats.coinOut += won;

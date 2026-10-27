@@ -107,7 +107,10 @@ const PushButton = (() => {
             const k = Math.min(1, (performance.now() - start) / cfg.longMs);
             button.style.setProperty('--progress', String(k));
             Lcd.setCharge(k, color);   // ため の 光
-            if (k >= 1) return finish();
+            if (k >= 1) {
+                active.full = true;   // ためきった (長押しの チャージ。2026-10-27)
+                return finish();
+            }
             requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
@@ -126,7 +129,7 @@ const PushButton = (() => {
     function finish() {
         if (!active) return;
         const { push, resolve, timer } = active;
-        const wasHeld = Boolean(active.held), mashCount = active.count;
+        const wasHeld = Boolean(active.held), mashCount = active.count, full = Boolean(active.full);
         clearTimeout(timer);
         clearTimeout(active.changeTimer);
         if (active.lever) {
@@ -142,10 +145,11 @@ const PushButton = (() => {
         Lcd.startFlash(color === 'rainbow' ? '#ffffff' : color, push.tier === 'rainbow' || push.tier === 'gold' ? 600 : 350);
         // とどめの 文字: フルチャージ!! / 〇連撃フィニッシュ!!
         const shown = color === 'rainbow' ? '#ffffff' : color;
-        if (!push.lever && push.mode === 'long' && active === null && wasHeld) Lcd.showMessage('フルチャージ!!', shown, 900);
+        if (!push.lever && push.mode === 'long' && full) Lcd.showMessage('フルチャージ!!', shown, 900);
+        else if (!push.lever && push.mode === 'long') Lcd.showMessage('チャージ失敗…', '#9fb8d8', 900);
         if (!push.lever && push.mode === 'mash' && mashCount >= cfg.mashCount) Lcd.showMessage(`${mashCount}連撃フィニッシュ!!`, shown, 900);
         Sound.pushHit(push.tier);
-        setTimeout(resolve, 450);
+        setTimeout(() => resolve({ charged: full }), 450);
     }
 
     return { init, wait, hitLever, isActive: () => Boolean(active), leverActive: () => Boolean(active && active.lever) };

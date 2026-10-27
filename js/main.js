@@ -223,16 +223,30 @@
         // チャンス目ごとの演出
         if (outcome.isChance) await Lcd.playChanceEffect(outcome.chanceName);
         // ゲームの 結果を 先に 決めて (液晶・表示は PUSH の あと)、PUSH を 結果に 合わせて 選び直す (2026-10-27。Hype.reveal)
+        //   長押しの チャージ (ためきれたら 得): 通常時・城突入チャレンジは 結果を PUSH の あとに 決める。
+        //   PUSH の 色は ためきれなかった ときの 結果で 選ぶ。BATTLE は 結果の あと、ためきれたら 撃破率 UP
         const coinsBefore = state.coins;
-        const events = GameFlow.onGameEnd(state, outcome, config);
-        hype.push = Hype.reveal(hype.push, Hype.contextOf(events, state), config);
+        const chargeScene = GameFlow.drawCharge(state, outcome, config);
+        let events = null, battleCharge = false, ctx;
+        if (chargeScene) ctx = GameFlow.chargePreview(state, outcome, config);
+        else {
+            events = GameFlow.onGameEnd(state, outcome, config);
+            battleCharge = GameFlow.battleChargeChance(state, events, config);
+            ctx = { ...Hype.contextOf(events, state), charge: battleCharge };
+        }
+        hype.push = Hype.reveal(hype.push, ctx, config);
         // 図鑑の「レバーの演出」(2026-10-24)
         if (hype.push && hype.push.lever) {
             Collection.seeLever(state, inRash ? 'tatakiRash' : 'tataki');
             if (hype.push.leverChange) Collection.seeLever(state, 'tatakiChange');
         } else if (hype.push && hype.push.mode !== 'tap') Collection.seeLever(state, hype.push.mode === 'long' ? 'pushLong' : 'pushMash');
         // PUSH ボタン: 結果の 前に 押す
-        if (hype.push) await PushButton.wait(hype.push);
+        const pushed = hype.push ? await PushButton.wait(hype.push) : null;
+        const charged = Boolean(pushed && pushed.charged);
+        if (chargeScene) {
+            outcome.charged = charged;
+            events = GameFlow.onGameEnd(state, outcome, config);
+        } else if (battleCharge && charged) events.push(...GameFlow.applyBattleCharge(state, config));
         setPayout(Math.max(0, state.coins - coinsBefore));
         if (config.debug) console.log('outcome', outcome, 'events', events);
         refresh();
