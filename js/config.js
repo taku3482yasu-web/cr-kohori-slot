@@ -22,7 +22,7 @@ window.GAME_CONFIG = {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
             // 2026-10-27: 城突入率は 継続率を 上げる 前の 値に 戻した (ユーザー指定)。出玉率は ミニゲーム (config.mini) で 合わせる
-            1: { chance: 0.86, castleEntry: 0.95, pointBig: 0.94 },
+            1: { chance: 0.84, castleEntry: 0.95, pointBig: 0.94 },
             //   チャンス目の 倍率 (chance) は、ミニゲームに 入る 抽選にも 効くので 設定2〜6 を 合わせ直した (前は 0.87 / 0.88 / 1.24 / 1.73 / 2.50)
             2: { chance: 0.90, castleEntry: 0.98, pointBig: 0.98 },
             3: { chance: 0.96, castleEntry: 1.00, pointBig: 1.00 },
@@ -139,7 +139,8 @@ window.GAME_CONFIG = {
     // ----- ミニゲーム (2026-10-27 ユーザー指定。js/state.js の GameFlow.decideMini / miniGame) -----
     // 城突入チャレンジ (SE城前) へは、ミニゲームに 成功して 行く。チャンスポイントは 液晶では「ゲーム数」として 出し、
     // 1G ごとに +1、チャンス目・柄揃い・ポイントチャンス・ダンシングステージ・こおりチャンスタイム・長押しの チャージで ゲーム数を 足す。
-    //   規定の ゲーム数 (chancePoint.threshold) に 届くか、triggers の 役を 引くと (その 確率で) ミニゲームが 決まる。
+    //   規定の ゲーム数 (chancePoint.threshold 150G) で 確定、early.from (100G) から は 1G ごとに early.rate の 確率 (2026-10-27 ユーザー指定)、
+    //   triggers の 役を 引くと (その 確率で) ミニゲームが 決まる。
     //   決まると 液晶の ゲーム数の 数字の 色が 変わり (ミニゲームの 色。虹は 城突入まで 確定)、次の ゲームから ミニゲーム。
     //   kinds: 4 つの ミニゲーム (この 順に 成功しやすい)。games: ゲーム数 / mult: 1G ごとの 成功の 確率 (rates) に かける 倍率
     //   rates: 1G ごとの 成功の 確率の もと (役ごと。1 以上は mult に 関係なく 成功)
@@ -148,6 +149,7 @@ window.GAME_CONFIG = {
     // 数字は Claude が 決めた (出玉率に 合わせた。1 回の 成功率は トイレ探し 約35% < 特訓 約47% < 響かせ 約58% < ふるカワジャッジ 約74%)
     mini: {
         triggers: { chance: 0.35, bar: 0.2, melon: 0.06 },
+        early: { from: 100, rate: 0.01 },   // 100G から 150G までの あいだ、1G ごとに ミニゲームに なる 確率 (規定の ゲーム数と 同じ 扱い。数字は Claude が 決めた)
         kinds: {
             toilet: { name: 'こおりくんのトイレ探しチャレンジ', short: 'トイレ探し', color: '#4f9bff', games: 5, mult: 3.0,
                 success: 'トイレ発見!!', fail: 'まにあわなかった…', miss: ['ここじゃない…', 'あっちかな…？', 'もれそう…!!'] },
@@ -173,7 +175,7 @@ window.GAME_CONFIG = {
                 heaven: { toilet: 5, training: 15, hibiki: 35, judge: 45 }
             }
         },
-        rainbow: { count: 0.035, chance: 0.05 }
+        rainbow: { count: 0.025, chance: 0.05 }
     },
 
     // ----- ポイントチャンス (通常時) -----

@@ -379,10 +379,10 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js?v=09515efd"></script>
+<script src="js/config.js?v=09b554a9"></script>
 <script src="js/sprites.js?v=056d5554"></script>
 <script src="js/characters.js?v=6c8f1bf6"></script>
-<script src="js/state.js?v=004d55ea"></script>
+<script src="js/state.js?v=8c2e4134"></script>
 <script src="js/lottery.js?v=acffe958"></script>
 <script src="js/battle.js?v=e973562e"></script>
 <script>
@@ -439,7 +439,7 @@
 
     // ゲームの流れ
     const cp = c.chancePoint;
-    $('flow-cp').textContent = `ゲーム数が ${cp.threshold}G に到達・チャンス目など`;
+    $('flow-cp').textContent = `${c.mini.early.from}G から抽選・${cp.threshold}G で確定・チャンス目など`;
     $('flow-mini').textContent = `ゲーム数の数字の色が変わったら、次のゲームからミニゲーム（${Object.values(c.mini.kinds).map(k => k.short).join('・')}）。成功すれば SE城前へ！ 虹色なら城突入まで確定！`;
     $('flow-wait').textContent = `SE城が見えてきた！ ${c.castle.waitGames}ゲーム後に城突入チャレンジが始まります。`;
     $('flow-challenge').textContent = `${c.castle.challengeGames}ゲームの間にチャンス目などを引けば城に突入！ 失敗すると通常時に戻ります（ゲーム数は ${pct(c.castle.failKeepRate)} 持ち越し）。`;
@@ -453,14 +453,14 @@
         `1ゲームごとに +${cp.perGame}`,
         `チャンス目で +${cp.onChance}`,
         `柄揃いで追加: ${alignedCp}（7揃いは SE城前へ直行）`,
-        `<b>${cp.threshold}G</b> でミニゲーム（ゲーム数は 0 から数え直し）`,
+        `<b>${c.mini.early.from}G</b> から抽選、<b>${cp.threshold}G</b> で確定でミニゲーム（ゲーム数は 0 から数え直し）`,
         `マップは ${c.map.gamesPerMap}ゲームごとに ${c.map.loop.map(m => c.map.names[m]).join(' → ')} の順に移動`
     ].map(t => `<li>${t}</li>`).join('');
 
     // ミニゲーム (2026-10-27)
     const mk = c.mini.kinds;
     $('mini-list').innerHTML = [
-        `ゲーム数が <b>${cp.threshold}G</b> に届くか、<b>チャンス目</b>（${pct(c.mini.triggers.chance)}）・BAR（${pct(c.mini.triggers.bar)}）・スイカ（${pct(c.mini.triggers.melon)}）を引くと、ミニゲームが決まります`,
+        `ゲーム数が <b>${c.mini.early.from}G</b> を超えると毎ゲーム抽選、<b>${cp.threshold}G</b> で確定。<b>チャンス目</b>（${pct(c.mini.triggers.chance)}）・BAR（${pct(c.mini.triggers.bar)}）・スイカ（${pct(c.mini.triggers.melon)}）を引くと、ミニゲームが決まります`,
         'ミニゲームが決まると <b>ゲーム数の数字の色</b> が変わり、次のゲームから始まります。色は ' +
             Object.values(mk).map(k => `<span style="color:${k.color}">${k.short}</span>`).join(' ＜ ') + '。<b>虹色</b>なら成功して城突入まで確定！',
         `${mk.toilet.games}ゲームのあいだに、引いた役で成功を抽選（チャンス目・7 は成功）。成功すれば SE城前へ`,

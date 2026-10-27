@@ -677,8 +677,9 @@ const GameFlow = {
             events.push(this.goToCastle(state, config));
             return events;
         }
-        // 規定の ゲーム数に 到達 → ミニゲーム (2026-10-27 ユーザー指定。前は SE城前へ)
-        if (normal.chancePoint >= cp.threshold) {
+        // 規定の ゲーム数に 到達 → ミニゲーム (2026-10-27 ユーザー指定。前は SE城前へ)。100G からは 1G ごとに 抽選、150G で 確定
+        const early = config.mini.early;
+        if (normal.chancePoint >= cp.threshold || (!inRevenge && normal.chancePoint >= early.from && rng() < early.rate)) {
             events.push(...this.decideMini(state, config, rng, 'count'));
             return events;
         }
@@ -847,11 +848,12 @@ const GameFlow = {
         const games = m.kinds[kind].games;
         const rainbow = rng() < m.rainbow[trigger];
         const events = [];
+        const at = n.chancePoint;   // 決まったときの ゲーム数
         if (trigger === 'count') n.chancePoint = 0;   // 規定の ゲーム数は 数え直し
         if (n.chanceTime) events.push(this.endChanceTime(state));
         // 虹は 成功 (と 城突入) 確定。どの ゲームで 成功するか (winAt) を 先に 決める
         n.mini = { kind, trigger, rainbow, games, remaining: games, started: false, winAt: rainbow ? 1 + Math.floor(rng() * games) : null };
-        events.push({ type: 'miniDecided', kind, trigger, rainbow });
+        events.push({ type: 'miniDecided', kind, trigger, rainbow, at });
         return events;
     },
 
