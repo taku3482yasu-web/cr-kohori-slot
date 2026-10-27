@@ -21,14 +21,14 @@ window.GAME_CONFIG = {
     machine: {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
-            // 2026-10-27: RASH の継続率を 約70% に上げた (ユーザー指定) ぶん、chance / castleEntry を下げて 出玉率を 設定1 約98%・設定3 約100%・設定6 約130% に合わせた
-            //   (前は 1: 0.86 / 0.95、2: 0.87 / 0.98、3: 0.88 / 1.00、4: 1.24 / 1.25、5: 1.73 / 1.76、6: 2.50 / 2.55)
-            1: { chance: 0.63, castleEntry: 0.75, pointBig: 0.94 },
-            2: { chance: 0.66, castleEntry: 0.79, pointBig: 0.98 },
-            3: { chance: 0.69, castleEntry: 0.83, pointBig: 1.00 },
-            4: { chance: 0.97, castleEntry: 1.03, pointBig: 1.28 },
-            5: { chance: 1.30, castleEntry: 1.38, pointBig: 1.62 },
-            6: { chance: 1.76, castleEntry: 1.81, pointBig: 2.15 }
+            // 2026-10-27: 城突入率は 継続率を 上げる 前の 値に 戻した (ユーザー指定)。出玉率は ミニゲーム (config.mini) で 合わせる
+            1: { chance: 0.86, castleEntry: 0.95, pointBig: 0.94 },
+            //   チャンス目の 倍率 (chance) は、ミニゲームに 入る 抽選にも 効くので 設定2〜6 を 合わせ直した (前は 0.87 / 0.88 / 1.24 / 1.73 / 2.50)
+            2: { chance: 0.90, castleEntry: 0.98, pointBig: 0.98 },
+            3: { chance: 0.96, castleEntry: 1.00, pointBig: 1.00 },
+            4: { chance: 1.15, castleEntry: 1.25, pointBig: 1.28 },
+            5: { chance: 1.45, castleEntry: 1.76, pointBig: 1.62 },
+            6: { chance: 1.85, castleEntry: 2.55, pointBig: 2.15 }
         }
     },
 
@@ -134,6 +134,46 @@ window.GAME_CONFIG = {
             seven: 150        // 規定値と同じ = 7揃いでSE城前へ直行 (規定値を 150 にしたので合わせた)
         },
         threshold: 150        // この値に達するとSE城前へ移動 (2026-10-23 ユーザー指定: 100→150)
+    },
+
+    // ----- ミニゲーム (2026-10-27 ユーザー指定。js/state.js の GameFlow.decideMini / miniGame) -----
+    // 城突入チャレンジ (SE城前) へは、ミニゲームに 成功して 行く。チャンスポイントは 液晶では「ゲーム数」として 出し、
+    // 1G ごとに +1、チャンス目・柄揃い・ポイントチャンス・ダンシングステージ・こおりチャンスタイム・長押しの チャージで ゲーム数を 足す。
+    //   規定の ゲーム数 (chancePoint.threshold) に 届くか、triggers の 役を 引くと (その 確率で) ミニゲームが 決まる。
+    //   決まると 液晶の ゲーム数の 数字の 色が 変わり (ミニゲームの 色。虹は 城突入まで 確定)、次の ゲームから ミニゲーム。
+    //   kinds: 4 つの ミニゲーム (この 順に 成功しやすい)。games: ゲーム数 / mult: 1G ごとの 成功の 確率 (rates) に かける 倍率
+    //   rates: 1G ごとの 成功の 確率の もと (役ごと。1 以上は mult に 関係なく 成功)
+    //   select: どの ミニゲームに なるか の 重み。count: 規定の ゲーム数 / chance: 役 (チャンス目など)。内部の モード (A / B / C / heaven) ごと
+    //   rainbow: 虹 (ミニゲーム 成功 + 城突入 確定) に なる 確率 (count / chance ごと)
+    // 数字は Claude が 決めた (出玉率に 合わせた。1 回の 成功率は トイレ探し 約35% < 特訓 約47% < 響かせ 約58% < ふるカワジャッジ 約74%)
+    mini: {
+        triggers: { chance: 0.35, bar: 0.2, melon: 0.06 },
+        kinds: {
+            toilet: { name: 'こおりくんのトイレ探しチャレンジ', short: 'トイレ探し', color: '#4f9bff', games: 5, mult: 3.0,
+                success: 'トイレ発見!!', fail: 'まにあわなかった…', miss: ['ここじゃない…', 'あっちかな…？', 'もれそう…!!'] },
+            training: { name: 'おにおに特訓チャレンジ', short: 'おにおに特訓', color: '#3fdf6f', games: 5, mult: 4.7,
+                success: '特訓クリア!!', fail: 'つぶれた…', miss: ['まだまだ!!', 'あと 100 回!!', 'ぐぬぬ…'] },
+            hibiki: { name: 'ひびきまくり響かせチャレンジ', short: '響かせ', color: '#c070ff', games: 5, mult: 7.2,
+                success: '響いた!!', fail: '響かなかった…', miss: ['響かない…', 'もっと 大きく!!', 'もう一回!!'] },
+            judge: { name: 'ふるカワジャッジ', short: 'ふるカワジャッジ', color: '#ff3a3a', games: 5, mult: 11.8,
+                success: 'ジャッジ: 合格!!', fail: 'ジャッジ: 不合格…', miss: ['うーん…', 'まだ わからないよ', 'どうしようかな…'] }
+        },
+        rates: { chance: 1, seven: 1, sevenBar: 1, bar: 0.6, melon: 0.35, cherry: 0.2, diamond: 0.08, bell: 0.03, replay: 0.03, miss: 0.02 },
+        select: {
+            count: {
+                A: { toilet: 30, training: 30, hibiki: 25, judge: 15 },
+                B: { toilet: 25, training: 28, hibiki: 27, judge: 20 },
+                C: { toilet: 18, training: 25, hibiki: 30, judge: 27 },
+                heaven: { toilet: 5, training: 15, hibiki: 35, judge: 45 }
+            },
+            chance: {
+                A: { toilet: 20, training: 30, hibiki: 30, judge: 20 },
+                B: { toilet: 15, training: 28, hibiki: 32, judge: 25 },
+                C: { toilet: 10, training: 25, hibiki: 35, judge: 30 },
+                heaven: { toilet: 5, training: 15, hibiki: 35, judge: 45 }
+            }
+        },
+        rainbow: { count: 0.035, chance: 0.05 }
     },
 
     // ----- ポイントチャンス (通常時) -----
@@ -296,7 +336,7 @@ window.GAME_CONFIG = {
         chanceBoost: 1.5,     // SE城前 (チャレンジ前の待機中) でチャンス目を引いたときの突入率の倍率 (こおりくんが赤いオーラをまとう)
         // 仲間・オーラの倍率がこれより小さいときは、この倍率にする (ユーザー指定: 仲間なし・オーラなしの成功率を少し上げる)。
         // 仲間なし・オーラなしの設定1で約28% → 約31% (出玉率を戻すために下げた設定1〜5 のチャンス目の倍率込み)。やすさんだけ (×1.15) も同じになる
-        minBoost: 1.15        // 2026-10-27: 継続率を 上げた ぶん 1.3 → 1.15
+        minBoost: 1.3
     },
 
     // ----- おにおにRASH -----

@@ -89,6 +89,7 @@ const Lcd = (() => {
         hurtUntil: 0
     };
     let killSplash = null;     // 全画面の「撃破率 〇〇%」{ rate, from, start, duration, sub }
+    let miniView = null;       // ミニゲーム中 (2026-10-27) { kind, games, remaining, rainbow, msg, msgAt }
 
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -160,6 +161,8 @@ const Lcd = (() => {
         gateText = null;
         naiteiZone = StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.NAITEI;
         dance = state.mode === MODES.NORMAL && state.normal.dance ? { hype: 0, hypeAt: 0, cp: state.normal.chancePoint } : null;
+        const mg = state.mode === MODES.NORMAL && state.normal.mini;
+        miniView = mg && mg.started ? { kind: mg.kind, games: mg.games, remaining: mg.remaining, rainbow: mg.rainbow, msg: null, msgAt: 0 } : null;
         chanceTimeView = state.mode === MODES.NORMAL && state.normal.chanceTime ? { ...state.normal.chanceTime } : null;
         NoticeView.clear();
         if (StateMachine.isRashMode(state)) {
@@ -255,10 +258,12 @@ const Lcd = (() => {
             const groundY = Backgrounds.get(displayMap).groundY;
             drawParty(time, valueAt(koori.x, time), groundY, 1.5);
             if (chanceTimeView && scene === 'field') drawChanceTimeFurukawa(time, groundY);
+            if (scene === 'field' && miniView) drawMini(time, groundY);
             drawKoori(time);
             drawVisitor(time, groundY);
             drawBubbles(time);
             if (scene === 'field') drawNormalHud(time);
+            if (scene === 'field' && miniView) drawMiniHud(time);
             if (scene === 'field' && chanceTimeView) NoticeView.drawChanceTime(ctx, time, chanceTimeView, config.chanceTime.multiplier);
             if (scene === 'challenge') drawChallengeHud(time);
         }
@@ -429,7 +434,7 @@ const Lcd = (() => {
             text(`+${value}`, x + w / 2, BUBBLE_Y + 6, {
                 color: dim ? '#888' : big ? '#d03020' : '#2050c0', size: 16, align: 'center', outline: null
             });
-            text('CP', x + w - 6, BUBBLE_Y + 16, { color: dim ? '#777' : '#555', size: 10, align: 'right', outline: null });
+            text('G', x + w - 6, BUBBLE_Y + 16, { color: dim ? '#777' : '#555', size: 10, align: 'right', outline: null });
         });
     }
 
@@ -503,21 +508,105 @@ const Lcd = (() => {
         drawCpGauge(time);
     }
 
-    // チャンスポイントのゲージ (右下。ふるカワがしゃべっている間は吹き出しと重ならないよう右上)。
-    // value で表示する値を指定できる (ダンシングステージは結果発表まで増やさない)
+    // ゲーム数 (2026-10-27 ユーザー指定。前の チャンスポイントの ゲージ。右下、ふるカワがしゃべっている間は右上)。
+    //   中身は チャンスポイント (1G ごとに +1、チャンス目などで 足す)。ミニゲームが 決まったら 数字が その 色に 変わる (虹は 城突入 確定)
+    //   value で表示する値を指定できる (ダンシングステージは結果発表まで増やさない)
     function drawCpGauge(time, value = state.normal.chancePoint) {
-        const threshold = config.chancePoint.threshold;
-        const cp = Math.min(value, threshold);
-        const gx = W - 104, gy = FurukawaView.isTalking(time) ? 9 : H - 14, gw = 80, gh = 6;
-        box(gx - 22, gy - 5, gw + 28, 16);
-        text('CP', gx - 18, gy - 4, { color: '#9fe6ff', size: 10, outline: null });
-        ctx.fillStyle = '#1a2a3a';
-        ctx.fillRect(gx, gy, gw, gh);
-        const full = cp >= threshold;
-        ctx.fillStyle = full ? (Math.floor(time / 150) % 2 ? '#ffd700' : '#fff') : '#5ad0ff';
-        ctx.fillRect(gx, gy, Math.round(gw * cp / threshold), gh);
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.fillRect(gx, gy, Math.round(gw * cp / threshold), 1);
+        const label = `${Math.floor(Math.min(value, config.chancePoint.threshold))}G`;
+        const size = 14;
+        const tw = textWidth(label, size);
+        const bx = W - tw - 14, by = FurukawaView.isTalking(time) ? 4 : H - 22;
+        const mg = state.mode === MODES.NORMAL ? state.normal.mini : null;
+        const color = !mg ? '#ffffff' : mg.rainbow ? killRateColor(1, time, bx + 5, bx + 5 + tw) : config.mini.kinds[mg.kind].color;
+        box(bx, by, tw + 10, 18, 'rgba(0,0,0,0.6)', mg ? (mg.rainbow ? '#ffffff' : config.mini.kinds[mg.kind].color) : '#5a7a9a');
+        text(label, bx + 5, by + 2, { color, size });
+    }
+
+    // ----- ミニゲーム (2026-10-27 ユーザー指定。config.mini・GameFlow.miniGame) -----
+    // 右上に 名前と 残りゲームの ランプ、下に ひとこと
+    function drawMiniHud(time) {
+        const k = config.mini.kinds[miniView.kind];
+        const color = miniView.rainbow ? killRateColor(1, time) : k.color;
+        const bw = Math.max(110, textWidth(k.short, 10) + 16), bx = W - bw - 4;
+        box(bx, 4, bw, 32, 'rgba(0,0,0,0.8)', color);
+        text(k.short, bx + bw / 2, 6, { color, size: 10, align: 'center', outline: null });
+        const n = miniView.games, lampW = 12, gap = 4;
+        const startX = bx + (bw - (lampW * n + gap * (n - 1))) / 2;
+        const blink = Math.floor(time / 250) % 2;
+        for (let i = 0; i < n; i++) {
+            const lit = i < miniView.remaining;
+            ctx.fillStyle = lit ? (i === miniView.remaining - 1 && blink ? '#ffffff' : color) : '#2a2a30';
+            ctx.fillRect(startX + i * (lampW + gap), 22, lampW, 8);
+        }
+        if (miniView.msg && time - miniView.msgAt < 1500) text(miniView.msg, W / 2, H - 22, { color: '#ffffff', size: 12, align: 'center' });
+        else text(`あと${miniView.remaining}G`, W / 2, H - 22, { color, size: 12, align: 'center' });
+    }
+    // ミニゲームの 相手・道具: トイレ探しは トイレの とびら、特訓は おにおに、響かせは ひびきまくり (ふるカワジャッジは 吹き出し)
+    function drawMini(time, groundY) {
+        const x = W - 70, frame = Math.floor(time / 400) % 2;
+        if (miniView.kind === 'toilet') {
+            const sway = Math.round(Math.sin(time / 300) * 2);
+            ctx.fillStyle = '#6a4a2a';
+            ctx.fillRect(x - 14 + sway, groundY - 44, 28, 44);
+            ctx.fillStyle = '#8a6a40';
+            ctx.fillRect(x - 11 + sway, groundY - 41, 22, 38);
+            text('WC', x + sway, groundY - 34, { color: '#9fe6ff', size: 10, align: 'center' });
+            text('?', x + sway, groundY - 60, { color: '#ffe45a', size: 14, align: 'center' });
+        } else if (miniView.kind === 'training') {
+            Characters.drawEnemy(ctx, 'onioni', x, groundY, { scale: 1.2, frame, flip: true });
+        } else if (miniView.kind === 'hibiki') {
+            Characters.drawEnemy(ctx, 'hibikimakuri', x, groundY, { scale: 1.2, frame, flip: true });
+            const r = 6 + ((time / 8) % 30);
+            ctx.strokeStyle = `rgba(192,112,255,${1 - r / 36})`;
+            ctx.beginPath();
+            ctx.arc(x, groundY - 40, r, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+    }
+    async function miniDecided(event) {
+        // 数字の 色が 変わる (ゲーム数の 表示が state を 見て 色を 変える)。ちいさく 光って 知らせる
+        const k = config.mini.kinds[event.kind];
+        startFlash(event.rainbow ? '#ffffff' : k.color, 300, 0.5);
+        if (event.rainbow) Sound.rainbow(); else Sound.chance();
+        await sleep(500);
+    }
+    async function miniStart(event) {
+        const k = config.mini.kinds[event.kind];
+        miniView = { kind: event.kind, games: event.games, remaining: event.games, rainbow: event.rainbow, msg: null, msgAt: 0 };
+        startFlash(k.color, 400);
+        Sound.chance();
+        showTitle(k.name, event.rainbow ? '城突入 確定!!' : `${event.games}G 以内に 成功させろ!!`, event.rainbow ? '#ffd700' : k.color, 1800);
+        if (event.kind === 'judge') FurukawaView.show({ text: 'わたしが ジャッジするよ！', color: 4, heat: 4 });
+        await sleep(1800);
+    }
+    async function miniGameFx(event) {
+        if (!miniView) return;
+        miniView.remaining = event.remaining;
+        if (event.success || event.remaining <= 0) return;
+        const k = config.mini.kinds[event.kind];
+        const msg = k.miss[Math.floor(Math.random() * k.miss.length)];
+        if (event.kind === 'judge') FurukawaView.show({ text: msg, color: 4, heat: 3 });
+        else {
+            miniView.msg = msg;
+            miniView.msgAt = performance.now();
+        }
+        await sleep(400);
+    }
+    async function miniResult(event) {
+        const k = config.mini.kinds[event.kind];
+        if (event.success) {
+            startFlash(event.rainbow ? '#ffffff' : k.color, 600);
+            startShake(config.effects.intensity.shakeLarge, 400);
+            Sound.fanfare();
+            showTitle(k.success, event.rainbow ? '城突入 確定!!' : 'SE城へ いそげ!!', event.rainbow ? '#ffd700' : k.color, 1800);
+            if (event.kind === 'judge') FurukawaView.show({ text: '合格！！ いってらっしゃい！', color: 5, heat: 5 });
+            await sleep(1800);
+        } else {
+            Sound.miss();
+            showTitle(k.fail, null, '#9fb8d8', 1500);
+            await sleep(1500);
+        }
+        miniView = null;
     }
 
     // リベンジチャンス: 赤い縁取りと残りゲーム数のランプ
@@ -897,7 +986,7 @@ const Lcd = (() => {
         if (event.scene === 'battle') return;
         startFlash('#ffd700', 300);
         Sound.chance();
-        showTitle(event.scene === 'castle' ? `チャージ!! 突入率 ×${event.mult}` : `チャージ!! ポイント ×${event.mult}`, null, '#ffd700', 1100);
+        showTitle(event.scene === 'castle' ? `チャージ!! 突入率 ×${event.mult}` : `チャージ!! ゲーム数 ×${event.mult}`, null, '#ffd700', 1100);
         await sleep(1100);
     }
 
@@ -1663,7 +1752,7 @@ const Lcd = (() => {
         startFlash(DANCE_PINK, 500);
         startShake(config.effects.intensity.shakeSmall, 300);
         Sound.fanfare();
-        showTitle('ダンシングステージ!!', 'ポイント増加 or チャンスゾーン突入!?', DANCE_PINK, 2200);
+        showTitle('ダンシングステージ!!', 'ゲーム数アップ or チャンスゾーン突入!?', DANCE_PINK, 2200);
         await sleep(2200);
     }
 
@@ -1710,7 +1799,7 @@ const Lcd = (() => {
         if (dance) dance.cp = event.total;
         startFlash('#7fe0ff', 500);
         Sound.win();
-        showTitle(`+${event.points} ポイント!!`, `チャンスポイント ${event.total} / ${config.chancePoint.threshold}`, '#7fe0ff', 2000);
+        showTitle(`+${event.points}G!!`, `ゲーム数 ${event.total}G`, '#7fe0ff', 2000);
         await sleep(2000);
         if (event.total >= config.chancePoint.threshold) return;   // 規定値に到達: このあと SE城前へ
         await playWipe(true, 300);
@@ -1846,7 +1935,7 @@ const Lcd = (() => {
         } else {
             Sound.win();
         }
-        popups.push({ text: `+${event.amount} CP`, color: big ? '#ffd700' : '#9fe6ff', born: performance.now() });
+        popups.push({ text: `+${event.amount}G`, color: big ? '#ffd700' : '#9fe6ff', born: performance.now() });
         await sleep(1100);
         bubbles = null;
     }
@@ -2418,14 +2507,14 @@ const Lcd = (() => {
         chanceTimeView = { games: event.games, remaining: event.games, points: 0 };
         startShake(config.effects.intensity.shakeSmall, 300);
         Sound.fanfare();
-        showTitle('こおりチャンスタイム!!', `${event.games}G のあいだ ポイント${event.multiplier}倍！`, '#ff8ad8', 2000);
+        showTitle('こおりチャンスタイム!!', `${event.games}G のあいだ ゲーム数${event.multiplier}倍！`, '#ff8ad8', 2000);
         await sleep(2000);
     }
 
     async function chanceTimeEnd(event) {
         chanceTimeView = null;
         Sound.win();
-        showTitle('チャンスタイム終了', `チャンスタイムで +${event.points} CP`, '#ff8ad8', 1500);
+        showTitle('チャンスタイム終了', `チャンスタイムで +${event.points}G`, '#ff8ad8', 1500);
         await sleep(1500);
     }
 
@@ -2556,7 +2645,7 @@ const Lcd = (() => {
     }
 
     async function challengeFail(event) {
-        showTitle('突入失敗…', `CP ${event.keptCp} を持ち越し`, '#9fb8d8', 1600);
+        showTitle('突入失敗…', `ゲーム数 ${event.keptCp}G を持ち越し`, '#9fb8d8', 1600);
         await sleep(1600);
         scene = 'field';
     }
@@ -3130,11 +3219,23 @@ const Lcd = (() => {
                         const label = event.reason === 'chance' ? 'CHANCE' : 'BONUS';
                         popups.push({ text: `${label} +${event.bonus}`, color: '#ffe45a', born: performance.now() });
                     } else if (event.multiplier > 1) {
-                        popups.push({ text: `+${event.added} CP`, color: '#ff8ad8', born: performance.now() });
+                        popups.push({ text: `+${event.added}G`, color: '#ff8ad8', born: performance.now() });
                     }
                     break;
                 case 'chanceTimeStart':
                     await chanceTimeStart(event);
+                    break;
+                case 'miniDecided':
+                    await miniDecided(event);
+                    break;
+                case 'miniStart':
+                    await miniStart(event);
+                    break;
+                case 'miniGame':
+                    await miniGameFx(event);
+                    break;
+                case 'miniResult':
+                    await miniResult(event);
                     break;
                 case 'chanceTimeGame':
                     if (chanceTimeView) {

@@ -160,6 +160,7 @@ function createInitialState(config, rng = Math.random) {
             revengeGames: 0,       // リベンジチャンスの残りゲーム数 (RASH 終了後)
             revengeCarry: null,    // リベンジで引き継ぐもの { defeatCount, oniUnlocked, wasSuper } (終わった RASH のもの)
             dance: null,           // ダンシングステージ { games, gamesRemaining, points, zone }
+            mini: null,            // ミニゲーム { kind, trigger, rainbow, games, remaining, started, winAt } (2026-10-27)
             gameMode: null,        // モード A / B / C / heaven (A5。RASH が 終わったときに 抽選。はじめは 最初の ゲームで)
             zone: null,            // いまの ゾーン { at, end, fireAt (SE城前へ 直行する ゲーム数。外れは null) }
             ceilingHit: false,     // 天井に 着いた
@@ -592,6 +593,7 @@ const GameFlow = {
         }
 
         if (normal.dance) return [...modePrefix, ...this.danceGame(state, outcome, config, rng)];
+        if (normal.mini) return [...modePrefix, ...this.miniGame(state, outcome, config, rng)];
 
         const events = [...modePrefix];
         const cp = config.chancePoint;
@@ -669,10 +671,21 @@ const GameFlow = {
             events.push(...challenge);
         }
 
-        // 規定値に到達 → SE城前へ (こおりチャンスタイムはここで終わり)
-        if (normal.chancePoint >= cp.threshold) {
+        // 7揃いは 前と 同じく SE城前へ 直行 (ミニゲームは なし)
+        if (outcome.aligned && outcome.role === 'seven') {
             if (normal.chanceTime) events.push(this.endChanceTime(state));
             events.push(this.goToCastle(state, config));
+            return events;
+        }
+        // 規定の ゲーム数に 到達 → ミニゲーム (2026-10-27 ユーザー指定。前は SE城前へ)
+        if (normal.chancePoint >= cp.threshold) {
+            events.push(...this.decideMini(state, config, rng, 'count'));
+            return events;
+        }
+        // 役で ミニゲーム (チャンス目など。リベンジチャンス中は なし)
+        const miniRate = config.mini.triggers[outcome.role] || 0;   // 抽選の ない 役では 乱数を 引かない
+        if (!inRevenge && miniRate > 0 && rng() < miniRate) {
+            events.push(...this.decideMini(state, config, rng, 'chance'));
             return events;
         }
 
@@ -714,6 +727,7 @@ const GameFlow = {
             events.push({ type: 'ceiling', games: g, who: rng() < m.aruaruCeilingRate ? 'aruaru' : 'nainai' });
             if (atCastle) return { events, go: false };
             n.dance = null;
+            n.mini = null;
             events.push(this.goToCastle(state, config));
             return { events, go: true };
         }
@@ -729,7 +743,7 @@ const GameFlow = {
             events.push({ type: 'zoneEnd' });
         }
         // 当たりの ゲームが 来たら SE城前へ 直行 (SE城前・ダンシングステージ中なら 終わってから)
-        if (n.zone && n.zone.fireAt !== null && g >= n.zone.fireAt && !atCastle && !n.dance) {
+        if (n.zone && n.zone.fireAt !== null && g >= n.zone.fireAt && !atCastle && !n.dance && !n.mini) {
             n.zone = null;
             events.push({ type: 'zoneHit' });
             events.push(this.goToCastle(state, config));
@@ -820,7 +834,50 @@ const GameFlow = {
         }
         normal.chancePoint = Math.min(cp.threshold, normal.chancePoint + dance.points);
         events.push({ type: 'danceEnd', zone: false, points: dance.points, total: normal.chancePoint });
-        if (normal.chancePoint >= cp.threshold) events.push(this.goToCastle(state, config));
+        if (normal.chancePoint >= cp.threshold) events.push(...this.decideMini(state, config, rng, 'count'));
+        return events;
+    },
+
+    // ----- ミニゲーム (2026-10-27 ユーザー指定。config.mini) -----
+    // ミニゲームを 決める (液晶の ゲーム数の 色が 変わる)。次の ゲームから 始まる。trigger: 'count' 規定の ゲーム数 / 'chance' 役
+    decideMini(state, config, rng, trigger) {
+        const n = state.normal, m = config.mini;
+        const weights = m.select[trigger][n.gameMode || 'A'];
+        const kind = Lottery.weightedPick(Object.entries(weights), ([, w]) => w, rng)[0];
+        const games = m.kinds[kind].games;
+        const rainbow = rng() < m.rainbow[trigger];
+        const events = [];
+        if (trigger === 'count') n.chancePoint = 0;   // 規定の ゲーム数は 数え直し
+        if (n.chanceTime) events.push(this.endChanceTime(state));
+        // 虹は 成功 (と 城突入) 確定。どの ゲームで 成功するか (winAt) を 先に 決める
+        n.mini = { kind, trigger, rainbow, games, remaining: games, started: false, winAt: rainbow ? 1 + Math.floor(rng() * games) : null };
+        events.push({ type: 'miniDecided', kind, trigger, rainbow });
+        return events;
+    },
+
+    // ミニゲームの 1 ゲーム: 役ごとの 成功の 確率 (rates × mult)。成功したら SE城前へ (虹は 城突入 確定)、games ゲームで 失敗
+    miniGame(state, outcome, config, rng) {
+        const n = state.normal, mg = n.mini, m = config.mini, k = m.kinds[mg.kind];
+        const events = [];
+        if (!mg.started) {
+            mg.started = true;
+            events.push({ type: 'miniStart', kind: mg.kind, games: mg.games, rainbow: mg.rainbow });
+        }
+        mg.remaining--;
+        const index = mg.games - mg.remaining;
+        const base = m.rates[outcome.role] ?? m.rates.miss;
+        const rate = base >= 1 ? 1 : Math.min(1, base * k.mult);
+        const success = mg.winAt ? index >= mg.winAt : rng() < rate;
+        events.push({ type: 'miniGame', kind: mg.kind, role: outcome.role, remaining: mg.remaining, success, rate });
+        if (success) {
+            n.mini = null;
+            if (mg.rainbow) state.challenge.guaranteed = true;
+            events.push({ type: 'miniResult', kind: mg.kind, success: true, rainbow: mg.rainbow });
+            events.push(this.goToCastle(state, config));
+        } else if (mg.remaining <= 0) {
+            n.mini = null;
+            events.push({ type: 'miniResult', kind: mg.kind, success: false });
+        }
         return events;
     },
 
@@ -865,7 +922,7 @@ const GameFlow = {
     //   RASH の BATTLE: 結果の あと battleChargeChance で 決め、ためきれたら applyBattleCharge で 撃破率を 上げる
     chargeScene(state, config) {
         const n = state.normal;
-        if (state.mode === MODES.NORMAL) return n.map !== config.map.castle && !n.dance && n.revengeGames <= 0 ? 'normal' : null;
+        if (state.mode === MODES.NORMAL) return n.map !== config.map.castle && !n.dance && !n.mini && n.revengeGames <= 0 ? 'normal' : null;
         if (state.mode === MODES.CASTLE_CHALLENGE) return state.challenge.guaranteed ? null : 'castle';
         return null;
     },

@@ -182,9 +182,14 @@
         <div class="flow">
             <div class="step normal">
                 <h4>① 通常時（通学路 → 遠賀川 → 恵比寿町）</h4>
-                <p>1ゲームごとにチャンスポイント（CP）が貯まります。チャンス目や柄揃い、ポイントチャンスで一気に増えることも。</p>
+                <p>液晶の右下の <b>ゲーム数</b> が 1ゲームごとに増えます。チャンス目や柄揃い、ポイントチャンスで一気に増えることも。</p>
             </div>
             <div class="arrow" id="flow-cp"></div>
+            <div class="step normal">
+                <h4>ミニゲーム</h4>
+                <p id="flow-mini"></p>
+            </div>
+            <div class="arrow">ミニゲーム成功</div>
             <div class="step castle">
                 <h4>② SE城前</h4>
                 <p id="flow-wait"></p>
@@ -209,8 +214,11 @@
 
     <section id="normal">
         <h2>通常時</h2>
-        <h3>チャンスポイント（CP）</h3>
+        <h3>ゲーム数</h3>
         <ul id="cp-list"></ul>
+        <h3>ミニゲーム</h3>
+        <ul id="mini-list"></ul>
+        <div class="table-wrap"><table id="mini-table"></table></div>
         <h3>ポイントチャンス</h3>
         <p id="pc-text"></p>
         <div class="table-wrap"><table id="pc-table"></table></div>
@@ -371,10 +379,10 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js?v=75a232e4"></script>
+<script src="js/config.js?v=09515efd"></script>
 <script src="js/sprites.js?v=056d5554"></script>
 <script src="js/characters.js?v=6c8f1bf6"></script>
-<script src="js/state.js?v=180f4a98"></script>
+<script src="js/state.js?v=004d55ea"></script>
 <script src="js/lottery.js?v=acffe958"></script>
 <script src="js/battle.js?v=e973562e"></script>
 <script>
@@ -431,9 +439,10 @@
 
     // ゲームの流れ
     const cp = c.chancePoint;
-    $('flow-cp').textContent = `CP が ${cp.threshold} に到達`;
+    $('flow-cp').textContent = `ゲーム数が ${cp.threshold}G に到達・チャンス目など`;
+    $('flow-mini').textContent = `ゲーム数の数字の色が変わったら、次のゲームからミニゲーム（${Object.values(c.mini.kinds).map(k => k.short).join('・')}）。成功すれば SE城前へ！ 虹色なら城突入まで確定！`;
     $('flow-wait').textContent = `SE城が見えてきた！ ${c.castle.waitGames}ゲーム後に城突入チャレンジが始まります。`;
-    $('flow-challenge').textContent = `${c.castle.challengeGames}ゲームの間にチャンス目などを引けば城に突入！ 失敗すると通常時に戻ります（CP は ${pct(c.castle.failKeepRate)} 持ち越し）。`;
+    $('flow-challenge').textContent = `${c.castle.challengeGames}ゲームの間にチャンス目などを引けば城に突入！ 失敗すると通常時に戻ります（ゲーム数は ${pct(c.castle.failKeepRate)} 持ち越し）。`;
     $('flow-rash').textContent = `敵と BATTLE してコインを増やすモード。継続率 ${pct(c.rash.normal.continueRate)}。敵を倒すとボーナス。${c.rash.oni.unlockStreak}連するとおにおにが現れ、連するほど出やすく、${c.rash.oni.maxStreak}連からはずっと${pct(c.rash.oni.maxRate)}！ おにおにを倒すと上乗せ特化ゾーン（${c.tokka.games}G・${c.tokka.min}枚保障・最大${c.tokka.max}枚。${Object.values(c.tokka.names).join('・')}から好きな演出を選べる）。ほかの敵を倒したときもまれに突入。`;
     $('flow-super').textContent = `継続率 ${pct(c.rash.super.continueRate)}！ ごくまれに「ゴールド金面犬」が現れ、倒すと ${c.goldDog.bonus.value}枚！`;
 
@@ -444,9 +453,21 @@
         `1ゲームごとに +${cp.perGame}`,
         `チャンス目で +${cp.onChance}`,
         `柄揃いで追加: ${alignedCp}（7揃いは SE城前へ直行）`,
-        `<b>${cp.threshold}</b> ポイントで SE城前へ`,
+        `<b>${cp.threshold}G</b> でミニゲーム（ゲーム数は 0 から数え直し）`,
         `マップは ${c.map.gamesPerMap}ゲームごとに ${c.map.loop.map(m => c.map.names[m]).join(' → ')} の順に移動`
     ].map(t => `<li>${t}</li>`).join('');
+
+    // ミニゲーム (2026-10-27)
+    const mk = c.mini.kinds;
+    $('mini-list').innerHTML = [
+        `ゲーム数が <b>${cp.threshold}G</b> に届くか、<b>チャンス目</b>（${pct(c.mini.triggers.chance)}）・BAR（${pct(c.mini.triggers.bar)}）・スイカ（${pct(c.mini.triggers.melon)}）を引くと、ミニゲームが決まります`,
+        'ミニゲームが決まると <b>ゲーム数の数字の色</b> が変わり、次のゲームから始まります。色は ' +
+            Object.values(mk).map(k => `<span style="color:${k.color}">${k.short}</span>`).join(' ＜ ') + '。<b>虹色</b>なら成功して城突入まで確定！',
+        `${mk.toilet.games}ゲームのあいだに、引いた役で成功を抽選（チャンス目・7 は成功）。成功すれば SE城前へ`,
+        'どのミニゲームになるかは、チャンス目で決まったか・内部のモードで変わります（チャンス目のほうが良いミニゲームになりやすい）'
+    ].map(t => `<li>${t}</li>`).join('');
+    table('mini-table', ['ミニゲーム', '成功しやすさ'],
+        Object.values(mk).map((k, i) => [`<span style="color:${k.color}">${k.name}</span>`, ['★', '★★', '★★★', '★★★★'][i]]));
 
     const pc = c.pointChance;
     $('pc-text').innerHTML = `通常時に <b>${odds(pc.rate)}</b> で発生。こおりくんが「少ないポイント」（${pc.small.map(v => '+' + v).join(' / ')}）と` +

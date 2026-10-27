@@ -119,7 +119,7 @@ const NoticeView = (() => {
             ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
         }
         ctx.globalAlpha = 1;
-        const label = `CHANCE TIME  残り${ct.remaining}G  ポイント×${multiplier}`;
+        const label = `CHANCE TIME  残り${ct.remaining}G  ゲーム数×${multiplier}`;
         const bw = K.textWidth(label, 10) + 14;
         const blink = Math.floor(time / 300) % 2;
         K.box(Math.round((W - bw) / 2), 22, bw, 15, 'rgba(90,0,60,0.85)', blink ? '#ffe45a' : '#ff8ad8');
