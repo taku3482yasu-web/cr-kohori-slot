@@ -37,7 +37,7 @@ const Hype = {
         return {
             heat,
             cutin,
-            cutinWho: cutin ? this.castFor(cutin, config, rng) : null,
+            cutinWho: cutin ? this.castFor(cutin, config, rng, heat) : null,
             sakibare: rng() < at(h.sakibareRates),
             kakutei: heat >= 6 && rng() < h.kakuteiRate,
             gold: rng() < at(h.goldRates),
@@ -101,9 +101,10 @@ const Hype = {
         return out;
     },
 
-    // カットインに 出る キャラと セリフ (色ごとの 顔ぶれから。キャラで 期待度は 変わらない)
-    castFor(tier, config, rng) {
-        const list = config.hype.cast[tier];
+    // カットインに 出る キャラと セリフ (色ごとの 顔ぶれから)。minHeat の ある キャラは その 熱さ 以上 だけ
+    //   (2026-10-27 ユーザー指定: こおりくんの「大チャンス!!」は 熱い ゲームだけ = 期待度 UP)
+    castFor(tier, config, rng, heat = 6) {
+        const list = config.hype.cast[tier].filter(c => heat >= (c.minHeat || 0));
         return list[Math.floor(rng() * list.length)];
     }
 };

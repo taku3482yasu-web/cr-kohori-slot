@@ -197,6 +197,21 @@ const Lottery = {
 
     // 2本止まった時点のリーチ: 止まった2本で同じ図柄が並ぶラインを探す
     // 当たるラインなら図柄に関係なく、それ以外は effects.reachSymbols の図柄だけリーチにする
+    // リーチ (2026-10-27): 止まった 2 つの リールで 同じ リーチの 絵柄 (effects.reachSymbols) が 並んだ ライン ぜんぶ。
+    //   揃う ラインかどうかで 選ばない (先に 揃う 役が わからないように)。絵柄ごとに 1 つ、強い 絵柄から 順に
+    findReaches(outcome, stoppedReels, config) {
+        const reachSymbols = config.effects.reachSymbols;
+        const list = [];
+        LINES.forEach((line, li) => {
+            const [a, b] = stoppedReels.map(reel => outcome.grid[reel][line.rows[reel]]);
+            if (a !== b || !reachSymbols.includes(a)) return;
+            const same = list.find(r => r.symbol === a);
+            if (same) same.lines.push(li);
+            else list.push({ symbol: a, line: li, lines: [li], lineName: line.name, rank: reachSymbols.indexOf(a) });
+        });
+        return list.sort((x, y) => x.rank - y.rank);
+    },
+
     findReach(outcome, stoppedReels, config) {
         const reachSymbols = config.effects.reachSymbols;
         let best = null;

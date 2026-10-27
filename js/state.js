@@ -188,6 +188,8 @@ function createRashState() {
         gamesRemaining: 0,
         setWillWin: false,       // このセット (BATTLE開始〜？？) を勝ちにするか
         killRate: 0,             // 撃破率 (0〜1。setWillWin になる確率。2026-10-27 ユーザー指定)
+        shownRate: null,         // 見せて いる 撃破率 (違和感演出の 7% / 77%。null は 本当の 値)
+        nameColor: 'white',      // 敵の 名前の 色 (撃破 確定の セットは ときどき 赤 / 金)
         winGuaranteed: false,    // 次の BATTLE (撃破まで) を勝利確定にするか (内定の時ゾーン突破の特典)
         defeatCount: 0,          // 1回のRASH内の撃破数
         oniUnlocked: false,      // おにおに出現フラグ
@@ -583,6 +585,16 @@ const GameFlow = {
         if (normal.map === config.map.castle) {
             normal.castleWaitRemaining = Math.max(0, normal.castleWaitRemaining - 1);
             const events = [{ type: 'castleWait', remaining: normal.castleWaitRemaining }];
+            // 7揃い (7・7・7) で このあとの 城突入チャレンジは 突破 確定 (2026-10-27 ユーザー指定)
+            if (outcome.aligned && outcome.role === 'seven' && !state.challenge.guaranteed) {
+                state.challenge.guaranteed = true;
+                events.push({ type: 'castleSure' });
+            }
+            // BAR揃い (2026-10-27 ユーザー指定): barBonus.castleWait.sure の 確率で 突破 確定
+            if (outcome.aligned && outcome.role === 'bar' && !state.challenge.guaranteed && rng() < config.barBonus.castleWait.sure) {
+                state.challenge.guaranteed = true;
+                events.push({ type: 'castleSure', role: 'bar' });
+            }
             // チャンス目を引くと、このあとの城突入チャレンジの突入率UP (1回だけ。重ねがけはしない)
             if (outcome.isChance && !state.challenge.chanceBoost) {
                 state.challenge.chanceBoost = true;
@@ -671,6 +683,16 @@ const GameFlow = {
             events.push(...challenge);
         }
 
+        // BAR揃い (2026-10-27 ユーザー指定): barBonus.normal.castle の 確率で SE城前へ 直行 (ときどき 城突入 確定)
+        const bb = config.barBonus.normal;
+        if (!inRevenge && outcome.aligned && outcome.role === 'bar' && rng() < bb.castle) {
+            const sure = rng() < bb.sure;
+            if (sure) state.challenge.guaranteed = true;
+            if (normal.chanceTime) events.push(this.endChanceTime(state));
+            events.push({ type: 'barBonus', sure });
+            events.push(this.goToCastle(state, config));
+            return events;
+        }
         // 7揃いは 前と 同じく SE城前へ 直行 (ミニゲームは なし)
         if (outcome.aligned && outcome.role === 'seven') {
             if (normal.chanceTime) events.push(this.endChanceTime(state));
@@ -850,7 +872,7 @@ const GameFlow = {
         const events = [];
         const at = n.chancePoint;   // 決まったときの ゲーム数
         if (trigger === 'count') n.chancePoint = 0;   // 規定の ゲーム数は 数え直し
-        if (n.chanceTime) events.push(this.endChanceTime(state));
+        // こおりチャンスタイムは ミニゲームの あいだ 止まり、失敗で 終わったら 次の ゲームから 続く (2026-10-27 ユーザー指定)
         // 虹は 成功 (と 城突入) 確定。どの ゲームで 成功するか (winAt) を 先に 決める
         n.mini = { kind, trigger, rainbow, games, remaining: games, started: false, winAt: rainbow ? 1 + Math.floor(rng() * games) : null };
         events.push({ type: 'miniDecided', kind, trigger, rainbow, at });
@@ -869,12 +891,16 @@ const GameFlow = {
         const index = mg.games - mg.remaining;
         const base = m.rates[outcome.role] ?? m.rates.miss;
         const rate = base >= 1 ? 1 : Math.min(1, base * k.mult);
-        const success = mg.winAt ? index >= mg.winAt : rng() < rate;
+        const hit = mg.winAt ? index >= mg.winAt : rng() < rate;
+        // 結果を 最後に 出す ミニゲーム (おにおに特訓。2026-10-27 ユーザー指定): 5G 全部 やってから 成功・失敗
+        if (k.revealAtEnd) mg.won = Boolean(mg.won || hit);
+        const success = k.revealAtEnd ? mg.remaining <= 0 && mg.won : hit;
         events.push({ type: 'miniGame', kind: mg.kind, role: outcome.role, remaining: mg.remaining, success, rate });
         if (success) {
             n.mini = null;
             if (mg.rainbow) state.challenge.guaranteed = true;
             events.push({ type: 'miniResult', kind: mg.kind, success: true, rainbow: mg.rainbow });
+            if (n.chanceTime) events.push(this.endChanceTime(state));   // SE城前へ 行くので おわり
             events.push(this.goToCastle(state, config));
         } else if (mg.remaining <= 0) {
             n.mini = null;
@@ -952,7 +978,7 @@ const GameFlow = {
     },
     applyBattleCharge(state, config, rng = Math.random) {
         const add = config.charge.battle.add;
-        const up = Battle.raiseKillRate(state, (state.rash.killRate ?? 0) + add, 'charge', rng);
+        const up = Battle.raiseKillRate(state, (state.rash.killRate ?? 0) + add, 'charge', rng, config);
         return [{ type: 'charge', scene: 'battle', add }, ...(up ? [up] : [])];
     },
     // シミュレーター・テスト用: チャージは いつも ためきる (completes) ものとして 1 ゲーム まわす
@@ -1209,7 +1235,7 @@ const DebugState = {
     setBreak(state, config) {
         if (state.rash.phase !== RASH_PHASES.BATTLE) return [{ type: 'debugQuiet' }];
         state.rash.breakActive = true;
-        const up = Battle.raiseKillRate(state, (state.rash.killRate ?? 0) + config.killRate.breakAdd, 'break', Math.random);
+        const up = Battle.raiseKillRate(state, (state.rash.killRate ?? 0) + config.killRate.breakAdd, 'break', Math.random, config);
         return [{ type: 'break' }, ...(up ? [up] : [])];
     },
     // 台の設定を変える

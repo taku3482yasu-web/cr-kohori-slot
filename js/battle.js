@@ -29,7 +29,28 @@ const Battle = {
     baseKillRate(state, config, enemy) {
         if (state.rash.winGuaranteed) return 1;
         const rate = this.isSuper(state) ? enemy.superKillRate : enemy.killRate;
-        return Math.max(0, Math.min(1, rate ?? 0));
+        return this.safeRate(Math.max(0, Math.min(1, rate ?? 0)));
+    },
+
+    // 7% / 77% は 違和感演出 (撃破 確定) だけで 見せるので、ふつうの 撃破率が そう なるときは 8% / 78% に ずらす
+    safeRate(rate) {
+        const pct = Math.round(rate * 100);
+        return pct === 7 || pct === 77 ? (pct + 1) / 100 : rate;
+    },
+
+    // 勝ちの セットに なったときの 見せ方: 違和感演出 (7% / 77%) と 敵の 名前の 色 (赤字 / 金字)
+    dressWin(state, config, rng) {
+        const rash = state.rash, kr = config.killRate;
+        if (rash.killRate >= 1) {
+            rash.shownRate = null;
+            rash.nameColor = 'gold';
+            return;
+        }
+        if (rash.shownRate == null && rng() < kr.fake.rate) rash.shownRate = kr.fake.values[Math.floor(rng() * kr.fake.values.length)];
+        if (rash.nameColor === 'white') {
+            const r = rng();
+            rash.nameColor = r < kr.nameColors.gold ? 'gold' : r < kr.nameColors.gold + kr.nameColors.red ? 'red' : 'white';
+        }
     },
 
     // 新しいセットを始める: 撃破率をキャラの値にし、その確率で勝ちセットにする
@@ -37,18 +58,24 @@ const Battle = {
         const rash = state.rash;
         rash.killRate = this.baseKillRate(state, config, this.findEnemy(config, rash.enemyId));
         rash.setWillWin = rng() < rash.killRate || rash.killRate >= 1;
+        rash.shownRate = null;     // 見せて いる 撃破率 (違和感演出の 7% / 77%。null は 本当の 値)
+        rash.nameColor = 'white';  // 敵の 名前の 色
+        if (rash.setWillWin) this.dressWin(state, config, rng);
     },
 
     // 撃破率を to に上げる (上限 100%)。負けセットなら、上がったぶんの確率で勝ちセットに変える。
     //   reason: 上がったわけ (役の名前 / 'break' / 'charge' / 'kill' / 'finalBlow')。上がらなければ null
-    raiseKillRate(state, to, reason, rng) {
+    raiseKillRate(state, to, reason, rng, config) {
         const rash = state.rash;
         const from = rash.killRate ?? 0;
-        to = Math.min(1, to);
+        to = this.safeRate(Math.min(1, to));
         if (to <= from) return null;
-        if (!rash.setWillWin && (to >= 1 || rng() < (to - from) / (1 - from))) rash.setWillWin = true;
+        const won = !rash.setWillWin && (to >= 1 || rng() < (to - from) / (1 - from));
+        if (won) rash.setWillWin = true;
         rash.killRate = to;
-        return { type: 'killRate', from, to, reason };
+        if (won || to >= 1) this.dressWin(state, config, rng);
+        // shown: 見せる 撃破率 (違和感演出の 7% / 77% の あいだは それ)、nameColor: 敵の 名前の 色
+        return { type: 'killRate', from, to, reason, shown: rash.shownRate, nameColor: rash.nameColor || 'white' };
     },
 
     // ----- 抽選 (lottery.js から呼ばれる) -----
@@ -112,6 +139,8 @@ const Battle = {
         return [{
             type: 'battleStart',
             killRate: rash.killRate,
+            shown: rash.shownRate,
+            nameColor: rash.nameColor,
             winGuaranteed: rash.winGuaranteed,
             enemyId: enemy.id,
             name: enemy.name,
@@ -192,7 +221,7 @@ const Battle = {
         const wasWinning = rash.setWillWin;
         const add = (kr.add[outcome.role] || 0) + (broke ? kr.breakAdd : 0);
         const reason = kill ? 'kill' : broke ? 'break' : outcome.role;
-        const up = this.raiseKillRate(state, kill ? 1 : (rash.killRate ?? 0) + add, reason, rng);
+        const up = this.raiseKillRate(state, kill ? 1 : (rash.killRate ?? 0) + add, reason, rng, config);
         if (up) events.push(up);
         // 仲間の追加ダメージ (ダメージが入ったときだけ)
         let companionHits = !kill && damage > 0 ? Companions.extraDamage(state, config) : [];
@@ -212,7 +241,7 @@ const Battle = {
             finalBlow = forceBlow || rng() < (config.finalBlow.rates[outcome.role] || 0);
             if (finalBlow) {
                 companionHits = [];
-                const fb = this.raiseKillRate(state, 1, 'finalBlow', rng);   // とどめの一撃は 撃破率 100%
+                const fb = this.raiseKillRate(state, 1, 'finalBlow', rng, config);   // とどめの一撃は 撃破率 100%
                 if (fb) events.push(fb);
             }
             amount = finalBlow ? rash.enemyHp : rash.enemyHp - 1;
@@ -603,7 +632,7 @@ const Battle = {
             rash.gamesRemaining = games;
             this.startSet(state, config, rng);
             rash.phase = RASH_PHASES.BATTLE;
-            return [{ type: 'questionResult', continued: true, games, killRate: rash.killRate }, ...this.addStreak(state, config)];
+            return [{ type: 'questionResult', continued: true, games, killRate: rash.killRate, shown: rash.shownRate, nameColor: rash.nameColor }, ...this.addStreak(state, config)];
         }
         // 仲間の肩代わり: RASH を続ける
         const saver = forceRevival ? null : Companions.trySave(state, config, rng);
@@ -612,7 +641,7 @@ const Battle = {
             rash.gamesRemaining = games;
             this.startSet(state, config, rng);
             rash.phase = RASH_PHASES.BATTLE;
-            return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId, killRate: rash.killRate }, ...this.addStreak(state, config)];
+            return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId, killRate: rash.killRate, shown: rash.shownRate, nameColor: rash.nameColor }, ...this.addStreak(state, config)];
         }
         // 復活: 液晶は RASH 終了に見せたまま止まり、次のゲームで戦っていた敵を撃破して継続
         if (forceRevival || rng() < this.revivalRate(state, config)) {

@@ -513,7 +513,7 @@ test('ミニゲーム (2026-10-27): 100G から 抽選・150G で 確定・チ�
     const { config: cfg, Lottery: L, GameFlow: GF } = g;
     const state = g.createInitialState(cfg);
     const kinds = {}, trig = { count: 0, chance: 0 };
-    let rainbow = 0, rainbowOk = 0, startedLate = 0, countReset = 0, early = 0, tooEarly = 0;
+    let rainbow = 0, rainbowOk = 0, startedLate = 0, countReset = 0, early = 0, tooEarly = 0, trainingEarly = 0;
     for (let i = 0; i < 600000; i++) {
         state.coins = 1e6;
         const pending = state.normal.mini && !state.normal.mini.started;
@@ -528,6 +528,8 @@ test('ミニゲーム (2026-10-27): 100G から 抽選・150G で 確定・チ�
             }
             if (e.type === 'miniStart' && !pending) startedLate++;   // 決まった ゲームでは 始めない
             if (e.type === 'miniResult') {
+                // おにおに特訓は 5G 全部 やってから 結果
+                if (e.kind === 'training' && ev.some(x => x.type === 'miniGame' && x.remaining > 0)) trainingEarly++;
                 const k = kinds[e.kind] || (kinds[e.kind] = [0, 0]);
                 k[0]++;
                 if (e.success) k[1]++;
@@ -538,12 +540,70 @@ test('ミニゲーム (2026-10-27): 100G から 抽選・150G で 確定・チ�
     assert(trig.count > 100 && trig.chance > 100, `ミニゲームの きっかけ (規定 ${trig.count}・役 ${trig.chance})`);
     assertEqual(countReset, 0, '規定の ゲーム数で 決まったら 数え直し');
     assertEqual(startedLate, 0, 'ミニゲームは 決まった 次の ゲームから');
+    assertEqual(trainingEarly, 0, 'おにおに特訓は 5G やってから 結果');
+    // SE城前で 7揃い: このあとの 城突入チャレンジは 突破 確定 (2026-10-27)
+    const s2 = g.createInitialState(cfg);
+    GF.goToCastle(s2, cfg);
+    const sure = GF.onGameEnd(s2, L.makeOutcome('seven', cfg), cfg);
+    assert(sure.some(e => e.type === 'castleSure') && s2.challenge.guaranteed, 'SE城前の 7揃いで 突破 確定');
+    for (let i = 0; i < 20 && s2.mode !== 'RASH'; i++) GF.onGameEnd(s2, L.makeOutcome('miss', cfg), cfg);
+    assertEqual(s2.mode, 'RASH', 'SE城前の 7揃いの あとは ハズレでも 突入');
     assert(early > 50 && tooEarly === 0, `150G より 前の ミニゲームは ${cfg.mini.early.from}G から (${early} 回。早すぎる ${tooEarly})`);
     const rate = id => kinds[id][1] / kinds[id][0];
     const order = ['toilet', 'training', 'hibiki', 'judge'];
     for (let i = 1; i < order.length; i++) assert(rate(order[i]) > rate(order[i - 1]), `成功しやすさの 順 (${order.map(id => `${id} ${pct(rate(id))}`).join(' < ')})`);
     assert(rainbow > 10 && rainbowOk === rainbow, `虹は 成功して 城突入 確定 (${rainbowOk} / ${rainbow})`);
     console.log(`  ミニゲーム: ${order.map(id => `${cfg.mini.kinds[id].short} ${pct(rate(id))} (${kinds[id][0]} 回)`).join('・')}・虹 ${rainbow} 回`);
+});
+
+test('撃破率の 違和感 (7% / 77% は 撃破 確定)・敵の 名前の 色 (赤 / 金は 確定)・BAR揃いの 恩恵・リーチの 見せ方 (2026-10-27)', () => {
+    const g = loadGame(53);
+    const { config: cfg, Lottery: L, GameFlow: GF, Battle: B } = g;
+    const state = g.createInitialState(cfg);
+    let fakes = 0, fakeLose = 0, natural77 = 0, colored = 0, coloredLose = 0, rates = 0;
+    for (let i = 0; i < 400000; i++) {
+        state.coins = 1e6;
+        const ev = GF.playWithCharge(state, L.draw(state, cfg), cfg);
+        const rash = state.rash;
+        for (const e of ev) {
+            const shown = e.shown, rate = e.type === 'killRate' ? e.to : e.killRate;
+            if (rate != null && (e.type === 'battleStart' || e.type === 'killRate')) {
+                rates++;
+                if ([7, 77].includes(Math.round(rate * 100))) natural77++;
+            }
+            if (shown != null && (e.type === 'battleStart' || e.type === 'killRate')) { fakes++; if (!rash.setWillWin) fakeLose++; }
+            if (e.nameColor && e.nameColor !== 'white' && (e.type === 'battleStart' || e.type === 'killRate')) { colored++; if (!rash.setWillWin) coloredLose++; }
+        }
+    }
+    assert(fakes > 20 && fakeLose === 0, `7% / 77% は 撃破 確定 (${fakes} 回。負け ${fakeLose})`);
+    assertEqual(natural77, 0, 'ふつうの 撃破率は 7% / 77% に ならない');
+    assert(colored > 50 && coloredLose === 0, `赤字・金字の 名前は 撃破 確定 (${colored} 回。負け ${coloredLose})`);
+    // BAR揃い: 通常時は ときどき SE城前へ 直行 (と 確定)、SE城前は ときどき 確定
+    let direct = 0, sure = 0, waitSure = 0;
+    for (let i = 0; i < 400; i++) {
+        const s = g.createInitialState(cfg);
+        s.normal.gameMode = 'A';
+        const ev = GF.onGameEnd(s, L.makeOutcome('bar', cfg), cfg);
+        if (ev.some(e => e.type === 'barBonus')) { direct++; if (s.challenge.guaranteed) sure++; assertEqual(s.normal.map, cfg.map.castle, 'BAR揃いで SE城前へ'); }
+        const w = g.createInitialState(cfg);
+        GF.goToCastle(w, cfg);
+        if (GF.onGameEnd(w, L.makeOutcome('bar', cfg), cfg).some(e => e.type === 'castleSure') && w.challenge.guaranteed) waitSure++;
+    }
+    assertBetween(direct / 400, cfg.barBonus.normal.castle - 0.08, cfg.barBonus.normal.castle + 0.08, '通常時の BAR揃いで SE城前へ 直行する 割合');
+    assert(sure > 0 && sure < direct, `直行の うち ときどき 確定 (${sure} / ${direct})`);
+    assertBetween(waitSure / 400, cfg.barBonus.castleWait.sure - 0.08, cfg.barBonus.castleWait.sure + 0.08, 'SE城前の BAR揃いで 確定する 割合');
+    // リーチは リーチの 絵柄だけ (揃う ラインでも ほかの 絵柄は 出さない = 先に 役が わからない)
+    let shownBad = 0, multi = 0;
+    for (let i = 0; i < 200000; i++) {
+        const o = L.draw(state, cfg);
+        if (o.isFreeze) continue;
+        const list = L.findReaches(o, [0, 1], cfg);
+        if (list.some(r => !cfg.effects.reachSymbols.includes(r.symbol))) shownBad++;
+        if (list.length > 1) multi++;
+    }
+    assertEqual(shownBad, 0, 'リーチの 絵柄 以外の リーチ');
+    assert(multi > 0, `リーチが 2 つ 以上の ことが ある (${multi})`);
+    console.log(`  違和感 7% / 77%: ${fakes} 回・赤字 / 金字: ${colored} 回・リーチ 2 つ 以上: ${multi} 回・BAR揃いで 直行 ${pct(direct / 400)} (確定 ${sure})`);
 });
 
 test('前兆と違和感演出 (A4): 前兆が出たら当たりやすく、違和感は 出たら 本前兆のことが多い。結果は変えない', () => {
@@ -1060,7 +1120,7 @@ test('通常時の予告: ステップアップ予告・群予告だけ (カッ�
     assertEqual(Notice.pick(state, Lottery.makeOutcome('seven', config), config, Math.random, 'stepUp'), null, 'RASH 中の予告');
 });
 
-test('こおりチャンスタイム: チャンス目などで突入し、10G のあいだチャンスポイント (ゲーム数) の加算が2倍。ミニゲームが決まったら終わる', () => {
+test('こおりチャンスタイム: チャンス目などで突入し、10G のあいだチャンスポイント (ゲーム数) の加算が2倍。ミニゲームの あいだは 止まり、失敗で 終わったら 続く', () => {
     const game = loadGame(12);
     const { createInitialState, Lottery, GameFlow, MODES, config } = game;
     const state = createInitialState(config);
@@ -1077,13 +1137,21 @@ test('こおりチャンスタイム: チャンス目などで突入し、10G �
     }
     assert(events.some(e => e.type === 'chanceTimeEnd'), '10G で終わらない');
     assertEqual(state.normal.chanceTime, null, '終わったあとも残っている');
-    // 規定の ゲーム数で ミニゲームが 決まったら 終わる (2026-10-27 から。前は SE城前に 着いたら)
+    // ミニゲームの あいだは 止まり、失敗で 終わったら 続く (2026-10-27 ユーザー指定)
     state.debugForceChanceTime = true;
     GameFlow.onGameEnd(state, Lottery.makeOutcome('replay', config), config);
+    config.mini.rainbow = { count: 0, chance: 0 };   // 虹 (成功 確定) に しない (この テストだけ)
+    config.mini.rates.miss = 0;   // ハズレでは 成功しない ように (この テストだけ)
     state.normal.chancePoint = config.chancePoint.threshold - 1;
     events = GameFlow.onGameEnd(state, Lottery.makeOutcome('replay', config), config);
-    assert(events.some(e => e.type === 'chanceTimeEnd'), 'ミニゲームが 決まっても 終わらない');
     assert(events.some(e => e.type === 'miniDecided') && state.normal.mini, 'ミニゲームが 決まらない');
+    assert(state.normal.chanceTime && !events.some(e => e.type === 'chanceTimeEnd'), 'ミニゲームが 決まったら チャンスタイムが 終わった');
+    const left = state.normal.chanceTime.remaining;
+    for (let i = 0; i < 10 && state.normal.mini; i++) events = GameFlow.onGameEnd(state, Lottery.makeOutcome('miss', config), config);
+    assert(!state.normal.mini && events.some(e => e.type === 'miniResult' && !e.success), 'ハズレだけの ミニゲームが 失敗で 終わらない');
+    assertEqual(state.normal.chanceTime && state.normal.chanceTime.remaining, left, 'ミニゲームの あいだ チャンスタイムが 止まって いない');
+    events = GameFlow.onGameEnd(state, Lottery.makeOutcome('replay', config), config);
+    assertEqual(state.normal.chanceTime.remaining, left - 1, 'ミニゲームの あと チャンスタイムが 続かない');
     // 7揃いは SE城前へ直行 (規定値を 150 にしたあとも)
     const fresh = createInitialState(config);
     GameFlow.onGameEnd(fresh, Lottery.makeOutcome('seven', config), config);

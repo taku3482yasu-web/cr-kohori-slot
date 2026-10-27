@@ -148,11 +148,12 @@
             }
             if (count === 2 && !outcome.isFreeze) {
                 const remaining = [0, 1, 2].find(k => !stopOrder.includes(k));
-                reach = Lottery.findReach(outcome, stopOrder, config);
+                const reaches = Lottery.findReaches(outcome, stopOrder, config);
+                reach = reaches.length ? reaches : null;
                 if (reach) {
                     stopButtons[remaining].classList.add('reach');
                     Reels.setLamp(remaining, 'reach');
-                    Lcd.reach(reach.symbol, reach.lineName);
+                    Lcd.reach(reach);   // 2 つ 以上は「どれが出るかな？」
                     Sound.chance();
                 } else if (outcome.isChance && Math.random() < effects.pushRate) {
                     stopButtons[remaining].classList.add('push');
@@ -214,9 +215,10 @@
 
         // リーチの結果
         if (reach) {
-            // リーチしたラインが揃えば GET!!、別のラインで揃った・チャンス目のときはそれぞれの表示
-            const result = reach.line === outcome.winLine ? 'get' : outcome.isChance ? 'chance' : 'no';
-            await Lcd.reachResult(result);
+            // リーチしたラインが揃えば GET!! (揃った 絵柄が 光る)、別のラインで揃った・チャンス目のときはそれぞれの表示
+            const won = reach.find(r => r.lines.includes(outcome.winLine));
+            const result = won ? 'get' : outcome.isChance ? 'chance' : 'no';
+            await Lcd.reachResult(result, won ? won.symbol : null);
         }
 
         if (outcome.aligned) Sound.win();
@@ -226,6 +228,7 @@
         //   長押しの チャージ (ためきれたら 得): 通常時・城突入チャレンジは 結果を PUSH の あとに 決める。
         //   PUSH の 色は ためきれなかった ときの 結果で 選ぶ。BATTLE は 結果の あと、ためきれたら 撃破率 UP
         const coinsBefore = state.coins;
+        Lcd.hold();   // 液晶の ゲーム数・ランプなどは 演出が 始まるまで 前の まま (結果が 先に 見えないように)
         const chargeScene = GameFlow.drawCharge(state, outcome, config);
         let events = null, battleCharge = false, ctx;
         if (chargeScene) ctx = GameFlow.chargePreview(state, outcome, config);
@@ -253,6 +256,7 @@
         // バトルに負けたときは、演出のあいだ敗北の BGM
         const defeated = events.some(e => (e.type === 'questionResult' && !e.continued) || (e.type === 'naiteiResult' && !e.win));
         if (defeated) Bgm.play('defeat');
+        Lcd.release();
         await Lcd.playEvents(events);
         Lcd.setHotFrame(0);
         endIwakan();
@@ -385,7 +389,8 @@
             if (k >= 1 && !longStop.full) {
                 longStop.full = true;
                 Sound.pushReady('gold');
-                Lcd.showMessage('はなせ!!', longStop.color === 'rainbow' ? '#ffffff' : longStop.color, 8000);
+                Lcd.clearMessage();
+                Lcd.setHanase(longStop.color);   // 大きく 点滅 (離すまで。離したあとも 少し 残す)
             }
             requestAnimationFrame(tick);
         };
@@ -405,6 +410,7 @@
         longStop = null;
         Lcd.setCharge(null);
         Lcd.clearMessage();
+        Lcd.setHanase(null);
         Lcd.startFlash(color, 500);
         Collection.seeLever(state, 'longStop');
         Reels.stop(i);

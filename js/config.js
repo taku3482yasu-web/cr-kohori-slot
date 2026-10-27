@@ -143,6 +143,7 @@ window.GAME_CONFIG = {
     //   triggers の 役を 引くと (その 確率で) ミニゲームが 決まる。
     //   決まると 液晶の ゲーム数の 数字の 色が 変わり (ミニゲームの 色。虹は 城突入まで 確定)、次の ゲームから ミニゲーム。
     //   kinds: 4 つの ミニゲーム (この 順に 成功しやすい)。games: ゲーム数 / mult: 1G ごとの 成功の 確率 (rates) に かける 倍率
+    //     revealAtEnd: games ゲーム 全部 やってから 最後に 結果を 出す (おにおに特訓: 10 秒 耐えきれるか)
     //   rates: 1G ごとの 成功の 確率の もと (役ごと。1 以上は mult に 関係なく 成功)
     //   select: どの ミニゲームに なるか の 重み。count: 規定の ゲーム数 / chance: 役 (チャンス目など)。内部の モード (A / B / C / heaven) ごと
     //   rainbow: 虹 (ミニゲーム 成功 + 城突入 確定) に なる 確率 (count / chance ごと)
@@ -151,13 +152,13 @@ window.GAME_CONFIG = {
         triggers: { chance: 0.35, bar: 0.2, melon: 0.06 },
         early: { from: 100, rate: 0.01 },   // 100G から 150G までの あいだ、1G ごとに ミニゲームに なる 確率 (規定の ゲーム数と 同じ 扱い。数字は Claude が 決めた)
         kinds: {
-            toilet: { name: 'こおりくんのトイレ探しチャレンジ', short: 'トイレ探し', color: '#4f9bff', games: 5, mult: 3.0,
+            toilet: { name: 'こおりくんのトイレ探しチャレンジ', short: 'トイレ探し', color: '#4f9bff', games: 5, mult: 2.6,
                 success: 'トイレ発見!!', fail: 'まにあわなかった…', miss: ['ここじゃない…', 'あっちかな…？', 'もれそう…!!'] },
-            training: { name: 'おにおに特訓チャレンジ', short: 'おにおに特訓', color: '#3fdf6f', games: 5, mult: 4.7,
+            training: { name: 'おにおに特訓チャレンジ', short: 'おにおに特訓', color: '#3fdf6f', games: 5, mult: 4.1, revealAtEnd: true,
                 success: '特訓クリア!!', fail: 'つぶれた…', miss: ['まだまだ!!', 'あと 100 回!!', 'ぐぬぬ…'] },
-            hibiki: { name: 'ひびきまくり響かせチャレンジ', short: '響かせ', color: '#c070ff', games: 5, mult: 7.2,
+            hibiki: { name: 'ひびきまくり響かせチャレンジ', short: '響かせ', color: '#c070ff', games: 5, mult: 6.3,
                 success: '響いた!!', fail: '響かなかった…', miss: ['響かない…', 'もっと 大きく!!', 'もう一回!!'] },
-            judge: { name: 'ふるカワジャッジ', short: 'ふるカワジャッジ', color: '#ff3a3a', games: 5, mult: 11.8,
+            judge: { name: 'ふるカワジャッジ', short: 'ふるカワジャッジ', color: '#ff3a3a', games: 5, mult: 10.3,
                 success: 'ジャッジ: 合格!!', fail: 'ジャッジ: 不合格…', miss: ['うーん…', 'まだ わからないよ', 'どうしようかな…'] }
         },
         rates: { chance: 1, seven: 1, sevenBar: 1, bar: 0.6, melon: 0.35, cherry: 0.2, diamond: 0.08, bell: 0.03, replay: 0.03, miss: 0.02 },
@@ -175,8 +176,13 @@ window.GAME_CONFIG = {
                 heaven: { toilet: 5, training: 15, hibiki: 35, judge: 45 }
             }
         },
-        rainbow: { count: 0.025, chance: 0.05 }
+        rainbow: { count: 0.015, chance: 0.05 }
     },
+
+    // ----- BAR揃いの 恩恵 (2026-10-27 ユーザー指定。数字は Claude が 決めた) -----
+    //   normal: 通常時 (マップ) で BAR揃い → castle の 確率で SE城前へ 直行。そのうち sure の 確率で 城突入 確定
+    //   castleWait: SE城前で BAR揃い → sure の 確率で 城突入 確定 (7揃いは いつも 確定)
+    barBonus: { normal: { castle: 0.2, sure: 0.3 }, castleWait: { sure: 0.3 } },
 
     // ----- ポイントチャンス (通常時) -----
     // rate の確率で発生。こおりくんが「少ないポイント」「多いポイント」の吹き出しから1つを選ぶ。
@@ -550,7 +556,12 @@ window.GAME_CONFIG = {
             { min: 0.8, color: '#ff3a3a' },
             { min: 1, color: 'rainbow' }
         ],
-        splashMs: 1800    // 敵が 出てきたときの 全画面の「撃破率 〇〇%」の 時間
+        splashMs: 1800,   // 敵が 出てきたときの 全画面の「撃破率 〇〇%」の 時間
+        // 違和感演出 (2026-10-27 ユーザー指定): 撃破率が 7% か 77% と 出たら 撃破 確定。勝ちの セットの rate で、本当の 値の かわりに values を 見せる。
+        //   ふつうの 撃破率が 7% / 77% に なるときは 8% / 78% に ずらす (Battle.safeRate)
+        fake: { rate: 0.06, values: [0.07, 0.77] },
+        // 敵の 名前の 色 (2026-10-27 ユーザー指定): 撃破が 確定して いる セット (勝ちの セット) だけ、red / gold の 確率で 赤字 / 金字 (撃破率 100% は 金字)。ふだんは 白
+        nameColors: { red: 0.25, gold: 0.08 }
     },
 
     // ----- 長押しの チャージ (2026-10-27 ユーザー指定。js/state.js・battle.js) -----
@@ -620,7 +631,7 @@ window.GAME_CONFIG = {
         {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
             lines: { special: '金返せ！' },
-            weight: 16, superWeight: 15, hp: 200, killRate: 0.07, superKillRate: 0.41,
+            weight: 16, superWeight: 15, hp: 200, killRate: 0.08, superKillRate: 0.41,
             bonus: { type: 'tokka' },     // 撃破の報酬は上乗せ特化ゾーン (300枚保障。tokka)
             requiresUnlock: true          // 連数が rash.oni.unlockStreak に達するまで出ない (SUPER 中は常に候補)
         }
@@ -726,11 +737,12 @@ window.GAME_CONFIG = {
             colorCodes: { blue: '#2a5ad8', green: '#1a9a4a', red: '#c81828', gold: '#b8860b', rainbow: 'rainbow' },
             duration: 1300
         },
-        // カットインに 出る キャラと セリフ (色ごとの 顔ぶれ。キャラで 期待度は 変わらない。セリフは 案)
+        // カットインに 出る キャラと セリフ (色ごとの 顔ぶれ。ふつうは キャラで 期待度は 変わらない。セリフは 案)
+        //   minHeat: その 熱さ 以上の ゲームだけ 出る (2026-10-27 ユーザー指定: こおりくんの「大チャンス!!」は 熱さ 4 以上だけ = 出たら 熱い)
         cast: {
             blue: [{ who: 'koori', text: 'チャンス…？' }, { who: 'yasu', text: 'きてるかも！' }, { who: 'tamu', text: 'いけるで！' }, { who: 'dake', text: 'よっしゃ！' }, { who: 'furukawa', text: 'チャンスだよ！' }],
             green: [{ who: 'koori', text: 'チャンス！' }, { who: 'yasu', text: 'これは いける！' }, { who: 'tamu', text: 'ええ流れや！' }, { who: 'dake', text: 'きたきた！' }, { who: 'furukawa', text: 'いけるいける！' }],
-            red: [{ who: 'koori', text: '大チャンス!!' }, { who: 'dake', text: 'これは熱い！' }, { who: 'onioni', text: '来るなら来い!!' }, { who: 'tomoishi', text: 'こおり、がんばって！' }],
+            red: [{ who: 'koori', text: '大チャンス!!', minHeat: 4 }, { who: 'dake', text: 'これは熱い！' }, { who: 'onioni', text: '来るなら来い!!' }, { who: 'tomoishi', text: 'こおり、がんばって！' }],
             gold: [{ who: 'koori', text: '激アツ!!' }, { who: 'onioni', text: 'ぐぬぬ…!!' }, { who: 'tomoishi', text: '内定は まだなの!?' }, { who: 'furukawa', text: '激アツだよ!!' }],
             rainbow: [{ who: 'koori', text: 'こおりいきていける！' }]
         },

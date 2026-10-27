@@ -379,12 +379,12 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js?v=09b554a9"></script>
+<script src="js/config.js?v=b7f23794"></script>
 <script src="js/sprites.js?v=056d5554"></script>
 <script src="js/characters.js?v=6c8f1bf6"></script>
-<script src="js/state.js?v=8c2e4134"></script>
-<script src="js/lottery.js?v=acffe958"></script>
-<script src="js/battle.js?v=e973562e"></script>
+<script src="js/state.js?v=09720019"></script>
+<script src="js/lottery.js?v=33ee41c6"></script>
+<script src="js/battle.js?v=74166145"></script>
 <script>
     // 表示する数値はすべて js/config.js から作る (数値を調整してもこのページは自動で追従する)
     const c = window.GAME_CONFIG;
@@ -464,6 +464,8 @@
         'ミニゲームが決まると <b>ゲーム数の数字の色</b> が変わり、次のゲームから始まります。色は ' +
             Object.values(mk).map(k => `<span style="color:${k.color}">${k.short}</span>`).join(' ＜ ') + '。<b>虹色</b>なら成功して城突入まで確定！',
         `${mk.toilet.games}ゲームのあいだに、引いた役で成功を抽選（チャンス目・7 は成功）。成功すれば SE城前へ`,
+        'トイレ探しは いそいでいる こおりくんが トイレを見つければ成功。おにおに特訓は 100k のダンベルを 10 秒耐えきれば成功（5G やってから最後に結果）。響かせは 映画館で 4DX を響かせれば成功、警備員につまみ出されたら失敗。ふるカワジャッジは ふるカワが虹色にフラッシュすれば成功（暗くなったあとのフラッシュも！）',
+        'SE城前で <b>7・7・7</b> が揃ったら、城突入チャレンジは突破確定！',
         'どのミニゲームになるかは、チャンス目で決まったか・内部のモードで変わります（チャンス目のほうが良いミニゲームになりやすい）'
     ].map(t => `<li>${t}</li>`).join('');
     table('mini-table', ['ミニゲーム', '成功しやすさ'],

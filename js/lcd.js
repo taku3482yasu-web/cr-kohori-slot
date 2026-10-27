@@ -86,10 +86,21 @@ const Lcd = (() => {
         probUpMultiplier: 1,
         killRate: animated(0), // 撃破率 (2026-10-27。表示用。0〜1、復活は 7.77)
         killUp: 0,             // 撃破率が 上がった 時刻 (枠を 光らせる)
+        nameColor: 'white',    // 敵の 名前の 色 (撃破 確定の セットは ときどき 赤 / 金。2026-10-27)
         hurtUntil: 0
     };
     let killSplash = null;     // 全画面の「撃破率 〇〇%」{ rate, from, start, duration, sub }
     let miniView = null;       // ミニゲーム中 (2026-10-27) { kind, games, remaining, rainbow, msg, msgAt }
+    // 演出が 始まるまで 止めて おく 表示 (2026-10-27 ユーザー指定: 結果が 先に 見えないように)。main.js が hold() / release()
+    let held = null;
+    function hold() {
+        const n = state.normal, c = state.challenge;
+        held = { cp: n.chancePoint, mini: n.mini ? { ...n.mini } : null, castleWait: n.castleWaitRemaining, challengeLeft: c.gamesRemaining, chanceBoost: c.chanceBoost, normal: state.mode === MODES.NORMAL };
+    }
+    function release() { held = null; }
+    const shownNormal = () => held || { cp: state.normal.chancePoint, mini: state.normal.mini, castleWait: state.normal.castleWaitRemaining,
+        challengeLeft: state.challenge.gamesRemaining, chanceBoost: state.challenge.chanceBoost, normal: state.mode === MODES.NORMAL };
+    let hanase = null;         // 第 3 停止の「はなせ!!」{ color, until }
 
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -188,7 +199,8 @@ const Lcd = (() => {
             battle.probUpGames = rash.probUpGames;
             battle.probUpMultiplier = rash.probUpMultiplier;
             battle.breakActive = rash.breakActive;
-            setNow(battle.killRate, rash.killRate || 0);
+            setNow(battle.killRate, rash.shownRate ?? rash.killRate ?? 0);
+            battle.nameColor = rash.nameColor || 'white';
             battle.winGuaranteed = Boolean(rash.winGuaranteed && rash.enemyId);
             battle.games = rash.phase === RASH_PHASES.QUESTION ? '？？' : (rash.enemyId ? rash.gamesRemaining : null);
         } else if (state.mode === MODES.CASTLE_CHALLENGE) {
@@ -247,6 +259,9 @@ const Lcd = (() => {
         }
         if (scene === 'rash') {
             drawRash(time);
+        } else if (scene === 'field' && miniView) {
+            drawMiniScene(time);   // ミニゲーム (2026-10-27): 4 つの 専用の 場面
+            drawMiniHud(time);
         } else if (scene === 'field' && dance) {
             drawDance(time);
         } else {
@@ -258,12 +273,10 @@ const Lcd = (() => {
             const groundY = Backgrounds.get(displayMap).groundY;
             drawParty(time, valueAt(koori.x, time), groundY, 1.5);
             if (chanceTimeView && scene === 'field') drawChanceTimeFurukawa(time, groundY);
-            if (scene === 'field' && miniView) drawMini(time, groundY);
             drawKoori(time);
             drawVisitor(time, groundY);
             drawBubbles(time);
             if (scene === 'field') drawNormalHud(time);
-            if (scene === 'field' && miniView) drawMiniHud(time);
             if (scene === 'field' && chanceTimeView) NoticeView.drawChanceTime(ctx, time, chanceTimeView, config.chanceTime.multiplier);
             if (scene === 'challenge') drawChallengeHud(time);
         }
@@ -273,6 +286,7 @@ const Lcd = (() => {
         drawRevival(time);
         drawPopups(time);
         drawMessage(time);
+        drawHanase(time);
         drawPreview(time);
         NoticeView.draw(ctx, time);   // 通常時の予告 (ステップアップ予告・群予告)
         ChanceFx.draw(time);
@@ -327,7 +341,7 @@ const Lcd = (() => {
         const jump = valueAt(koori.jump, time);
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.fillRect(x + 4, bg.groundY - 2, size - 8, 3);
-        if (kooriAura && state.challenge.chanceBoost) drawAura(time, x + size / 2, bg.groundY + jump, size);
+        if (kooriAura && shownNormal().chanceBoost) drawAura(time, x + size / 2, bg.groundY + jump, size);
         drawSprite(ctx, SPRITES.koori, frame, x, bg.groundY - size + bob + jump, KOORI_SCALE);
     }
 
@@ -497,7 +511,7 @@ const Lcd = (() => {
         }
 
         if (displayMap === config.map.castle) {
-            const remaining = state.normal.castleWaitRemaining;
+            const remaining = shownNormal().castleWait;
             const label = remaining > 0 ? `城突入まで あと${remaining}G` : '城突入チャレンジ!!';
             const labelWidth = textWidth(label, 10) + 12;
             box(W - labelWidth - 4, 4, labelWidth, 15, 'rgba(60,0,20,0.75)', '#ff5a5a');
@@ -511,20 +525,30 @@ const Lcd = (() => {
     // ゲーム数 (2026-10-27 ユーザー指定。前の チャンスポイントの ゲージ。右下、ふるカワがしゃべっている間は右上)。
     //   中身は チャンスポイント (1G ごとに +1、チャンス目などで 足す)。ミニゲームが 決まったら 数字が その 色に 変わる (虹は 城突入 確定)
     //   value で表示する値を指定できる (ダンシングステージは結果発表まで増やさない)
-    function drawCpGauge(time, value = state.normal.chancePoint) {
+    function drawCpGauge(time, value = shownNormal().cp) {
         const label = `${Math.floor(Math.min(value, config.chancePoint.threshold))}G`;
         const size = 14;
         const tw = textWidth(label, size);
         const bx = W - tw - 14, by = FurukawaView.isTalking(time) ? 4 : H - 22;
-        const mg = state.mode === MODES.NORMAL ? state.normal.mini : null;
+        const view = shownNormal();
+        const mg = view.normal ? view.mini : null;
         const color = !mg ? '#ffffff' : mg.rainbow ? killRateColor(1, time, bx + 5, bx + 5 + tw) : config.mini.kinds[mg.kind].color;
         box(bx, by, tw + 10, 18, 'rgba(0,0,0,0.6)', mg ? (mg.rainbow ? '#ffffff' : config.mini.kinds[mg.kind].color) : '#5a7a9a');
         text(label, bx + 5, by + 2, { color, size });
     }
 
     // ----- ミニゲーム (2026-10-27 ユーザー指定。config.mini・GameFlow.miniGame) -----
+    // miniView: { kind, games, remaining, rainbow, msg, msgAt, act (いまの ゲームの 演出の 始まり), res: { success, start, dark } }
+    //   トイレ探し: いそいで いる こおりくん。トイレを 見つければ 成功 / 見つからなければ「こおりいきていけないよ～！」で 失敗
+    //   おにおに特訓: おにおにが 100k の ダンベルを 持ち上げて 10 秒 耐える (5G で 2 秒ずつ)。5G の あとに 結果
+    //   響かせ: 映画館で ひびきまくりが 4DX を 響かせれば 成功 / 警備員に つまみ出されたら 失敗
+    //   ふるカワジャッジ: まん中の ふるカワが 虹色に フラッシュ すれば 成功 / 何も 起きず 暗く なったら 失敗 (暗く なった あとの フラッシュも 成功)
+    const MINI_GROUND = 120;
+    const RES_MS = { toilet: 2600, training: 2800, hibiki: 3000, judge: 3000 };
+
     // 右上に 名前と 残りゲームの ランプ、下に ひとこと
     function drawMiniHud(time) {
+        if (miniView.res) return;   // 結果の ときは 上を あけて 結果の 文字を 出す
         const k = config.mini.kinds[miniView.kind];
         const color = miniView.rainbow ? killRateColor(1, time) : k.color;
         const bw = Math.max(110, textWidth(k.short, 10) + 16), bx = W - bw - 4;
@@ -538,31 +562,218 @@ const Lcd = (() => {
             ctx.fillStyle = lit ? (i === miniView.remaining - 1 && blink ? '#ffffff' : color) : '#2a2a30';
             ctx.fillRect(startX + i * (lampW + gap), 22, lampW, 8);
         }
-        if (miniView.msg && time - miniView.msgAt < 1500) text(miniView.msg, W / 2, H - 22, { color: '#ffffff', size: 12, align: 'center' });
-        else text(`あと${miniView.remaining}G`, W / 2, H - 22, { color, size: 12, align: 'center' });
+        if (miniView.msg && time - miniView.msgAt < 1500) text(miniView.msg, W / 2, H - 20, { color: '#ffffff', size: 12, align: 'center' });
+        else text(`あと${miniView.remaining}G`, W / 2, H - 20, { color, size: 12, align: 'center' });
     }
-    // ミニゲームの 相手・道具: トイレ探しは トイレの とびら、特訓は おにおに、響かせは ひびきまくり (ふるカワジャッジは 吹き出し)
-    function drawMini(time, groundY) {
-        const x = W - 70, frame = Math.floor(time / 400) % 2;
-        if (miniView.kind === 'toilet') {
-            const sway = Math.round(Math.sin(time / 300) * 2);
-            ctx.fillStyle = '#6a4a2a';
-            ctx.fillRect(x - 14 + sway, groundY - 44, 28, 44);
-            ctx.fillStyle = '#8a6a40';
-            ctx.fillRect(x - 11 + sway, groundY - 41, 22, 38);
-            text('WC', x + sway, groundY - 34, { color: '#9fe6ff', size: 10, align: 'center' });
-            text('?', x + sway, groundY - 60, { color: '#ffe45a', size: 14, align: 'center' });
-        } else if (miniView.kind === 'training') {
-            Characters.drawEnemy(ctx, 'onioni', x, groundY, { scale: 1.2, frame, flip: true });
-        } else if (miniView.kind === 'hibiki') {
-            Characters.drawEnemy(ctx, 'hibikimakuri', x, groundY, { scale: 1.2, frame, flip: true });
-            const r = 6 + ((time / 8) % 30);
-            ctx.strokeStyle = `rgba(192,112,255,${1 - r / 36})`;
-            ctx.beginPath();
-            ctx.arc(x, groundY - 40, r, 0, Math.PI * 2);
-            ctx.stroke();
+
+    // 場面の 中の 文字: ミニゲーム中は 左上、結果は 上の まん中 (払い出しの「WIN!!」や タイトルと 重ならない ところ)。タイトルが 出たら 消す
+    function miniSay(str, line, color, size = 16) {
+        if (miniView.res && miniView.res.quiet) return;
+        if (!miniView.res) return text(str, 8, 8, { color, size: 12 });
+        text(str, W / 2, line ? 34 : 14, { color, size, align: 'center' });
+    }
+    function drawMiniScene(time) {
+        const res = miniView.res;
+        const t = res ? time - res.start : time - (miniView.act || 0);
+        if (miniView.kind === 'toilet') drawToilet(time, t, res);
+        else if (miniView.kind === 'training') drawTraining(time, t, res);
+        else if (miniView.kind === 'hibiki') drawHibiki(time, t, res);
+        else drawJudge(time, t, res);
+    }
+
+    // トイレ探し: 通常時の マップを 速く 流し、こおりくんが あせって 走る。成功は トイレの とびらが 来て 飛びこむ
+    function drawToilet(time, t, res) {
+        Backgrounds.draw(ctx, displayMap, scroll + time / 6);
+        const g = Backgrounds.get(displayMap).groundY;
+        const size = 16 * KOORI_SCALE;
+        let x = 70 + Math.sin(time / 90) * 3;
+        let frame = Math.floor(time / 70) % 2 ? 'walk2' : 'walk1';
+        if (res && res.success) {
+            const doorX = Math.max(W - 90, W + 30 - t * 0.25);
+            drawToiletDoor(doorX, g, t > 1300);
+            x = Math.min(doorX - size / 2, 70 + Math.max(0, t - 800) * 0.2);
+            if (t > 1300) return miniSay('トイレ発見!! 成功!', 0, '#ffe45a');
+        } else if (res) {
+            frame = 'walk1';
+            x = 70 + Math.sin(time / 25) * 2;   // もじもじ
+            if (t > 900) frame = 'down';
+        }
+        drawSprite(ctx, SPRITES.koori, frame, x, g - size, KOORI_SCALE);
+        // あせ
+        ctx.fillStyle = '#9fe6ff';
+        for (let i = 0; i < 3; i++) {
+            const k = ((time / 400) + i / 3) % 1;
+            ctx.fillRect(Math.round(x + size + 2 + k * 8), Math.round(g - size - 4 + k * 10), 2, 3);
+        }
+        if (!res) miniSay('いそげ!! トイレは どこだ…!?', 0, '#ffffff');
+        else if (!res.success) {
+            miniSay('こおりいきていけないよ～！', 0, '#ff8a8a', 14);
+            if (t > 1500) miniSay('失敗…', 1, '#9fb8d8');
         }
     }
+    function drawToiletDoor(x, g, open) {
+        ctx.fillStyle = '#5a3a1a';
+        ctx.fillRect(x - 16, g - 50, 32, 50);
+        ctx.fillStyle = open ? '#1a1a1a' : '#8a6a40';
+        ctx.fillRect(x - 13, g - 47, 26, 44);
+        box(x - 12, g - 64, 24, 12, '#ffffff', '#3a6aff');
+        text('WC', x, g - 63, { color: '#3a6aff', size: 10, align: 'center', outline: null });
+    }
+
+    // おにおに特訓: ジムで 100k の ダンベルを 持ち上げて 耐える。のこり 秒は 5G で 10 → 0
+    function drawTraining(time, t, res) {
+        ctx.fillStyle = '#2a2230';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#3a3040';
+        for (let i = 0; i < 8; i++) ctx.fillRect(i * 34, 20, 30, 70);   // 壁の 板
+        ctx.fillStyle = '#4a3a2a';
+        ctx.fillRect(0, MINI_GROUND, W, H - MINI_GROUND);
+        const total = config.mini.kinds.training.games;
+        const done = total - miniView.remaining;
+        const left = res ? (res.success ? Math.max(0, 2 - t / 600) : 2) : Math.max(0, 10 - done * 2 - Math.min(1, t / 800) * 0);
+        const strain = 1 + done * 0.6 + (res && !res.success ? 2 : 0);
+        const fallen = res && !res.success && t > 900;
+        const cx = W / 2 + (fallen ? 0 : Math.sin(time / 30) * strain * 0.7);
+        const { h } = Characters.size('onioni');
+        const scale = 1.4, top = MINI_GROUND - h * scale;
+        if (fallen) {
+            Characters.drawEnemy(ctx, 'onioni', cx, MINI_GROUND, { scale, frame: 0, hurt: true });
+            drawDumbbell(cx + 30, MINI_GROUND - 8, 1);
+            text('ドスン!!', cx + 30, MINI_GROUND - 40, { color: '#ff8a3a', size: 14, align: 'center' });
+        } else {
+            const lift = res && !res.success ? Math.min(1, t / 900) * 30 : 0;   // 落ちて いく
+            Characters.drawEnemy(ctx, 'onioni', cx, MINI_GROUND, { scale, frame: Math.floor(time / 200) % 2 });
+            drawDumbbell(cx, top - 10 + lift, 1);
+        }
+        // のこり 秒
+        const sec = res && res.success && t > 1200 ? 0 : Math.ceil(left);
+        text(`${sec}`, 30, 50, { color: sec <= 2 ? '#ff5a5a' : '#ffffff', size: 24, align: 'center' });
+        text('秒', 30, 78, { color: '#ffffff', size: 10, align: 'center' });
+        if (!res) miniSay('10秒 耐えろ!!', 0, '#3fdf6f');
+        else if (res.success && t > 1300) miniSay('耐えきった!! 成功!', 0, '#ffe45a');
+        else if (!res.success && t > 1300) miniSay('つぶれた… 失敗', 0, '#9fb8d8');
+    }
+    function drawDumbbell(cx, y, s) {
+        ctx.fillStyle = '#b0b0b8';
+        ctx.fillRect(Math.round(cx - 44 * s), Math.round(y), Math.round(88 * s), 3);
+        ctx.fillStyle = '#303038';
+        for (const dx of [-44, -36, 30, 38]) ctx.fillRect(Math.round(cx + dx * s), Math.round(y - 9 * s), Math.round(6 * s), Math.round(21 * s));
+        box(Math.round(cx - 15), Math.round(y - 12), 30, 11, '#202028', '#ffe45a');
+        text('100k', cx, y - 12, { color: '#ffe45a', size: 10, align: 'center', outline: null });
+    }
+
+    // 響かせ: 映画館。ひびきまくりが 4DX を 響かせる (成功: 客席が ゆれて 光る / 失敗: 警備員に つまみ出される)
+    function drawHibiki(time, t, res) {
+        ctx.fillStyle = '#0c0a12';
+        ctx.fillRect(0, 0, W, H);
+        // スクリーン
+        const glow = res && res.success && t > 600 ? 0.6 + 0.4 * Math.sin(time / 40) : 0.35;
+        ctx.fillStyle = `rgba(160,180,255,${glow})`;
+        ctx.fillRect(30, 8, W - 60, 46);
+        ctx.fillStyle = '#e8e8ff';
+        ctx.fillRect(34, 12, W - 68, 38);
+        if (!res) text('NOW SHOWING', W / 2, 24, { color: '#2a2a4a', size: 12, align: 'center', outline: null });
+        else if (res.success && t > 600 && t < 1200) text('4DX!!', W / 2, 24, { color: '#2a2a4a', size: 12, align: 'center', outline: null });
+        // 客席 (成功は 4DX で ゆれる)
+        const quake = res && res.success && t > 600 ? 3 : 0.6;
+        for (let r = 0; r < 2; r++) {
+            for (let i = 0; i < 9; i++) {
+                const sx = 8 + i * 28 + (r ? 14 : 0), sy = MINI_GROUND - 10 + r * 14 + Math.sin(time / 50 + i + r) * quake;
+                ctx.fillStyle = '#7a1a2a';
+                ctx.fillRect(Math.round(sx), Math.round(sy), 22, 10);
+                ctx.fillStyle = '#5a0a1a';
+                ctx.fillRect(Math.round(sx), Math.round(sy + 8), 22, 3);
+            }
+        }
+        // ひびきまくり と 音の 輪
+        let hx = W / 2 + 20;
+        const guardIn = res && !res.success;
+        if (guardIn && t > 900) hx += (t - 900) * 0.12;   // つまみ出される
+        const shake = res && res.success && t > 600 ? Math.sin(time / 20) * 2 : 0;
+        Characters.drawEnemy(ctx, 'hibikimakuri', hx + shake, MINI_GROUND - 4, { scale: 1.2, frame: Math.floor(time / 180) % 2 });
+        if (!guardIn) {
+            const rings = res && res.success ? 4 : 2;
+            for (let i = 0; i < rings; i++) {
+                const r = ((time / (res && res.success ? 4 : 9)) + i * 12) % 48;
+                ctx.strokeStyle = `rgba(192,112,255,${1 - r / 48})`;
+                ctx.beginPath();
+                ctx.arc(hx, MINI_GROUND - 40, r + 4, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+        if (guardIn) {
+            const gx = Math.max(hx + 26, W + 20 - t * 0.2);
+            drawGuard(gx, MINI_GROUND - 2, time);
+            if (t > 600) text('お客さま、こまります！', W / 2, 62, { color: '#9fe6ff', size: 10, align: 'center' });
+            if (t > 1700) miniSay('つまみ出された… 失敗', 1, '#9fb8d8', 14);
+        } else if (res && res.success && t > 1200) miniSay('響きまくった!! 成功!', 1, '#ffe45a');
+        else if (!res) miniSay('4DX を 響かせろ!!', 0, '#c070ff');
+    }
+    // 警備員 (ドット絵を 四角で 描く。紺の 制服と 帽子)
+    function drawGuard(x, g, time) {
+        const step = Math.floor(time / 150) % 2;
+        x = Math.round(x);
+        ctx.fillStyle = '#1a2a5a';
+        ctx.fillRect(x - 7, g - 10, 5, 10 - step);   // 足
+        ctx.fillRect(x + 2, g - 10, 5, 9 + step);
+        ctx.fillStyle = '#2a3a7a';
+        ctx.fillRect(x - 9, g - 30, 18, 20);   // 体
+        ctx.fillStyle = '#ffd23a';
+        ctx.fillRect(x - 3, g - 26, 3, 3);   // バッジ
+        ctx.fillStyle = '#f0c8a0';
+        ctx.fillRect(x - 6, g - 42, 12, 12);   // 顔
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x - 3, g - 38, 2, 2);
+        ctx.fillRect(x + 2, g - 38, 2, 2);
+        ctx.fillStyle = '#1a2a5a';
+        ctx.fillRect(x - 8, g - 46, 16, 5);   // 帽子
+        ctx.fillRect(x - 10, g - 42, 20, 2);
+        ctx.fillStyle = '#2a3a7a';
+        ctx.fillRect(x - 16, g - 28, 8, 4);   // つまむ 手
+    }
+
+    // ふるカワジャッジ: まん中に ふるカワ。成功は 虹色の フラッシュ (暗く なって から の ことも)、失敗は 何も 起きず 暗く なる
+    function drawJudge(time, t, res) {
+        ctx.fillStyle = '#140a1a';
+        ctx.fillRect(0, 0, W, H);
+        // スポットライト
+        const grad = ctx.createRadialGradient(W / 2, H / 2, 6, W / 2, H / 2, 90);
+        grad.addColorStop(0, 'rgba(255,240,200,0.35)');
+        grad.addColorStop(1, 'rgba(255,240,200,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+        const scale = 3, fw = 16 * scale;
+        const fx = Math.round(W / 2 - fw / 2), fy = Math.round(H / 2 - fw / 2 + 6);
+        const flashAt = res && res.success ? (res.dark ? 1500 : 700) : null;
+        const flashing = flashAt !== null && t > flashAt;
+        if (flashing) {
+            // 虹色の 輪と 光
+            for (let i = 0; i < 6; i++) {
+                const r = 18 + ((t - flashAt) / 6 + i * 10) % 60;
+                ctx.strokeStyle = `hsla(${(i * 60 + time / 3) % 360}, 95%, 60%, ${1 - r / 80})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(W / 2, H / 2 + 6, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.lineWidth = 1;
+        }
+        drawSprite(ctx, SPRITES.furukawa, res ? 'idle' : Math.floor(time / 300) % 2 ? 'talk' : 'idle', fx, fy, scale);
+        if (flashing) {
+            ctx.fillStyle = `hsla(${(time / 2) % 360}, 95%, 60%, 0.35)`;
+            ctx.fillRect(fx, fy, fw, fw);
+        }
+        // 暗く なる (失敗 / 暗く なってから の 成功)
+        const darkEnd = flashAt !== null ? flashAt : Infinity;
+        if (res && (!res.success || res.dark) && t > 500 && t < darkEnd) {
+            ctx.fillStyle = `rgba(0,0,0,${Math.min(0.85, (t - 500) / 700)})`;
+            ctx.fillRect(0, 0, W, H);
+        }
+        if (!res) miniSay('ジャッジ中…', 0, '#ffffff');
+        else if (flashing && t > flashAt + 400) miniSay('合格!! 成功!', 0, killRateColor(1, time, W / 2 - 40, W / 2 + 40));
+        else if (!res.success && t > 1600) miniSay('不合格… 失敗', 0, '#9fb8d8');
+    }
+
     async function miniDecided(event) {
         // 数字の 色が 変わる (ゲーム数の 表示が state を 見て 色を 変える)。ちいさく 光って 知らせる
         const k = config.mini.kinds[event.kind];
@@ -572,7 +783,7 @@ const Lcd = (() => {
     }
     async function miniStart(event) {
         const k = config.mini.kinds[event.kind];
-        miniView = { kind: event.kind, games: event.games, remaining: event.games, rainbow: event.rainbow, msg: null, msgAt: 0 };
+        miniView = { kind: event.kind, games: event.games, remaining: event.games, rainbow: event.rainbow, msg: null, msgAt: 0, act: performance.now(), res: null };
         startFlash(k.color, 400);
         Sound.chance();
         showTitle(k.name, event.rainbow ? '城突入 確定!!' : `${event.games}G 以内に 成功させろ!!`, event.rainbow ? '#ffd700' : k.color, 1800);
@@ -582,6 +793,7 @@ const Lcd = (() => {
     async function miniGameFx(event) {
         if (!miniView) return;
         miniView.remaining = event.remaining;
+        miniView.act = performance.now();
         if (event.success || event.remaining <= 0) return;
         const k = config.mini.kinds[event.kind];
         const msg = k.miss[Math.floor(Math.random() * k.miss.length)];
@@ -590,21 +802,30 @@ const Lcd = (() => {
             miniView.msg = msg;
             miniView.msgAt = performance.now();
         }
+        if (event.kind === 'training') Sound.hit();
         await sleep(400);
     }
     async function miniResult(event) {
         const k = config.mini.kinds[event.kind];
+        if (!miniView) miniView = { kind: event.kind, games: k.games, remaining: 0, rainbow: event.rainbow, msg: null, msgAt: 0, act: 0, res: null };
+        // ふるカワジャッジの 成功は ときどき 暗く なってから フラッシュ (見た目だけ)
+        miniView.res = { success: event.success, start: performance.now(), dark: event.kind === 'judge' && event.success && Math.random() < 0.35 };
+        const ms = RES_MS[event.kind];
         if (event.success) {
-            startFlash(event.rainbow ? '#ffffff' : k.color, 600);
-            startShake(config.effects.intensity.shakeLarge, 400);
-            Sound.fanfare();
-            showTitle(k.success, event.rainbow ? '城突入 確定!!' : 'SE城へ いそげ!!', event.rainbow ? '#ffd700' : k.color, 1800);
+            const hitAt = event.kind === 'judge' ? (miniView.res.dark ? 1500 : 700) : event.kind === 'toilet' ? 1300 : event.kind === 'training' ? 1200 : 600;
+            setTimeout(() => {
+                startFlash(event.kind === 'judge' || event.rainbow ? '#ffffff' : k.color, 500);
+                startShake(config.effects.intensity.shakeLarge, 400);
+                if (event.kind === 'judge' || event.rainbow) Sound.rainbow(); else Sound.fanfare();
+            }, hitAt);
+            await sleep(ms);
+            miniView.res.quiet = true;   // ここからは タイトルだけ
+            showTitle(k.success, event.rainbow ? '城突入 確定!!' : 'SE城へ いそげ!!', event.rainbow ? '#ffd700' : k.color, 1500);
             if (event.kind === 'judge') FurukawaView.show({ text: '合格！！ いってらっしゃい！', color: 5, heat: 5 });
-            await sleep(1800);
-        } else {
-            Sound.miss();
-            showTitle(k.fail, null, '#9fb8d8', 1500);
             await sleep(1500);
+        } else {
+            setTimeout(() => Sound.miss(), event.kind === 'training' ? 900 : 1200);
+            await sleep(ms);
         }
         miniView = null;
     }
@@ -636,7 +857,7 @@ const Lcd = (() => {
     function drawChallengeHud(time) {
         drawMapPlate();
         const total = config.castle.challengeGames;
-        const remaining = state.challenge.gamesRemaining;
+        const remaining = shownNormal().challengeLeft;
         const bw = 96, bx = W - bw - 4;
         box(bx, 4, bw, 32, 'rgba(60,0,20,0.8)', '#ff5a5a');
         text('城突入チャレンジ', bx + bw / 2, 6, { color: '#ffe0e0', size: 10, align: 'center', outline: null });
@@ -902,7 +1123,8 @@ const Lcd = (() => {
                 box(bx + bw - 34, by + 40, 34, 12, 'rgba(60,0,90,0.9)', '#c080ff');
                 text('BREAK', bx + bw - 17, by + 41, { color: blink ? '#ffffff' : '#e0b0ff', size: 10, align: 'center', outline: null });
             }
-            text(enemy.name, bx + 5, by + 2, { size: 10, outline: null });
+            const nameColor = { red: '#ff3a3a', gold: SUPER_COLOR }[battle.nameColor] || '#ffffff';   // 赤字・金字は 撃破 確定
+            text(enemy.name, bx + 5, by + 2, { size: 10, outline: null, color: nameColor });
             const hp = Math.max(0, valueAt(battle.hp, time));
             const ratio = battle.maxHp ? hp / battle.maxHp : 0;
             ctx.fillStyle = '#3a0a0a';
@@ -970,6 +1192,13 @@ const Lcd = (() => {
 
     // 撃破率が 上がった (役・ブレイク・長押しの チャージ・撃破役)。100% に なったら 全画面で 確定
     async function killRateUp(event) {
+        battle.nameColor = event.nameColor || battle.nameColor;
+        // 違和感演出 (7% / 77%) の あいだは 数字を 動かさない (100% に なったら 出す)
+        if (event.shown != null && event.to < 1) {
+            setNow(battle.killRate, event.shown);
+            await sleep(200);
+            return;
+        }
         battle.killUp = performance.now();
         animateTo(battle.killRate, event.to, 400);
         const word = event.reason === 'charge' ? 'チャージ!! ' : event.reason === 'break' ? 'BREAK!! ' : '';
@@ -1029,6 +1258,27 @@ const Lcd = (() => {
             const y = scene === 'rash' ? 70 : H - 34;
             text(p.text, x, y - age * 14 - i * 12, { color: p.color, size: 10, align: 'center' });
         });
+    }
+
+    // 第 3 停止の「はなせ!!」(2026-10-27 ユーザー指定: 見やすく、すぐ 消えないように)。帯の 上に 大きく 点滅
+    function setHanase(color) {
+        if (color) hanase = { color, until: Infinity };
+        else if (hanase) hanase.until = performance.now() + 700;   // 離したあとも 少し 残す
+    }
+    function drawHanase(time) {
+        if (!hanase) return;
+        if (time > hanase.until) {
+            hanase = null;
+            return;
+        }
+        const blink = Math.floor(time / 120) % 2;
+        const color = hanase.color === 'rainbow' ? killRateColor(1, time, W / 2 - 50, W / 2 + 50) : hanase.color;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0, 44, W, 36);
+        ctx.fillStyle = blink ? '#ffffff' : (hanase.color === 'rainbow' ? '#ffd700' : hanase.color);
+        ctx.fillRect(0, 44, W, 2);
+        ctx.fillRect(0, 78, W, 2);
+        text('はなせ!!', W / 2, 48, { color: blink ? '#ffffff' : color, size: 26, align: 'center' });
     }
 
     function drawMessage(time) {
@@ -1147,6 +1397,7 @@ const Lcd = (() => {
     // リーチ: 画面上部に「REACH!」とリーチ柄を大きく表示
     function drawReach(time) {
         if (!reachView) return;
+        if (reachView.list && reachView.list.length > 1) return drawMultiReach(time);
         const pulse = Math.floor(time / 150) % 2;
         const seven = reachView.symbol === 'seven';
         const color = seven ? `hsl(${(time / 4) % 360}, 90%, 60%)` : (pulse ? '#ff3030' : '#ff8080');
@@ -1158,6 +1409,27 @@ const Lcd = (() => {
         text('REACH!', W / 2 - 24, 64, { color, size: 24, align: 'right' });
         ctx.drawImage(Symbols.canvas(reachView.symbol), W / 2 + 4, 58, 36, 36);
         if (reachView.lineName) text(`${reachView.lineName}ライン`, W / 2 + 46, 68, { color: '#fff', size: 10 });
+    }
+
+    // リーチが 2 つ 以上: 絵柄を ならべて「どれが出るかな？」。交互に 光り、揃ったら その 絵柄だけ 光る
+    function drawMultiReach(time) {
+        const list = reachView.list;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, 46, W, 56);
+        const lit = reachView.won ? list.findIndex(r => r.symbol === reachView.won) : Math.floor(time / 260) % list.length;
+        const size = 34, gap = 14, total = list.length * size + (list.length - 1) * gap;
+        const x0 = W / 2 - total / 2;
+        text(reachView.won ? 'GET!!' : 'どれが出るかな？', W / 2, 48, { color: reachView.won ? '#ffd700' : '#ffffff', size: 12, align: 'center' });
+        list.forEach((r, i) => {
+            const x = x0 + i * (size + gap), on = i === lit;
+            ctx.globalAlpha = on ? 1 : 0.35;
+            if (on) {
+                ctx.fillStyle = reachView.won ? '#ffd700' : (Math.floor(time / 130) % 2 ? '#ff3030' : '#ffffff');
+                ctx.fillRect(x - 3, 61, size + 6, size + 6);
+            }
+            ctx.drawImage(Symbols.canvas(r.symbol), x, 64, size, size);
+            ctx.globalAlpha = 1;
+        });
     }
 
     // カットイン: キャラクターが横からスライドして入る帯
@@ -1232,10 +1504,12 @@ const Lcd = (() => {
         preview = 0;
     }
 
-    function reach(symbol, lineName = '') {
-        reachView = { symbol, lineName, start: performance.now() };
+    // list: Lottery.findReaches の 結果 (強い 絵柄から)。1 つなら 前と 同じ 表示
+    function reach(list) {
+        const { symbol, lineName } = list[0];
+        reachView = { symbol, lineName, list, won: null, start: performance.now() };
         startFlash(symbol === 'seven' ? '#ffffff' : '#ff3030', 300);
-        if (symbol === 'seven') {
+        if (symbol === 'seven' && list.length === 1) {   // 2 つ 以上の ときは「どれが出るかな？」を 見せる
             cutIn = { who: 'koori', text: '7が来る…!?', color: '#b01828', start: performance.now(), duration: 1200 };
         }
     }
@@ -1245,7 +1519,13 @@ const Lcd = (() => {
         startFlash('#ffd700', 300);
     }
 
-    async function reachResult(result) {
+    async function reachResult(result, symbol = null) {
+        // 2 つ 以上の リーチで 揃ったら、揃った 絵柄を 光らせて から
+        if (result === 'get' && reachView && reachView.list && reachView.list.length > 1) {
+            reachView.won = symbol;
+            startFlash('#ffd700', 500);
+            await sleep(900);
+        }
         reachView = null;
         if (result === 'get') {
             startFlash('#ffd700', 500);
@@ -2568,7 +2848,8 @@ const Lcd = (() => {
         startFlash('#7fffd4', 400);
         Sound.bigHit();
         showTitle(`${event.name}がかばってくれた!!`, `RASH継続!! BATTLE +${event.games}G`, '#7fffd4', 2200);
-        if (event.killRate != null) setNow(battle.killRate, event.killRate);   // 新しい セットの 撃破率
+        if (event.killRate != null) setNow(battle.killRate, event.shown ?? event.killRate);   // 新しい セットの 撃破率
+        if (event.nameColor) battle.nameColor = event.nameColor;
         if (party.includes(id)) {
             await animateTo(jumpOf(id), -16, 200);
             await animateTo(jumpOf(id), 0, 200);
@@ -2600,6 +2881,24 @@ const Lcd = (() => {
     }
 
     // SE城前でチャンス目: こおりくんが赤いオーラをまとい、突入率UP
+    // SE城前で 7揃い: このあとの 城突入チャレンジは 突破 確定 (2026-10-27 ユーザー指定)
+    async function castleSure(event = {}) {
+        kooriAura = true;
+        startFlash('#ffffff', 600);
+        startShake(config.effects.intensity.shakeLarge, 500);
+        Sound.rainbow();
+        showTitle('城突入 確定!!', event.role === 'bar' ? 'BAR揃い で 突破 確定！' : '7・7・7 で 突破 確定！', '#ffd700', 2000);
+        await sleep(2000);
+    }
+    // 通常時の BAR揃い (2026-10-27 ユーザー指定): SE城前へ 直行 (ときどき 城突入 確定)
+    async function barBonus(event) {
+        startFlash(event.sure ? '#ffffff' : '#ffd700', 500);
+        startShake(config.effects.intensity.shakeLarge, 400);
+        if (event.sure) Sound.rainbow(); else Sound.fanfare();
+        showTitle('BAR揃い!!', event.sure ? 'SE城へ 直行!! 城突入 確定!!' : 'SE城へ 直行!!', '#ffd700', 1800);
+        await sleep(1800);
+    }
+
     async function castleBoost(event) {
         kooriAura = true;
         startFlash('#ff3030', 400);
@@ -2699,7 +2998,8 @@ const Lcd = (() => {
         battle.games = event.games;
         battle.breakActive = false;
         battle.winGuaranteed = Boolean(event.winGuaranteed);
-        setNow(battle.killRate, event.killRate || 0);
+        setNow(battle.killRate, event.shown ?? event.killRate ?? 0);
+        battle.nameColor = event.nameColor || 'white';
         setNow(battle.hp, event.hp);
         setNow(battle.alpha, 1);
         setNow(battle.drop, 0);
@@ -2714,7 +3014,7 @@ const Lcd = (() => {
         // 敵の カットインと 全画面の「撃破率 〇〇%」(2026-10-27 ユーザー指定。おにおに・金面犬は 上の カットインの あと)
         const foe = Battle.findEnemy(config, event.enemyId);
         if (event.enemyId !== 'onioni' && !event.isGoldDog) await playCutIn(event.enemyId, `${foe.name} 出現!!`, '#3a1a5a', 1100);
-        await playKillSplash(event.killRate || 0, event.winGuaranteed ? '勝利確定!!' : null);
+        await playKillSplash(event.shown ?? event.killRate ?? 0, event.winGuaranteed ? '勝利確定!!' : null);
         await enemySay(event.enemyId, 'intro');
         // ふるカワの返事
         if (event.furukawa) {
@@ -3081,7 +3381,8 @@ const Lcd = (() => {
     async function questionResult(event) {
         if (event.continued) {
             battle.games = event.games;
-            if (event.killRate != null) setNow(battle.killRate, event.killRate);   // 新しい セットの 撃破率
+            if (event.killRate != null) setNow(battle.killRate, event.shown ?? event.killRate);   // 新しい セットの 撃破率
+            if (event.nameColor) battle.nameColor = event.nameColor;
             startFlash('#ffd700', 500);
             Sound.fanfare();
             showTitle('継続!!', `BATTLE +${event.games}G`, '#ffd700', 1500);
@@ -3254,6 +3555,12 @@ const Lcd = (() => {
                     break;
                 case 'castleBoost':
                     await castleBoost(event);
+                    break;
+                case 'castleSure':
+                    await castleSure(event);
+                    break;
+                case 'barBonus':
+                    await barBonus(event);
                     break;
                 case 'challengeStart':
                     await challengeIntro(event);
@@ -3595,7 +3902,7 @@ const Lcd = (() => {
 
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, setHotFrame, playCrack, startPreview, stopPreview,
-        reach, push, reachResult, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, startShake, setCharge, setZencho, noiseFx,
+        reach, push, reachResult, hold, release, setHanase, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, startShake, setCharge, setZencho, noiseFx,
         tokkaLever, tokkaSelectInput, playNotice,
         tokkaSelecting: () => Boolean(tokkaSelect),
         setHandlers: h => { handlers = h; },
