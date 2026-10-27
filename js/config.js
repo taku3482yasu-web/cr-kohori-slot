@@ -299,14 +299,11 @@ window.GAME_CONFIG = {
 
     // ----- おにおにRASH -----
     rash: {
-        // continueRate: 目標の継続率 (1セットごと。ガード崩し・ブレイクで勝ちになる分も含めた最終的な値)
-        // presetRate:   セット開始時に「勝ちセット」にする確率 (先決め)。
-        //               負けセットでもガード崩し・ブレイク・仲間の肩代わり・復活で続くぶん、continueRate より低くしてある。
-        //               ダメージ・確率・ブレイク率を変えたら、シミュレーションで continueRate に合うよう調整する
-        // 2026-10-23: 上乗せ特化ゾーン・おにおにの出やすさの追加と、SE城前のポイント 100→150 に合わせて、
-        //   出玉率を元くらい (設定1 約98%) にするために下げた (presetRate 通常 0.380→0.330 / SUPER 0.848→0.795。特化ゾーンの突入率も調整。BIG・REG を消したあとに合わせ直した)
-        normal: { continueRate: 0.68, presetRate: 0.330 },   // おにおにRASH
-        super: { continueRate: 0.91, presetRate: 0.795 },    // SUPERおにおにRASH
+        // continueRate: 目標の継続率 (1セットごと。撃破役・役での撃破率 UP・仲間の肩代わり・復活で続くぶんも含めた最終的な値)
+        // 2026-10-27 から、セットを勝ちにする確率は キャラごとの 撃破率 (enemies の killRate / superKillRate と config.killRate) で決める
+        //   (前の 先決めの確率 presetRate 通常 0.330 / SUPER 0.795 の かわり)。数字を変えたら シミュレーションで 出玉率を 合わせ直す
+        normal: { continueRate: 0.68 },   // おにおにRASH
+        super: { continueRate: 0.91 },    // SUPERおにおにRASH
         // BATTLE開始時のゲーム数 (重み付き抽選)
         initialGames: [
             { games: 5, weight: 45 },
@@ -489,9 +486,43 @@ window.GAME_CONFIG = {
         sevenBar: 'kill'      // 7️⃣7️⃣BAR
     },
 
+    // ----- 撃破率 (2026-10-27 ユーザー指定。js/battle.js) -----
+    // RASH の BATTLE で、そのセットを勝ち (撃破 か「？？」で継続) にする確率。液晶の右上に % で出す。
+    //   セットの始めは キャラごとの 値 (enemies の killRate / SUPER は superKillRate。数字は Claude が 決めた)。勝利確定の BATTLE は 100%
+    //   add: 役を引いたときに 上がる 量 (強い役・チャンス目ほど 大きい)。'kill' の役 (config.damage) は 100%
+    //   breakAdd: ブレイクしたときに 上がる 量。上限は 100%
+    //   revivalShow: 復活の 撃破で 出す 撃破率 (表示だけ。7.77 = 777%)
+    killRate: {
+        add: { diamond: 0.02, cherry: 0.05, melon: 0.08, chance: 0.25 },
+        breakAdd: 0.2,
+        revivalShow: 7.77,
+        // 数字の 色 (2026-10-27 ユーザー指定): 高い ほど 強い 色。白 < 青 < 緑 < 紫 < 赤 < 虹 (虹は 100% = 確定)。min 以上で その 色
+        colors: [
+            { min: 0, color: '#ffffff' },
+            { min: 0.2, color: '#4f9bff' },
+            { min: 0.4, color: '#3fdf6f' },
+            { min: 0.6, color: '#c070ff' },
+            { min: 0.8, color: '#ff3a3a' },
+            { min: 1, color: 'rainbow' }
+        ],
+        splashMs: 1800    // 敵が 出てきたときの 全画面の「撃破率 〇〇%」の 時間
+    },
+
+    // ----- 長押しの チャージ (2026-10-27 ユーザー指定。js/state.js・battle.js) -----
+    // 結果の 前の PUSH が「長押し」に なる ゲームは、ためきる (押さなくても 進めば) と 得を する。長押しに なるかは 台の 抽選 (rate)。
+    //   normal: 通常時 (マップ)。その ゲームの チャンスポイントの 加算が mult 倍
+    //   castle: 城突入チャレンジ。その ゲームの 突入率が mult 倍
+    //   battle: RASH の BATTLE。撃破率が add 上がる
+    // 数字は Claude が 決めた
+    charge: {
+        normal: { rate: 0.03, mult: 2 },
+        castle: { rate: 0.1, mult: 1.5 },
+        battle: { rate: 0.06, add: 0.15 }
+    },
+
     // ----- ブレイク -----
-    // BATTLE 中に rates の役が出たとき、その確率でブレイク状態に。ブレイク中は敵がガードできない
-    // (その役の攻撃から有効。今の敵を倒すか RASH が終わるまで続く)
+    // BATTLE 中に rates の役が出たとき、その確率でブレイク状態に (今の敵を倒すか RASH が終わるまで続く)。
+    // 2026-10-27 から、ブレイクしたら 撃破率が killRate.breakAdd 上がる (前は 敵が ガードできなく なった)
     breakState: {
         rates: {
             cherry: 0.25,     // チェリー揃い
@@ -519,31 +550,31 @@ window.GAME_CONFIG = {
         {
             id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
             lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！' },
-            weight: 50, superWeight: 40, hp: 60,
+            weight: 50, superWeight: 40, hp: 60, killRate: 0.23, superKillRate: 0.72,
             bonus: { type: 'coins', value: 35 }   // 2026-10-23 A5 で BIG・REG を足して 35 → 20 にしたが、BIG・REG を消したので 35 に戻した
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
             lines: { intro: '響きです。', special: 'これが４DXだ！' },
-            weight: 30, superWeight: 25, hp: 90,
+            weight: 30, superWeight: 25, hp: 90, killRate: 0.19, superKillRate: 0.67,
             bonus: { type: 'games', value: 5 }
         },
         {
             id: 'shibata', name: 'シバター', special: 'シバタードライバー',
             lines: { intro: 'ぶんぶん！', special: 'バーイ！' },
-            weight: 15, superWeight: 15, hp: 120,
+            weight: 15, superWeight: 15, hp: 120, killRate: 0.15, superKillRate: 0.62,
             bonus: { type: 'probUp', value: 1.5, games: 10 }
         },
         {
             id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
             lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。' },
-            weight: 8, superWeight: 12, hp: 150,
+            weight: 8, superWeight: 12, hp: 150, killRate: 0.11, superKillRate: 0.57,
             bonus: { type: 'coins', value: 120 }   // 2026-10-23 A5 で 120 → 60 にしたが、BIG・REG を消したので 120 に戻した
         },
         {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
             lines: { special: '金返せ！' },
-            weight: 16, superWeight: 15, hp: 200,
+            weight: 16, superWeight: 15, hp: 200, killRate: 0.07, superKillRate: 0.47,
             bonus: { type: 'tokka' },     // 撃破の報酬は上乗せ特化ゾーン (300枚保障。tokka)
             requiresUnlock: true          // 連数が rash.oni.unlockStreak に達するまで出ない (SUPER 中は常に候補)
         }
@@ -555,6 +586,7 @@ window.GAME_CONFIG = {
         lines: { intro: 'ワン！（自信ありげ）', special: 'ワン！（邪悪な笑み）' },
         prob: 1 / 100,        // SUPER中の対戦相手抽選ごとの出現確率
         hp: 250,
+        killRate: 0.3, superKillRate: 0.3,   // 撃破率 (ゴールド金面犬は SUPER 中だけ)
         bonus: { type: 'coins', value: 2000 },
         nextForcedEnemy: 'onioni'   // 撃破後の次の対戦相手
     },
@@ -686,6 +718,16 @@ window.GAME_CONFIG = {
             mashCount: 6,                                           // 連打の 回数
             autoMs: 8000,                                           // 押さなかったら この時間で 進む
             colorCodes: { white: '#f2f2f2', blue: '#3f8cff', red: '#ff3a3a', gold: '#ffd700', rainbow: 'rainbow' }
+        },
+        // 結果に 合わせた PUSH (2026-10-27 ユーザー指定。Hype.reveal): RASH の BATTLE (撃破するか) と 城突入チャレンジ (突入するか)。
+        //   win: 勝つ ときの 色の 重み / reliability: 出たら 勝つ 割合 (赤以上は 80% 以上) / lose: 負ける ときの 残りを 白・青に 分ける 重み
+        //   lever: 「レバーを叩け!!」。win: 勝つ ときに PUSH の かわりに 出る 割合、reliability: 出たら 勝つ 割合 (90%)
+        //   PUSH が 出るかは 前と 同じ 熱さで 決める (push.rates)。数字は Claude が 決めた (reliability は ユーザー指定)
+        reveal: {
+            win: { white: 15, blue: 20, red: 35, gold: 20, rainbow: 10 },
+            reliability: { red: 0.8, gold: 0.9, rainbow: 1 },
+            lose: { white: 65, blue: 35 },
+            lever: { win: 0.2, reliability: 0.9 }
         }
     },
 

@@ -244,6 +244,8 @@
         <ul id="rash-list"></ul>
         <h3>BATTLE のダメージ</h3>
         <div class="table-wrap"><table id="damage-table"></table></div>
+        <h3>撃破率</h3>
+        <ul id="kill-list"></ul>
         <h3>ガードとブレイク</h3>
         <ul id="guard-list"></ul>
         <h3>BATTLE のゲーム数</h3>
@@ -311,13 +313,13 @@
             <li><b>震える枠</b>：熱いゲームでは、液晶の外枠がぶるぶる震えます。<b>赤 ＜ 金 ＜ 虹</b>（虹は確定）</li>
             <li><b>カットイン</b>：色の順に熱い。<b>青 ＜ 緑 ＜ 赤 ＜ 金 ＜ 虹</b>（虹は確定）。こおりくん・やすさん・たむさん・だけさん・ふるカワ・おにおに・ともいしが出ます（キャラで熱さは変わりません）</li>
             <li><b>ふるカワのセリフの色</b>：白 ＜ 青 ＜ 緑 ＜ 紫 ＜ 赤 ＜ 金 ＜ 虹</li>
-            <li><b>PUSH ボタン</b>（筐体の右下・<kbd>B</kbd> キー）：全リールが止まったあとに光ったら押す。色は <b>白 ＜ 青 ＜ 赤 ＜ 金 ＜ 虹</b>。激熱のときは飛び出します。押し方は 1 回・長押し（ため演出：液晶のふちが光ってフルチャージ!!）・連打（連撃演出：〇連撃! で液晶が揺れる）の 3 つ（まわりの輪がたまったら終わり。押さなくても 8 秒で進みます）</li>
+            <li><b>PUSH ボタン</b>（筐体の右下・<kbd>B</kbd> キー）：全リールが止まったあとに光ったら押す。色は <b>白 ＜ 青 ＜ 赤 ＜ 金 ＜ 虹</b>。激熱のときは飛び出します。押し方は 1 回・長押し（ため演出：液晶のふちが光ってフルチャージ!!）・連打（連撃演出：〇連撃! で液晶が揺れる）の 3 つ（まわりの輪がたまったら終わり。押さなくても 8 秒で進みます）。<b>長押し</b>が出たらチャージ！ 通常時は ポイント UP、城突入チャレンジは 突入率 UP、RASH の BATTLE は 撃破率 UP。RASH の BATTLE と城突入チャレンジで <b>赤以上</b>なら 80% 以上で撃破 / 突入</li>
             <li><b>先バレ音</b>：レバー ON で「キュイン」と鳴ったら熱い。<b>確定音</b>（高い音が 3 回）が鳴ったら確定</li>
             <li><b>金発光</b>：筐体が金色に光ったら激熱</li>
             <li><b>フラッシュ</b>：リールが白く光る（弱）・何度も強く光って液晶も光る（強）</li>
             <li><b>前兆</b>：ダンシングステージの終わりや、バトルの決着の前に、液晶のまわりに黒い靄が出て、提灯が紫（バトルは赤黒）に光ったら、当たりが近いかも（ガセもあります）</li>
             <li><b>違和感</b>：液晶にノイズ・音が消える・リールが逆に回る・STOP が紫に光る。出たらかなり熱い</li>
-            <li><b>レバーを叩け!!</b>：結果の前の PUSH のかわりに出たら激熱。PUSH を押したときに変わることもあります。金棒のレバー（<kbd>Space</kbd>）を叩きます。RASH 中に出たら確定</li>
+            <li><b>レバーを叩け!!</b>：結果の前の PUSH のかわりに出たら激熱。PUSH を押したときに変わることもあります。金棒のレバー（<kbd>Space</kbd>）を叩きます。RASH の BATTLE と城突入チャレンジで出たら 90% で撃破 / 突入（ほかの RASH 中の場面は確定）</li>
             <li><b>レバブル</b>：レバー ON で金棒がぶるぶる震えたらチャンス</li>
             <li><b>遅れ</b>：レバー ON のあと、リールが少し遅れて回り出したらチャンス目・BAR 以上</li>
             <li><b>連続予告「？」</b>：前兆のあいだ、レバー ON のたびに「？」が増える（色も 白 → 青 → 赤 → 金）。たくさん続いたら当たりが近いかも</li>
@@ -369,12 +371,12 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js?v=d17f931f"></script>
+<script src="js/config.js?v=18f05867"></script>
 <script src="js/sprites.js?v=056d5554"></script>
 <script src="js/characters.js?v=6c8f1bf6"></script>
-<script src="js/state.js?v=53e96405"></script>
+<script src="js/state.js?v=bb9b195e"></script>
 <script src="js/lottery.js?v=acffe958"></script>
-<script src="js/battle.js?v=54b4da15"></script>
+<script src="js/battle.js?v=661b2301"></script>
 <script>
     // 表示する数値はすべて js/config.js から作る (数値を調整してもこのページは自動で追従する)
     const c = window.GAME_CONFIG;
@@ -506,10 +508,18 @@
             odds(c.lottery.battle[role]),
             d === 'kill' ? '<span class="red">確定撃破</span>' : d === 0 ? 'なし' : d
         ]));
+    const kr = c.killRate;
+    $('kill-list').innerHTML = [
+        '右上の <b>撃破率</b> は、いま戦っている相手を倒せる（「？？」で継続も）確率。敵が出てきたとき、画面全体に大きく出ます',
+        `はじめの撃破率は相手ごと: ${c.enemies.map(e => `${e.name} ${pct(e.killRate)}`).join('・')}（SUPER 中は ${c.enemies.map(e => pct(e.superKillRate)).join('・')}）`,
+        `役を引くと上がります: ${Object.entries(kr.add).map(([role, a]) => `${SYMBOL_NAMES[role]} +${pct(a)}`).join('・')}・ブレイク +${pct(kr.breakAdd)}・長押しのチャージ +${pct(c.charge.battle.add)}。<b>BAR揃い・7揃い・7・7・BAR</b> は 100%`,
+        '数字の色は <b>白 ＜ <span style="color:#4f9bff">青</span> ＜ <span style="color:#3fdf6f">緑</span> ＜ <span style="color:#c070ff">紫</span> ＜ <span class="red">赤</span> ＜ 虹</b>。虹（100%）は撃破確定！',
+        '復活したときは… <span class="gold">撃破率 777%</span>！'
+    ].map(t => `<li>${t}</li>`).join('');
     $('guard-list').innerHTML = [
         '相手はガードすることがあり、ダメージを受けても倒れずに耐えます（「ガード!」）',
         `<b>BAR揃い・7揃い・7・7・BAR</b> はガードを崩して確定撃破（「ガードブレイク!!」）`,
-        `<b>チェリー</b>が揃うと ${pct(c.breakState.rates.cherry)}、<b>チャンス目</b>が出ると ${pct(c.breakState.rates.chance)} で <b>ブレイク状態</b>。その攻撃から、相手を倒すまでガードできなくなります`,
+        `<b>チェリー</b>が揃うと ${pct(c.breakState.rates.cherry)}、<b>チャンス目</b>が出ると ${pct(c.breakState.rates.chance)} で <b>ブレイク状態</b>。撃破率が ${pct(c.killRate.breakAdd)} 上がります`,
         `ガードされても、<b>リプレイ</b> ${pct(c.finalBlow.rates.replay)}・<b>ダイヤ</b> ${pct(c.finalBlow.rates.diamond)}・<b>スイカ</b> ${pct(c.finalBlow.rates.melon)} で <b>とどめの一撃!</b>。ガード無視の 1 ダメージで撃破します`
     ].map(t => `<li>${t}</li>`).join('');
     const totalW = list => list.reduce((s, g) => s + g.weight, 0);

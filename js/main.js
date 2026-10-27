@@ -124,11 +124,7 @@
         // 熱い ゲームは 液晶の 枠が 震える (2026-10-24 ユーザー指定)。熱さ 4 赤 / 5 金 / 6 虹
         const hf = config.hotFrame;
         Lcd.setHotFrame(heat >= hf.rainbow ? 3 : heat >= hf.gold ? 2 : heat >= hf.red ? 1 : 0);
-        // 図鑑の「レバーの演出」(2026-10-24)
-        if (hype.push && hype.push.lever) {
-            Collection.seeLever(state, StateMachine.isRashMode(state) ? 'tatakiRash' : 'tataki');
-            if (hype.push.leverChange) Collection.seeLever(state, 'tatakiChange');
-        } else if (hype.push && hype.push.mode !== 'tap') Collection.seeLever(state, hype.push.mode === 'long' ? 'pushLong' : 'pushMash');
+        const inRash = StateMachine.isRashMode(state);   // 図鑑の「叩け」の 場面 (結果の あとでは 変わる ことが ある)
         ['buru', 'okure', 'reverse'].forEach(k => { if (leverFx[k]) Collection.seeLever(state, k); });
         // 通常時の予告 (ステップアップ予告・群予告。役で選ぶ)。期待度のカットインが出たゲームでは出さない
         if (!hype.cutin || debugNotice) Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
@@ -226,11 +222,17 @@
         if (outcome.aligned) Sound.win();
         // チャンス目ごとの演出
         if (outcome.isChance) await Lcd.playChanceEffect(outcome.chanceName);
-        // PUSH ボタン: 結果の 前に 押す
-        if (hype.push) await PushButton.wait(hype.push);
-
+        // ゲームの 結果を 先に 決めて (液晶・表示は PUSH の あと)、PUSH を 結果に 合わせて 選び直す (2026-10-27。Hype.reveal)
         const coinsBefore = state.coins;
         const events = GameFlow.onGameEnd(state, outcome, config);
+        hype.push = Hype.reveal(hype.push, Hype.contextOf(events, state), config);
+        // 図鑑の「レバーの演出」(2026-10-24)
+        if (hype.push && hype.push.lever) {
+            Collection.seeLever(state, inRash ? 'tatakiRash' : 'tataki');
+            if (hype.push.leverChange) Collection.seeLever(state, 'tatakiChange');
+        } else if (hype.push && hype.push.mode !== 'tap') Collection.seeLever(state, hype.push.mode === 'long' ? 'pushLong' : 'pushMash');
+        // PUSH ボタン: 結果の 前に 押す
+        if (hype.push) await PushButton.wait(hype.push);
         setPayout(Math.max(0, state.coins - coinsBefore));
         if (config.debug) console.log('outcome', outcome, 'events', events);
         refresh();
@@ -445,7 +447,7 @@
         rash: debugAction(() => DebugState.toRash(state)),
         superRash: debugAction(() => DebugState.toSuperRash(state)),
         lastGame: debugAction(() => DebugState.lastGame(state)),
-        setBreak: debugAction(() => DebugState.setBreak(state)),
+        setBreak: debugAction(() => DebugState.setBreak(state, config)),
         forceOni: debugAction(() => DebugState.forceEnemy(state, 'onioni')),
         pointChance: debugAction(() => DebugState.forcePointChance(state, config)),
         companion: debugAction(() => DebugState.forceCompanion(state)),

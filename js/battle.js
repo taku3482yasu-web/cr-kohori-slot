@@ -3,14 +3,15 @@
 // ---------------------------------------------------------------------
 // 状態の更新は GameFlow.handleRash (state.js) から呼び出す。
 //
-// 継続率は「セット」単位で先に決める (setWillWin)。
+// 継続は「セット」単位で決める (setWillWin)。
 //   セット = BATTLE開始 (または「？？」からの継続) から、撃破 or 「？？」の結果まで。
 //   勝ちセット: 撃破するか、「？？」で必ず柄が揃う
 //   負けセット: 敵がガードしてダメージはHPが1残るまで、「？？」で揃わない
-//     ただし 'kill' の役 (BAR揃い・7️⃣7️⃣7️⃣・7️⃣7️⃣BAR) はガードを崩して撃破できる
-//     ブレイク状態 (チェリー揃い・チャンス目で一定確率) の間は敵がガードできない
-//   → ガード崩し・ブレイクで勝ちになる分を見込んで、先決めの確率 (presetRate) は
-//     目標の継続率 (continueRate) より低くしてある
+// 撃破率 (2026-10-27 ユーザー指定。rash.killRate 0〜1、液晶の右上に出す): セットを勝ちにする確率。
+//   セットの始めはキャラごとの値 (enemy.killRate / superKillRate)。勝利確定の BATTLE は 100%。
+//   強い役・チャンス目 (config.killRate.add)・ブレイク・長押しのチャージで上がり、'kill' の役 (BAR揃い・7️⃣7️⃣7️⃣・7️⃣7️⃣BAR) で 100%。
+//   上がったぶんだけ、負けセットを勝ちセットに変える抽選をする ((新 - 旧) / (1 - 旧))。
+//   こうすると、どの時点でも「表示している撃破率 = そのセットを勝つ確率」になる
 // =====================================================================
 
 const Battle = {
@@ -24,9 +25,30 @@ const Battle = {
         return state.mode === MODES.SUPER_RASH;
     },
 
-    // セット開始時に勝ちセットにする確率 (先決め)
-    presetRate(state, config) {
-        return this.isSuper(state) ? config.rash.super.presetRate : config.rash.normal.presetRate;
+    // セットの始めの撃破率 (キャラごと。SUPER は superKillRate)。勝利確定の BATTLE は 100%
+    baseKillRate(state, config, enemy) {
+        if (state.rash.winGuaranteed) return 1;
+        const rate = this.isSuper(state) ? enemy.superKillRate : enemy.killRate;
+        return Math.max(0, Math.min(1, rate ?? 0));
+    },
+
+    // 新しいセットを始める: 撃破率をキャラの値にし、その確率で勝ちセットにする
+    startSet(state, config, rng) {
+        const rash = state.rash;
+        rash.killRate = this.baseKillRate(state, config, this.findEnemy(config, rash.enemyId));
+        rash.setWillWin = rng() < rash.killRate || rash.killRate >= 1;
+    },
+
+    // 撃破率を to に上げる (上限 100%)。負けセットなら、上がったぶんの確率で勝ちセットに変える。
+    //   reason: 上がったわけ (役の名前 / 'break' / 'charge' / 'kill' / 'finalBlow')。上がらなければ null
+    raiseKillRate(state, to, reason, rng) {
+        const rash = state.rash;
+        const from = rash.killRate ?? 0;
+        to = Math.min(1, to);
+        if (to <= from) return null;
+        if (!rash.setWillWin && (to >= 1 || rng() < (to - from) / (1 - from))) rash.setWillWin = true;
+        rash.killRate = to;
+        return { type: 'killRate', from, to, reason };
     },
 
     // ----- 抽選 (lottery.js から呼ばれる) -----
@@ -85,10 +107,11 @@ const Battle = {
         rash.goldDogFlag = enemy.id === config.goldDog.id;
         rash.breakActive = false;
         rash.battleIntro = true;
-        rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
+        this.startSet(state, config, rng);
         rash.phase = RASH_PHASES.BATTLE;
         return [{
             type: 'battleStart',
+            killRate: rash.killRate,
             winGuaranteed: rash.winGuaranteed,
             enemyId: enemy.id,
             name: enemy.name,
@@ -154,22 +177,32 @@ const Battle = {
         rash.gamesRemaining--;
         if (rash.probUpGames > 0) rash.probUpGames--;
 
-        // チェリー・チャンス目などで一定確率でブレイク状態に (この攻撃からガードできない)
+        // チェリー・チャンス目などで一定確率でブレイク状態に (撃破率 UP。2026-10-27 から ガードできない かわりに 撃破率が 上がる)
         const breakRate = config.breakState.rates[outcome.role] || 0;
-        if (!rash.breakActive && breakRate > 0 && rng() < breakRate) {
+        const broke = !rash.breakActive && breakRate > 0 && rng() < breakRate;
+        if (broke) {
             rash.breakActive = true;
             events.push({ type: 'break' });
         }
 
         const damage = this.damageFor(outcome.role, config);
         const kill = damage === 'kill';
+        // 撃破率 (2026-10-27): 役・ブレイク・長押しのチャージで上げる。撃破役は 100%
+        const kr = config.killRate;
+        const wasWinning = rash.setWillWin;
+        const charge = !kill && rng() < config.charge.battle.rate;
+        if (charge) events.push({ type: 'charge', scene: 'battle', add: config.charge.battle.add });
+        const add = (kr.add[outcome.role] || 0) + (broke ? kr.breakAdd : 0) + (charge ? config.charge.battle.add : 0);
+        const reason = kill ? 'kill' : charge ? 'charge' : broke ? 'break' : outcome.role;
+        const up = this.raiseKillRate(state, kill ? 1 : (rash.killRate ?? 0) + add, reason, rng);
+        if (up) events.push(up);
         // 仲間の追加ダメージ (ダメージが入ったときだけ)
         let companionHits = !kill && damage > 0 ? Companions.extraDamage(state, config) : [];
         const extra = companionHits.reduce((sum, h) => sum + h.amount, 0);
         const hpBefore = rash.enemyHp;
         let amount = kill ? rash.enemyHp : damage + extra;
-        // 負けセットでは敵がガードして倒しきれない (撃破役・ブレイク中を除く)
-        const canGuard = !rash.setWillWin && !rash.breakActive && !kill;
+        // 負けセットでは敵がガードして倒しきれない
+        const canGuard = !rash.setWillWin && !kill;
         let guarded = false;
         let finalBlow = false;
         // デバッグ「次:とどめの一撃」: 対象の役が出たら、HP・セットに関係なくガード → とどめの一撃
@@ -179,7 +212,11 @@ const Battle = {
             guarded = true;
             // とどめの一撃: ガードで HP1 残ったところへ、ガード無視の 1 ダメージ
             finalBlow = forceBlow || rng() < (config.finalBlow.rates[outcome.role] || 0);
-            if (finalBlow) companionHits = [];
+            if (finalBlow) {
+                companionHits = [];
+                const fb = this.raiseKillRate(state, 1, 'finalBlow', rng);   // とどめの一撃は 撃破率 100%
+                if (fb) events.push(fb);
+            }
             amount = finalBlow ? rash.enemyHp : rash.enemyHp - 1;
         } else if (!kill && amount > rash.enemyHp) {
             companionHits = this.trimFinishingHits(companionHits, damage, rash.enemyHp);
@@ -191,7 +228,8 @@ const Battle = {
             role: outcome.role,
             amount,
             kill,
-            guardBreak: kill && !rash.setWillWin,   // 本来ガードされるセットで撃破役を引いた
+            guardBreak: kill && !wasWinning,   // 本来ガードされるセットで撃破役を引いた
+            killRate: rash.killRate,
             big: kill || outcome.isChance,
             guarded,
             finalBlow,
@@ -565,18 +603,18 @@ const Battle = {
         if (outcome.aligned && !forceRevival) {
             const games = Lottery.weightedPick(config.rash.continueGames, g => g.weight, rng).games;
             rash.gamesRemaining = games;
-            rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
+            this.startSet(state, config, rng);
             rash.phase = RASH_PHASES.BATTLE;
-            return [{ type: 'questionResult', continued: true, games }, ...this.addStreak(state, config)];
+            return [{ type: 'questionResult', continued: true, games, killRate: rash.killRate }, ...this.addStreak(state, config)];
         }
         // 仲間の肩代わり: RASH を続ける
         const saver = forceRevival ? null : Companions.trySave(state, config, rng);
         if (saver) {
             const games = Lottery.weightedPick(config.rash.continueGames, g => g.weight, rng).games;
             rash.gamesRemaining = games;
-            rash.setWillWin = rash.winGuaranteed || rng() < this.presetRate(state, config);
+            this.startSet(state, config, rng);
             rash.phase = RASH_PHASES.BATTLE;
-            return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId }, ...this.addStreak(state, config)];
+            return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId, killRate: rash.killRate }, ...this.addStreak(state, config)];
         }
         // 復活: 液晶は RASH 終了に見せたまま止まり、次のゲームで戦っていた敵を撃破して継続
         if (forceRevival || rng() < this.revivalRate(state, config)) {
@@ -595,7 +633,8 @@ const Battle = {
         const rash = state.rash;
         const amount = rash.enemyHp;
         rash.enemyHp = 0;
-        return [{ type: 'revival', enemyId: rash.enemyId, amount }, ...this.defeatEnemy(state, config, rng)];
+        // 復活の撃破は 撃破率 777% の演出 (2026-10-27 ユーザー指定。表示だけ)
+        return [{ type: 'revival', enemyId: rash.enemyId, amount, killRate: config.killRate.revivalShow }, ...this.defeatEnemy(state, config, rng)];
     },
 
     // ----- 上乗せ特化ゾーン (config.tokka) -----

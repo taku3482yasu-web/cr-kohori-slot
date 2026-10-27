@@ -438,6 +438,56 @@ test('レバーの 演出 (2026-10-24): 叩け！は 熱い ゲームで 出て 
     console.log(`  叩け！ 通常時 ${n.tataki} 回 (熱い ${pct(n.tatakiHot / n.tataki)})・RASH 中 ${n.rashTataki} 回 (確定)・遅れ ${n.okure} 回・逆回転 ${n.reverse} 回・レバブル ${n.buru} 回 (熱い ${pct(n.buruHot / n.buru)})`);
 });
 
+test('撃破率・結果に合わせた PUSH (2026-10-27): 撃破率どおりに勝ち、赤以上の PUSH は 80% 以上・叩け!! は 約90% で 撃破 / 突入。長押しは チャージの ゲームだけ', () => {
+    const g = loadGame(43);
+    const { config: cfg, Lottery: L, Furukawa: F, Hype: Hy, LeverFx: LF, GameFlow: GF, StateMachine: SM } = g;
+    const state = g.createInitialState(cfg);
+    const scenes = { battle: { hot: [0, 0], lever: [0, 0], all: [0, 0] }, castle: { hot: [0, 0], lever: [0, 0], all: [0, 0] } };
+    const add = (c, win) => { c[0]++; if (win) c[1]++; };
+    let charges = 0, longs = 0, longBad = 0, rateSum = 0, sets = 0, badRate = 0;
+    for (let i = 0; i < 400000; i++) {
+        state.coins = 1e6;
+        const o = L.draw(state, cfg);
+        const heat = F.canAppear(state, cfg) ? F.heat(state, o, cfg) : 0;
+        const planned = LF.tataki(state, Hy.plan(heat, cfg).push, heat, cfg);
+        const events = GF.onGameEnd(state, o, cfg);
+        for (const e of events) {
+            if (e.type === 'battleStart') { sets++; rateSum += e.killRate; if (e.killRate < 0 || e.killRate > 1) badRate++; }
+            if (e.type === 'charge') charges++;
+        }
+        const ctx = Hy.contextOf(events, state);
+        const push = Hy.reveal(planned, ctx, cfg);
+        if (push && push.mode === 'long') { longs++; if (!ctx.charge) longBad++; }
+        if (ctx.win == null || !push) continue;
+        const sc = scenes[events.some(e => e.type === 'challengeGame') ? 'castle' : 'battle'];
+        add(sc.all, ctx.win);
+        if (push.lever) add(sc.lever, ctx.win);
+        else if (['red', 'gold', 'rainbow'].includes(push.tier)) add(sc.hot, ctx.win);
+    }
+    assertEqual(badRate, 0, '撃破率は 0〜100%');
+    assert(charges > 100 && longs === charges && longBad === 0, `長押しは チャージの ゲームだけ (チャージ ${charges}・長押し ${longs}・ちがう ${longBad})`);
+    const r = c => c[1] / c[0];
+    // RASH の BATTLE は 台を まわして 数える (城突入チャレンジは 回数が 少ないので 下で 突入率ごとに 確かめる)
+    const bt = scenes.battle;
+    assert(bt.hot[0] > 100 && bt.lever[0] > 30, `BATTLE の PUSH が 少ない (赤以上 ${bt.hot[0]}・叩け ${bt.lever[0]})`);
+    assert(r(bt.hot) >= 0.77, `BATTLE の 赤以上の PUSH が 出たら 撃破 ${pct(r(bt.hot))} (80% 以上のはず)`);
+    assertBetween(r(bt.lever), 0.84, 1, `BATTLE の 叩け!! が 出たら 撃破 ${pct(r(bt.lever))} (約90% のはず)`);
+    console.log(`  BATTLE: 赤以上の PUSH ${pct(r(bt.hot))} (${bt.hot[0]} 回)・叩け!! ${pct(r(bt.lever))} (${bt.lever[0]} 回) / 城突入チャレンジ: 赤以上 ${scenes.castle.hot[0]} 回・叩け!! ${scenes.castle.lever[0]} 回`);
+    // 勝つ 確率 (撃破率・突入率) ごとに、Hype.reveal だけを たくさん まわす
+    for (const base of [0.05, 0.3, 0.6, 0.9]) {
+        const hot = [0, 0], lever = [0, 0];
+        for (let i = 0; i < 200000; i++) {
+            const win = Math.random() < base;
+            const push = Hy.reveal({ tier: 'white', pop: false, mode: 'tap' }, { charge: false, win, base }, cfg);
+            if (push.lever) add(lever, win);
+            else if (['red', 'gold', 'rainbow'].includes(push.tier)) add(hot, win);
+        }
+        assert(r(hot) >= 0.785, `勝つ 確率 ${pct(base)} の 赤以上の PUSH ${pct(r(hot))} (80% 以上のはず)`);
+        assertBetween(r(lever), 0.885, 0.915, `勝つ 確率 ${pct(base)} の 叩け!! ${pct(r(lever))} (90% のはず)`);
+    }
+    console.log(`  セットの 始めの 撃破率の 平均 ${pct(rateSum / sets)} (${sets} セット)・長押しの チャージ ${charges} 回`);
+});
+
 test('前兆と違和感演出 (A4): 前兆が出たら当たりやすく、違和感は 出たら 本前兆のことが多い。結果は変えない', () => {
     const g = loadGame(41);
     const { config: cfg, Lottery: L, GameFlow: GF, Zencho: Z, StateMachine: SM } = g;

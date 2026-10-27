@@ -84,8 +84,11 @@ const Lcd = (() => {
         winGuaranteed: false,  // 勝利確定の BATTLE (内定の時ゾーン突破の特典、表示用)
         probUpGames: 0,        // 柄揃い確率アップの残りゲーム数 (表示用)
         probUpMultiplier: 1,
+        killRate: animated(0), // 撃破率 (2026-10-27。表示用。0〜1、復活は 7.77)
+        killUp: 0,             // 撃破率が 上がった 時刻 (枠を 光らせる)
         hurtUntil: 0
     };
+    let killSplash = null;     // 全画面の「撃破率 〇〇%」{ rate, from, start, duration, sub }
 
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -182,6 +185,7 @@ const Lcd = (() => {
             battle.probUpGames = rash.probUpGames;
             battle.probUpMultiplier = rash.probUpMultiplier;
             battle.breakActive = rash.breakActive;
+            setNow(battle.killRate, rash.killRate || 0);
             battle.winGuaranteed = Boolean(rash.winGuaranteed && rash.enemyId);
             battle.games = rash.phase === RASH_PHASES.QUESTION ? '？？' : (rash.enemyId ? rash.gamesRemaining : null);
         } else if (state.mode === MODES.CASTLE_CHALLENGE) {
@@ -271,6 +275,7 @@ const Lcd = (() => {
         FurukawaView.draw(time);
         drawLetterbox();
         drawCutIn(time);
+        drawKillSplash(time);
         drawRoulette(time);
         drawBigLogo(time);
         drawTitleCard(time);
@@ -794,15 +799,19 @@ const Lcd = (() => {
             const bw = Math.max(108, textWidth(enemy.name, 10) + textWidth('HP 000', 10) + 18);
             const bx = W - bw - 4, by = 24;
             box(bx, by, bw, 22, 'rgba(0,0,0,0.7)', battle.breakActive ? '#c080ff' : '#a0a0a0');
+            // 撃破率 (2026-10-27 ユーザー指定): HP の 枠の 下。数字の 色は 白 < 青 < 緑 < 紫 < 赤 < 虹 (確定)。勝利確定の BATTLE は 100%
+            if (!naiteiZone) {
+                const rate = valueAt(battle.killRate, time);
+                const label = `撃破率 ${killRatePct(rate)}%${rate >= 1 ? ' 確定' : ''}`;
+                const kw = textWidth(label, 12) + 10;
+                const glow = time - battle.killUp < 600 && Math.floor(time / 90) % 2;
+                box(bx + bw - kw, by + 23, kw, 16, 'rgba(0,0,0,0.8)', glow ? '#ffffff' : killRateColor(rate, time));
+                text(label, bx + bw - 5, by + 25, { color: killRateColor(rate, time, bx + bw - kw, bx + bw), size: 12, align: 'right' });
+            }
             if (battle.breakActive) {
                 const blink = Math.floor(time / 250) % 2;
-                box(bx + bw - 34, by + 22, 34, 12, 'rgba(60,0,90,0.9)', '#c080ff');
-                text('BREAK', bx + bw - 17, by + 23, { color: blink ? '#ffffff' : '#e0b0ff', size: 10, align: 'center', outline: null });
-            }
-            if (battle.winGuaranteed) {
-                const blink = Math.floor(time / 350) % 2;
-                box(bx, by + 22, 52, 12, 'rgba(90,60,0,0.9)', SUPER_COLOR);
-                text('勝利確定', bx + 26, by + 23, { color: blink ? '#ffffff' : SUPER_COLOR, size: 10, align: 'center', outline: null });
+                box(bx + bw - 34, by + 40, 34, 12, 'rgba(60,0,90,0.9)', '#c080ff');
+                text('BREAK', bx + bw - 17, by + 41, { color: blink ? '#ffffff' : '#e0b0ff', size: 10, align: 'center', outline: null });
             }
             text(enemy.name, bx + 5, by + 2, { size: 10, outline: null });
             const hp = Math.max(0, valueAt(battle.hp, time));
@@ -813,6 +822,83 @@ const Lcd = (() => {
             ctx.fillRect(bx + 5, by + 15, Math.round((bw - 10) * ratio), 4);
             text(`HP ${Math.ceil(hp)}`, bx + bw - 5, by + 2, { size: 10, align: 'right', outline: null, color: '#ccc' });
         }
+    }
+
+    // 撃破率の 数字 (%) と 色 (config.killRate.colors。虹は 色が 流れる)
+    const killRatePct = rate => Math.round(rate * 100);
+    //   x0〜x1 (文字の 左はし〜右はし) を わたすと、虹は 文字の 中を 虹の グラデーションが 流れる
+    function killRateColor(rate, time, x0 = null, x1 = null) {
+        let color = config.killRate.colors[0].color;
+        for (const c of config.killRate.colors) if (rate >= c.min - 1e-9) color = c.color;
+        if (color !== 'rainbow') return color;
+        if (x0 === null) return `hsl(${Math.floor(time / 4) % 360}, 95%, 62%)`;
+        const grad = ctx.createLinearGradient(x0, 0, x1, 0);
+        for (let k = 0; k <= 6; k++) grad.addColorStop(k / 6, `hsl(${(k * 60 + time / 4) % 360}, 95%, 62%)`);
+        return grad;
+    }
+
+    // 全画面の「撃破率 〇〇%」(2026-10-27 ユーザー指定: 敵が 出てきた とき。復活の 777% も)。はじめの 0.5 秒で 数字が 上がっていく
+    function drawKillSplash(time) {
+        if (!killSplash) return;
+        const t = (time - killSplash.start) / killSplash.duration;
+        if (t >= 1) {
+            killSplash = null;
+            return;
+        }
+        ctx.save();
+        ctx.globalAlpha = t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1;
+        ctx.fillStyle = 'rgba(0,0,0,0.78)';
+        ctx.fillRect(0, 0, W, H);
+        const k = Math.min(1, (time - killSplash.start) / 500);
+        const rate = killSplash.from + (killSplash.rate - killSplash.from) * k;
+        // 集中線
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath();
+        for (let i = 0; i < 24; i++) {
+            const a = i / 24 * Math.PI * 2 + time / 900;
+            ctx.moveTo(W / 2 + Math.cos(a) * 44, H / 2 + Math.sin(a) * 28);
+            ctx.lineTo(W / 2 + Math.cos(a) * W, H / 2 + Math.sin(a) * W);
+        }
+        ctx.stroke();
+        text('撃破率', W / 2, H / 2 - 44, { color: '#ffffff', size: 16, align: 'center' });
+        const size = Math.round(40 * (k >= 1 ? 1 + Math.max(0, 0.25 - (time - killSplash.start - 500) / 800) : 1));
+        const num = `${killRatePct(rate)}%`, nw = textWidth(num, size);
+        text(num, W / 2, H / 2 - 18 - (size - 40) / 2, { color: killRateColor(rate, time, W / 2 - nw / 2, W / 2 + nw / 2), size, align: 'center' });
+        if (killSplash.sub && k >= 1) {
+            const sw = textWidth(killSplash.sub, 14);
+            text(killSplash.sub, W / 2, H / 2 + 28, { color: killRateColor(killSplash.rate, time, W / 2 - sw / 2, W / 2 + sw / 2), size: 14, align: 'center' });
+        }
+        ctx.restore();
+    }
+    function playKillSplash(rate, sub = null, from = 0, duration = config.killRate.splashMs) {
+        killSplash = { rate, from, sub: sub || (rate >= 1 ? '撃破確定!!' : null), start: performance.now(), duration };
+        if (rate >= 1) {
+            Sound.rainbow();
+            startFlash('#ffffff', 400);
+        } else Sound.chance();
+        return sleep(duration);
+    }
+
+    // 撃破率が 上がった (役・ブレイク・長押しの チャージ・撃破役)。100% に なったら 全画面で 確定
+    async function killRateUp(event) {
+        battle.killUp = performance.now();
+        animateTo(battle.killRate, event.to, 400);
+        const word = event.reason === 'charge' ? 'チャージ!! ' : event.reason === 'break' ? 'BREAK!! ' : '';
+        damageNumbers.push({ text: `${word}撃破率 +${killRatePct(event.to) - killRatePct(event.from)}%`, color: killRateColor(event.to, performance.now()), size: 12, born: performance.now() });
+        if (event.to >= 1 && event.from < 1) {
+            await playKillSplash(1, '撃破確定!!', event.from, 1400);
+            return;
+        }
+        await sleep(event.reason === 'charge' ? 700 : 350);
+    }
+
+    // 長押しの チャージ (2026-10-27): 通常時は ポイント UP、城突入チャレンジは 突入率 UP (BATTLE は 撃破率の 演出で 出す)
+    async function chargeEffect(event) {
+        if (event.scene === 'battle') return;
+        startFlash('#ffd700', 300);
+        Sound.chance();
+        showTitle(event.scene === 'castle' ? `チャージ!! 突入率 ×${event.mult}` : `チャージ!! ポイント ×${event.mult}`, null, '#ffd700', 1100);
+        await sleep(1100);
     }
 
     function drawDamageNumbers(time) {
@@ -2393,6 +2479,7 @@ const Lcd = (() => {
         startFlash('#7fffd4', 400);
         Sound.bigHit();
         showTitle(`${event.name}がかばってくれた!!`, `RASH継続!! BATTLE +${event.games}G`, '#7fffd4', 2200);
+        if (event.killRate != null) setNow(battle.killRate, event.killRate);   // 新しい セットの 撃破率
         if (party.includes(id)) {
             await animateTo(jumpOf(id), -16, 200);
             await animateTo(jumpOf(id), 0, 200);
@@ -2523,6 +2610,7 @@ const Lcd = (() => {
         battle.games = event.games;
         battle.breakActive = false;
         battle.winGuaranteed = Boolean(event.winGuaranteed);
+        setNow(battle.killRate, event.killRate || 0);
         setNow(battle.hp, event.hp);
         setNow(battle.alpha, 1);
         setNow(battle.drop, 0);
@@ -2534,6 +2622,10 @@ const Lcd = (() => {
         } else if (event.isGoldDog) {
             await playCutIn(event.enemyId, '金…!!', '#8a6a00', 1300);
         }
+        // 敵の カットインと 全画面の「撃破率 〇〇%」(2026-10-27 ユーザー指定。おにおに・金面犬は 上の カットインの あと)
+        const foe = Battle.findEnemy(config, event.enemyId);
+        if (event.enemyId !== 'onioni' && !event.isGoldDog) await playCutIn(event.enemyId, `${foe.name} 出現!!`, '#3a1a5a', 1100);
+        await playKillSplash(event.killRate || 0, event.winGuaranteed ? '勝利確定!!' : null);
         await enemySay(event.enemyId, 'intro');
         // ふるカワの返事
         if (event.furukawa) {
@@ -2808,7 +2900,7 @@ const Lcd = (() => {
         startShake(config.effects.intensity.shakeLarge, 400);
         Sound.bigHit();
         damageNumbers.push({ text: 'BREAK!!', color: '#e0b0ff', size: 16, born: performance.now() });
-        showTitle('BREAK!!', '敵はガードできない！', '#c080ff', 1500);
+        showTitle('BREAK!!', '撃破率UP!!', '#c080ff', 1500);
         await sleep(1500);
     }
 
@@ -2900,12 +2992,14 @@ const Lcd = (() => {
     async function questionResult(event) {
         if (event.continued) {
             battle.games = event.games;
+            if (event.killRate != null) setNow(battle.killRate, event.killRate);   // 新しい セットの 撃破率
             startFlash('#ffd700', 500);
             Sound.fanfare();
             showTitle('継続!!', `BATTLE +${event.games}G`, '#ffd700', 1500);
         } else {
             await enemySpecial(event.enemyId);
             knockDown();
+            animateTo(battle.killRate, 0, 500);   // 負けたら 撃破率は 0%
             Sound.miss();
             showTitle('RASH終了…', null, '#9fb8d8', 1500);
             // 復活が決まっていても通常時には戻らず、暗いまま止まる (次のレバー ON で復活演出)
@@ -2943,6 +3037,10 @@ const Lcd = (() => {
         showTitle(config.revival.text, '復活!!', '#ffd700', 2000);
         await sleep(2000);
         revival = null;
+        // 撃破率 777% (2026-10-27 ユーザー指定): 0% から 一気に 777% へ
+        const shown = event.killRate || config.killRate.revivalShow;
+        await playKillSplash(shown, '復活撃破!!', 0, 1800);
+        setNow(battle.killRate, shown);
         // 一撃で撃破
         koori.moving = true;
         await animateTo(koori.x, ENEMY_X - 56, 150);
@@ -3094,6 +3192,12 @@ const Lcd = (() => {
                     break;
                 case 'break':
                     await breakStart();
+                    break;
+                case 'killRate':
+                    await killRateUp(event);
+                    break;
+                case 'charge':
+                    await chargeEffect(event);
                     break;
                 case 'naiteiStart':
                     await naiteiStart(event);

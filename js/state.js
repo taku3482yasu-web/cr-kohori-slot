@@ -185,7 +185,8 @@ function createRashState() {
         enemyHp: 0,
         enemyMaxHp: 0,
         gamesRemaining: 0,
-        setWillWin: false,       // このセット (BATTLE開始〜？？) を勝ちにするか (先決め)
+        setWillWin: false,       // このセット (BATTLE開始〜？？) を勝ちにするか
+        killRate: 0,             // 撃破率 (0〜1。setWillWin になる確率。2026-10-27 ユーザー指定)
         winGuaranteed: false,    // 次の BATTLE (撃破まで) を勝利確定にするか (内定の時ゾーン突破の特典)
         defeatCount: 0,          // 1回のRASH内の撃破数
         oniUnlocked: false,      // おにおに出現フラグ
@@ -288,7 +289,10 @@ const SettingEstimate = {
     challengeRate(config, setting, boost) {
         const mult = config.machine.multipliers[setting];
         const table = Lottery.tableFor({ mode: MODES.CASTLE_CHALLENGE, setting }, config);
-        const entry = role => Math.min(1, (config.castle.entryRate[role] || 0) * mult.castleEntry * boost);
+        // 長押しの チャージ (2026-10-27) の ゲームは 突入率が charge.castle.mult 倍
+        const ch = config.charge.castle;
+        const at = (role, k) => Math.min(1, (config.castle.entryRate[role] || 0) * mult.castleEntry * boost * k);
+        const entry = role => (1 - ch.rate) * at(role, 1) + ch.rate * at(role, ch.mult);
         let perGame = 0;
         let rest = 1;
         for (const [role, prob] of Object.entries(table)) {
@@ -630,10 +634,13 @@ const GameFlow = {
             reason = 'aligned';
         }
         // こおりチャンスタイム中は加算が multiplier 倍
-        const mult = normal.chanceTime ? config.chanceTime.multiplier : 1;
+        // 長押しの チャージ (2026-10-27 ユーザー指定): その ゲームの 加算が charge.normal.mult 倍 (リベンジチャンス中は なし)
+        const charge = !inRevenge && rng() < config.charge.normal.rate;
+        if (charge) events.push({ type: 'charge', scene: 'normal', mult: config.charge.normal.mult });
+        const mult = (normal.chanceTime ? config.chanceTime.multiplier : 1) * (charge ? config.charge.normal.mult : 1);
         const added = (cp.perGame + bonus) * mult;
         normal.chancePoint = Math.min(cp.threshold, normal.chancePoint + added);
-        events.push({ type: 'chancePoint', added, bonus: bonus * mult, reason, total: normal.chancePoint, multiplier: mult });
+        events.push({ type: 'chancePoint', added, bonus: bonus * mult, reason, total: normal.chancePoint, multiplier: mult, charge });
 
         // こおりチャンスタイム: 中なら1ゲーム進め、そうでなければ役で突入を抽選 (次のゲームから)
         events.push(...this.chanceTimeGame(state, outcome, config, rng, added, inRevenge));
@@ -847,11 +854,16 @@ const GameFlow = {
     handleCastleChallenge(state, outcome, config, rng) {
         const challenge = state.challenge;
         challenge.gamesRemaining--;
-        const rate = Math.min(1, (config.castle.entryRate[outcome.role] || 0)
+        // 長押しの チャージ (2026-10-27 ユーザー指定): その ゲームの 突入率が charge.castle.mult 倍
+        const charge = !challenge.guaranteed && rng() < config.charge.castle.rate;
+        const rate = challenge.guaranteed ? 1 : Math.min(1, (config.castle.entryRate[outcome.role] || 0)
             * MachineSetting.multipliers(state, config).castleEntry
-            * this.castleEntryBoost(state, config));
+            * this.castleEntryBoost(state, config) * (charge ? config.charge.castle.mult : 1));
         const success = challenge.guaranteed || rng() < rate;   // 天井 (A5) は 突入 確定
-        const events = [{ type: 'challengeGame', remaining: challenge.gamesRemaining, role: outcome.role, success, guaranteed: challenge.guaranteed }];
+        const events = [];
+        if (charge) events.push({ type: 'charge', scene: 'castle', mult: config.charge.castle.mult });
+        // rate: この ゲームの 突入率 (PUSH の 色を 選ぶのに 使う。js/hype.js の reveal)
+        events.push({ type: 'challengeGame', remaining: challenge.gamesRemaining, role: outcome.role, success, guaranteed: challenge.guaranteed, rate });
 
         if (success || challenge.gamesRemaining <= 0) {
             if (!challenge.guaranteed) SettingEstimate.countChallenge(state, config, success);
@@ -1078,10 +1090,11 @@ const DebugState = {
         return [{ type: 'debug', label: 'SUPERおにおにRASHへ' }, { type: 'rashStart' }];
     },
     // ブレイク状態にする (BATTLE 中)
-    setBreak(state) {
+    setBreak(state, config) {
         if (state.rash.phase !== RASH_PHASES.BATTLE) return [{ type: 'debugQuiet' }];
         state.rash.breakActive = true;
-        return [{ type: 'break' }];
+        const up = Battle.raiseKillRate(state, (state.rash.killRate ?? 0) + config.killRate.breakAdd, 'break', Math.random);
+        return [{ type: 'break' }, ...(up ? [up] : [])];
     },
     // 台の設定を変える
     setSetting(state, setting) {
