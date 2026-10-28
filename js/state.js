@@ -699,6 +699,12 @@ const GameFlow = {
             events.push(this.goToCastle(state, config));
             return events;
         }
+        // BAR揃いで 直行しなかったら 緑 (おにおに特訓) 以上の ミニゲーム 確定 (2026-10-28 ユーザー指定。規定の ゲーム数に 届いていたら 数え直す)
+        if (!inRevenge && outcome.aligned && outcome.role === 'bar') {
+            if (normal.chancePoint >= cp.threshold) normal.chancePoint = 0;
+            events.push(...this.decideMini(state, config, rng, 'bar'));
+            return events;
+        }
         // 規定の ゲーム数に 到達 → ミニゲーム (2026-10-27 ユーザー指定。前は SE城前へ)。100G からは 1G ごとに 抽選、150G で 確定
         const early = config.mini.early;
         if (normal.chancePoint >= cp.threshold || (!inRevenge && normal.chancePoint >= early.from && rng() < early.rate)) {
@@ -862,7 +868,7 @@ const GameFlow = {
     },
 
     // ----- ミニゲーム (2026-10-27 ユーザー指定。config.mini) -----
-    // ミニゲームを 決める (液晶の ゲーム数の 色が 変わる)。次の ゲームから 始まる。trigger: 'count' 規定の ゲーム数 / 'chance' 役
+    // ミニゲームを 決める (液晶の ゲーム数の 色が 変わる)。次の ゲームから 始まる。trigger: 'count' 規定の ゲーム数 / 'chance' 役 / 'bar' BAR揃い (緑以上)
     decideMini(state, config, rng, trigger) {
         const n = state.normal, m = config.mini;
         const weights = m.select[trigger][n.gameMode || 'A'];

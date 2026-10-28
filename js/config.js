@@ -22,13 +22,14 @@ window.GAME_CONFIG = {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
             // 2026-10-27: 城突入率は 継続率を 上げる 前の 値に 戻した (ユーザー指定)。出玉率は ミニゲーム (config.mini) で 合わせる
-            1: { chance: 0.84, castleEntry: 0.95, pointBig: 0.94 },
+            1: { chance: 0.80, castleEntry: 0.95, pointBig: 0.94 },
             //   チャンス目の 倍率 (chance) は、ミニゲームに 入る 抽選にも 効くので 設定2〜6 を 合わせ直した (前は 0.87 / 0.88 / 1.24 / 1.73 / 2.50)
-            2: { chance: 0.90, castleEntry: 0.98, pointBig: 0.98 },
-            3: { chance: 0.96, castleEntry: 1.00, pointBig: 1.00 },
-            4: { chance: 1.15, castleEntry: 1.25, pointBig: 1.28 },
-            5: { chance: 1.45, castleEntry: 1.76, pointBig: 1.62 },
-            6: { chance: 1.85, castleEntry: 2.55, pointBig: 2.15 }
+            //   2026-10-28: BAR揃いの 緑以上 ミニゲーム・宝物庫の いまの BATTLE への 上乗せ で 上がった ぶん を 合わせ直した (前は chance 0.84 / 0.90 / 0.96 / 1.15 / 1.45 / 1.85、castleEntry 4〜6 が 1.25 / 1.76 / 2.55)
+            2: { chance: 0.86, castleEntry: 0.98, pointBig: 0.98 },
+            3: { chance: 0.91, castleEntry: 1.00, pointBig: 1.00 },
+            4: { chance: 1.10, castleEntry: 1.20, pointBig: 1.28 },
+            5: { chance: 1.45, castleEntry: 1.68, pointBig: 1.62 },
+            6: { chance: 1.78, castleEntry: 2.30, pointBig: 2.15 }
         }
     },
 
@@ -145,20 +146,21 @@ window.GAME_CONFIG = {
     //   kinds: 4 つの ミニゲーム (この 順に 成功しやすい)。games: ゲーム数 / mult: 1G ごとの 成功の 確率 (rates) に かける 倍率
     //     revealAtEnd: games ゲーム 全部 やってから 最後に 結果を 出す (おにおに特訓: 10 秒 耐えきれるか)
     //   rates: 1G ごとの 成功の 確率の もと (役ごと。1 以上は mult に 関係なく 成功)
-    //   select: どの ミニゲームに なるか の 重み。count: 規定の ゲーム数 / chance: 役 (チャンス目など)。内部の モード (A / B / C / heaven) ごと
-    //   rainbow: 虹 (ミニゲーム 成功 + 城突入 確定) に なる 確率 (count / chance ごと)
+    //   select: どの ミニゲームに なるか の 重み。count: 規定の ゲーム数 / chance: 役 (チャンス目など) / bar: 通常時の BAR揃い。内部の モード (A / B / C / heaven) ごと
+    //     bar は 緑 (おにおに特訓) 以上 確定 (2026-10-28 ユーザー指定。トイレ探しは 出ない)
+    //   rainbow: 虹 (ミニゲーム 成功 + 城突入 確定) に なる 確率 (count / chance / bar ごと)
     // 数字は Claude が 決めた (出玉率に 合わせた。1 回の 成功率は トイレ探し 約35% < 特訓 約47% < 響かせ 約58% < ふるカワジャッジ 約74%)
     mini: {
-        triggers: { chance: 0.35, bar: 0.2, melon: 0.06 },
+        triggers: { chance: 0.35, melon: 0.06 },   // BAR揃いは 必ず ミニゲーム (select.bar)
         early: { from: 100, rate: 0.01 },   // 100G から 150G までの あいだ、1G ごとに ミニゲームに なる 確率 (規定の ゲーム数と 同じ 扱い。数字は Claude が 決めた)
         kinds: {
-            toilet: { name: 'こおりくんのトイレ探しチャレンジ', short: 'トイレ探し', color: '#4f9bff', games: 5, mult: 2.6,
+            toilet: { name: 'こおりくんのトイレ探しチャレンジ', short: 'トイレ探し', color: '#4f9bff', games: 5, mult: 2.3,
                 success: 'トイレ発見!!', fail: 'まにあわなかった…', miss: ['ここじゃない…', 'あっちかな…？', 'もれそう…!!'] },
-            training: { name: 'おにおに特訓チャレンジ', short: 'おにおに特訓', color: '#3fdf6f', games: 5, mult: 4.1, revealAtEnd: true,
+            training: { name: 'おにおに特訓チャレンジ', short: 'おにおに特訓', color: '#3fdf6f', games: 5, mult: 3.6, revealAtEnd: true,
                 success: '特訓クリア!!', fail: 'つぶれた…', miss: ['まだまだ!!', 'あと 100 回!!', 'ぐぬぬ…'] },
-            hibiki: { name: 'ひびきまくり響かせチャレンジ', short: '響かせ', color: '#c070ff', games: 5, mult: 6.3,
+            hibiki: { name: 'ひびきまくり響かせチャレンジ', short: '響かせ', color: '#c070ff', games: 5, mult: 5.6,
                 success: '響いた!!', fail: '響かなかった…', miss: ['響かない…', 'もっと 大きく!!', 'もう一回!!'] },
-            judge: { name: 'ふるカワジャッジ', short: 'ふるカワジャッジ', color: '#ff3a3a', games: 5, mult: 10.3,
+            judge: { name: 'ふるカワジャッジ', short: 'ふるカワジャッジ', color: '#ff3a3a', games: 5, mult: 9.1,
                 success: 'ジャッジ: 合格!!', fail: 'ジャッジ: 不合格…', miss: ['うーん…', 'まだ わからないよ', 'どうしようかな…'] }
         },
         rates: { chance: 1, seven: 1, sevenBar: 1, bar: 0.6, melon: 0.35, cherry: 0.2, diamond: 0.08, bell: 0.03, replay: 0.03, miss: 0.02 },
@@ -174,15 +176,21 @@ window.GAME_CONFIG = {
                 B: { toilet: 15, training: 28, hibiki: 32, judge: 25 },
                 C: { toilet: 10, training: 25, hibiki: 35, judge: 30 },
                 heaven: { toilet: 5, training: 15, hibiki: 35, judge: 45 }
+            },
+            bar: {
+                A: { training: 40, hibiki: 35, judge: 25 },
+                B: { training: 35, hibiki: 37, judge: 28 },
+                C: { training: 30, hibiki: 38, judge: 32 },
+                heaven: { training: 15, hibiki: 35, judge: 50 }
             }
         },
-        rainbow: { count: 0.015, chance: 0.05 }
+        rainbow: { count: 0.015, chance: 0.05, bar: 0.02 }
     },
 
     // ----- BAR揃いの 恩恵 (2026-10-27 ユーザー指定。数字は Claude が 決めた) -----
-    //   normal: 通常時 (マップ) で BAR揃い → castle の 確率で SE城前へ 直行。そのうち sure の 確率で 城突入 確定
+    //   normal: 通常時 (マップ) で BAR揃い → castle の 確率で SE城前へ 直行。そのうち sure の 確率で 城突入 確定。直行しなければ 緑以上の ミニゲーム 確定 (mini.select.bar)
     //   castleWait: SE城前で BAR揃い → sure の 確率で 城突入 確定 (7揃いは いつも 確定)
-    barBonus: { normal: { castle: 0.2, sure: 0.3 }, castleWait: { sure: 0.3 } },
+    barBonus: { normal: { castle: 0.1, sure: 0.3 }, castleWait: { sure: 0.3 } },
 
     // ----- ポイントチャンス (通常時) -----
     // rate の確率で発生。こおりくんが「少ないポイント」「多いポイント」の吹き出しから1つを選ぶ。
@@ -607,25 +615,25 @@ window.GAME_CONFIG = {
         {
             id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
             lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！' },
-            weight: 50, superWeight: 40, hp: 60, killRate: 0.4, superKillRate: 0.66,
+            weight: 50, superWeight: 40, hp: 60, killRate: 0.38, superKillRate: 0.65,
             bonus: { type: 'coins', value: 35 }   // 2026-10-23 A5 で BIG・REG を足して 35 → 20 にしたが、BIG・REG を消したので 35 に戻した
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
             lines: { intro: '響きです。', special: 'これが４DXだ！' },
-            weight: 30, superWeight: 25, hp: 90, killRate: 0.36, superKillRate: 0.61,
+            weight: 30, superWeight: 25, hp: 90, killRate: 0.34, superKillRate: 0.6,
             bonus: { type: 'games', value: 5 }
         },
         {
             id: 'shibata', name: 'シバター', special: 'シバタードライバー',
             lines: { intro: 'ぶんぶん！', special: 'バーイ！' },
-            weight: 15, superWeight: 15, hp: 120, killRate: 0.32, superKillRate: 0.56,
+            weight: 15, superWeight: 15, hp: 120, killRate: 0.3, superKillRate: 0.55,
             bonus: { type: 'probUp', value: 1.5, games: 10 }
         },
         {
             id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
             lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。' },
-            weight: 8, superWeight: 12, hp: 150, killRate: 0.28, superKillRate: 0.51,
+            weight: 8, superWeight: 12, hp: 150, killRate: 0.26, superKillRate: 0.5,
             bonus: { type: 'coins', value: 120 }   // 2026-10-23 A5 で 120 → 60 にしたが、BIG・REG を消したので 120 に戻した
         },
         {

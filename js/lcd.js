@@ -2338,7 +2338,9 @@ const Lcd = (() => {
 
     async function treasureEnd(event) {
         nextBonusGames = event.bonusGames;
-        showTitle('宝物庫ゾーン終了', `次のBATTLE +${event.total}G!!`, '#ffd23a', 2000);
+        // 撃破が 確定して いない BATTLE に 戻るときは、いまの BATTLE の ゲーム数に 足す
+        if (event.now && battle) battle.games = event.gamesRemaining;
+        showTitle('宝物庫ゾーン終了', event.now ? `このBATTLE +${event.total}G!!` : `次のBATTLE +${event.total}G!!`, '#ffd23a', 2000);
         Sound.fanfare();
         await sleep(2000);
         treasure = null;

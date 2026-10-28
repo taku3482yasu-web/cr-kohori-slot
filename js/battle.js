@@ -400,12 +400,21 @@ const Battle = {
         return events;
     },
 
+    // 宝物庫ゾーンの終わり (2026-10-28 ユーザー指定):
+    //   BATTLE に戻って 撃破が 確定して いない (負けセット = このままだと「？？」で RASH が 終わる) ときは、
+    //   上乗せした ゲーム数を いまの BATTLE の 残りゲーム数に 足す (now)。
+    //   撃破後 (SELECT に戻る)・撃破が 確定 (勝ちセット)・ロングフリーズでの 撃破 は、次の BATTLE の 開始時に 足す
     endTreasure(state) {
         const rash = state.rash;
         rash.phase = rash.treasureReturnPhase || RASH_PHASES.SELECT;
         rash.treasureReturnPhase = null;
         rash.treasureGames = 0;
-        return [{ type: 'treasureEnd', total: rash.treasureTotal, bonusGames: rash.bonusGames }];
+        const now = rash.phase === RASH_PHASES.BATTLE && rash.enemyId && !rash.setWillWin && rash.bonusGames > 0;
+        if (now) {
+            rash.gamesRemaining += rash.bonusGames;
+            rash.bonusGames = 0;
+        }
+        return [{ type: 'treasureEnd', total: rash.treasureTotal, bonusGames: rash.bonusGames, now, gamesRemaining: rash.gamesRemaining }];
     },
 
     // ----- 内定の時ゾーン -----
