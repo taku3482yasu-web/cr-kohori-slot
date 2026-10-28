@@ -460,7 +460,7 @@
     // ミニゲーム (2026-10-27)
     const mk = c.mini.kinds;
     $('mini-list').innerHTML = [
-        `ゲーム数が <b>${c.mini.early.from}G</b> を超えると毎ゲーム抽選、<b>${cp.threshold}G</b> で確定。<b>チャンス目</b>（${pct(c.mini.triggers.chance)}）・BAR（${pct(c.mini.triggers.bar)}）・スイカ（${pct(c.mini.triggers.melon)}）を引くと、ミニゲームが決まります`,
+        `ゲーム数が <b>${c.mini.early.from}G</b> を超えると毎ゲーム抽選、<b>${cp.threshold}G</b> で確定。<b>チャンス目</b>（${pct(c.mini.triggers.chance)}）・スイカ（${pct(c.mini.triggers.melon)}）を引くと、ミニゲームが決まります。<b>BAR揃い</b>は（SE城前へ直行しなければ）<b>緑（${c.mini.kinds.training.short}）以上</b>のミニゲーム確定`,
         'ミニゲームが決まると <b>ゲーム数の数字の色</b> が変わり、次のゲームから始まります。色は ' +
             Object.values(mk).map(k => `<span style="color:${k.color}">${k.short}</span>`).join(' ＜ ') + '。<b>虹色</b>なら成功して城突入まで確定！',
         `${mk.toilet.games}ゲームのあいだに、引いた役で成功を抽選（チャンス目・7 は成功）。成功すれば SE城前へ`,
@@ -559,7 +559,7 @@
     // 宝物庫ゾーン
     const tz = c.treasure;
     $('treasure-text').innerHTML = `おにおにRASH・SUPER の BATTLE 中に <b>${odds(tz.rate)}</b> で突入する、ゲーム数上乗せ特化ゾーン（「？？」のときは突入しません）。` +
-        `<b>${tz.games}ゲーム</b>の間、柄が揃うたびに宝箱が開き、揃った柄に応じて<b>次の BATTLE のゲーム数</b>が増えます。`;
+        `<b>${tz.games}ゲーム</b>の間、柄が揃うたびに宝箱が開き、揃った柄に応じて<b>次の BATTLE のゲーム数</b>が増えます。撃破が確定していない BATTLE に戻るときは、増えたゲーム数を<b>いまの BATTLE</b>に足します（撃破後・撃破確定のときは次の BATTLE の開始時）。`;
     $('treasure-freeze').innerHTML = `宝物庫ゾーン中に<b>ロングフリーズ</b>が発生すると、戦闘中の敵を完全撃破して <span class="gold">次のBATTLE +${tz.freezeBonusGames}G</span>、<span class="gold">SUPER 突入</span>、次の相手は <span class="gold">${c.goldDog.name}</span> 確定！`;
     table('treasure-table', ['柄', '確率', '次のBATTLE'],
         Object.entries(tz.gamesByRole).sort((a, b) => a[1] - b[1]).map(([role, g]) => [
