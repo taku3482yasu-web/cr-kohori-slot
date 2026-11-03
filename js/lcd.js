@@ -1567,6 +1567,14 @@ const Lcd = (() => {
     function modeHint(event) {
         FurukawaView.show({ text: event.text, color: 1, heat: 0 });
     }
+    // 群予告の あと (2026-11-03 ユーザー指定: 確定で SE城前へ 直行)
+    async function gunHit() {
+        startFlash('#ffffff', 600);
+        startShake(config.effects.intensity.shakeLarge, 400);
+        Sound.fanfare();
+        showTitle('群予告 確定!!', 'SE城へ 直行!!', '#ffd700', 1800);
+        await sleep(1800);
+    }
     async function zoneHit() {
         startFlash('#d8a8ff', 500);
         Sound.chance();
@@ -2897,7 +2905,7 @@ const Lcd = (() => {
         startFlash('#ffffff', 600);
         startShake(config.effects.intensity.shakeLarge, 500);
         Sound.rainbow();
-        showTitle('城突入 確定!!', event.role === 'bar' ? 'BAR揃い で 突破 確定！' : '7・7・7 で 突破 確定！', '#ffd700', 2000);
+        showTitle('城突入 確定!!', event.role === 'bar' ? 'BAR揃い で 突破 確定！' : event.role === 'gun' ? '群予告 で 突破 確定！' : '7・7・7 で 突破 確定！', '#ffd700', 2000);
         await sleep(2000);
     }
     // 通常時の BAR揃い (2026-10-27 ユーザー指定): SE城前へ 直行 (ときどき 城突入 確定)
@@ -3658,6 +3666,9 @@ const Lcd = (() => {
                     break;
                 case 'zoneHit':
                     await zoneHit(event);
+                    break;
+                case 'gunHit':
+                    await gunHit(event);
                     break;
                 case 'treasureGame':
                     await treasureGame(event);

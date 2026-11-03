@@ -1092,7 +1092,7 @@ test('上乗せ特化ゾーン: おにおに撃破で必ず突入し、ほかの
 
 test('通常時の予告: ステップアップ予告・群予告だけ (カットインは期待度の演出のもの)。ひびきまくり群はチャンス目以上だけ。出るのは通常時のマップだけ', () => {
     const game = loadGame(11);
-    const { createInitialState, Lottery, Notice, MODES, config } = game;
+    const { createInitialState, Lottery, Notice, GameFlow, MODES, config } = game;
     const state = createInitialState(config);
     const roles = ['miss', 'replay', 'bell', 'diamond', 'cherry', 'melon', 'bar', 'chance', 'seven', 'sevenBar'];
     const seen = {};
@@ -1100,6 +1100,7 @@ test('通常時の予告: ステップアップ予告・群予告だけ (カッ�
         const outcome = Lottery.makeOutcome(role, config);
         let shown = 0;
         for (let i = 0; i < 4000; i++) {
+            outcome.gun = GameFlow.rollGun(state, outcome, config);   // main.js と 同じ (群予告は 当たりの しるし。2026-11-03)
             const n = Notice.pick(state, outcome, config);
             if (!n) continue;
             shown++;
@@ -1118,6 +1119,31 @@ test('通常時の予告: ステップアップ予告・群予告だけ (カッ�
     // RASH 中・ダンシングステージ中は出さない
     state.mode = MODES.RASH;
     assertEqual(Notice.pick(state, Lottery.makeOutcome('seven', config), config, Math.random, 'stepUp'), null, 'RASH 中の予告');
+});
+
+test('群予告 (2026-11-03 ユーザー指定): 出たら 確定で 当たり。通常時の マップは SE城前へ 直行・SE城前では 城突入 確定。予告は 群予告の ゲームだけ', () => {
+    const game = loadGame(31);
+    const { createInitialState, Lottery, Notice, GameFlow, MODES, config } = game;
+    const state = createInitialState(config);
+    const outcome = Lottery.makeOutcome('miss', config);
+    outcome.gun = true;
+    assertEqual(Notice.pick(state, outcome, config).kind, 'gun', '群予告の ゲームは 群予告');
+    const events = GameFlow.onGameEnd(state, outcome, config);
+    assert(events.some(e => e.type === 'gunHit'), '群予告の 確定');
+    assertEqual(state.normal.map, config.map.castle, 'SE城前へ 直行');
+    const o2 = Lottery.makeOutcome('miss', config);
+    o2.gun = true;
+    GameFlow.onGameEnd(state, o2, config);
+    assert(state.challenge.guaranteed, 'SE城前では 城突入 確定');
+    // 群予告で ない ゲームでは 群予告は 出ない
+    const state2 = createInitialState(config);
+    for (let i = 0; i < 3000; i++) {
+        const o = Lottery.makeOutcome('chance', config);
+        o.gun = false;
+        const n = Notice.pick(state2, o, config);
+        assert(!n || n.kind !== 'gun', '当たりで ない 群予告');
+    }
+    void MODES;
 });
 
 test('こおりチャンスタイム: チャンス目などで突入し、10G のあいだチャンスポイント (ゲーム数) の加算が2倍。ミニゲームの あいだは 止まり、失敗で 終わったら 続く', () => {

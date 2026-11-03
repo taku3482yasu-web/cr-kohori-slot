@@ -267,6 +267,9 @@ window.GAME_CONFIG = {
     notice: {
         classes: { seven: 'premium', sevenBar: 'premium', chance: 'hot', bar: 'hot', melon: 'warm', cherry: 'warm' },
         rate: { premium: 0.6, hot: 0.35, warm: 0.15, cold: 0.02 },
+        // 群予告 (2026-11-03 ユーザー指定: 出たら 確定で 当たり。通常時の マップは SE城前へ 直行・SE城前では 城突入 確定)。
+        //   出る 率は 役の 分類ごと (GameFlow.rollGun)。ほかの 予告とは べつに 引く
+        gunRate: { premium: 0.3, hot: 0.025, warm: 0.002, cold: 0.0002 },   // 出玉が かわらない ように 少なめ (設定1 99.4% → 99.7%)
         kinds: {
             premium: { stepUp: 50, gun: 50 },
             hot: { stepUp: 65, gun: 35 },
@@ -615,31 +618,31 @@ window.GAME_CONFIG = {
         {
             id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
             lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！' },
-            weight: 50, superWeight: 40, hp: 60, killRate: 0.38, superKillRate: 0.65,
+            weight: 50, superWeight: 40, hp: 60, killRate: 0.38, superKillRate: 0.57,
             bonus: { type: 'coins', value: 35 }   // 2026-10-23 A5 で BIG・REG を足して 35 → 20 にしたが、BIG・REG を消したので 35 に戻した
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
             lines: { intro: '響きです。', special: 'これが４DXだ！' },
-            weight: 30, superWeight: 25, hp: 90, killRate: 0.34, superKillRate: 0.6,
+            weight: 30, superWeight: 25, hp: 90, killRate: 0.34, superKillRate: 0.52,
             bonus: { type: 'games', value: 5 }
         },
         {
             id: 'shibata', name: 'シバター', special: 'シバタードライバー',
             lines: { intro: 'ぶんぶん！', special: 'バーイ！' },
-            weight: 15, superWeight: 15, hp: 120, killRate: 0.3, superKillRate: 0.55,
+            weight: 15, superWeight: 15, hp: 120, killRate: 0.3, superKillRate: 0.47,
             bonus: { type: 'probUp', value: 1.5, games: 10 }
         },
         {
             id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
             lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。' },
-            weight: 8, superWeight: 12, hp: 150, killRate: 0.26, superKillRate: 0.5,
+            weight: 8, superWeight: 12, hp: 150, killRate: 0.26, superKillRate: 0.42,
             bonus: { type: 'coins', value: 120 }   // 2026-10-23 A5 で 120 → 60 にしたが、BIG・REG を消したので 120 に戻した
         },
         {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
             lines: { special: '金返せ！' },
-            weight: 16, superWeight: 15, hp: 200, killRate: 0.08, superKillRate: 0.41,
+            weight: 16, superWeight: 15, hp: 200, killRate: 0.08, superKillRate: 0.7,   // 2026-11-03 ユーザー指定: SUPER 中は いつでも 候補で、ほかより たおしやすい (ほかの SUPER の 撃破率を 少し 下げて SUPER の 継続率 約85% を 守った)
             bonus: { type: 'tokka' },     // 撃破の報酬は上乗せ特化ゾーン (300枚保障。tokka)
             requiresUnlock: true          // 連数が rash.oni.unlockStreak に達するまで出ない (SUPER 中は常に候補)
         }

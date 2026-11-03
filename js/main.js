@@ -127,7 +127,9 @@
         const inRash = StateMachine.isRashMode(state);   // 図鑑の「叩け」の 場面 (結果の あとでは 変わる ことが ある)
         ['buru', 'okure', 'reverse'].forEach(k => { if (leverFx[k]) Collection.seeLever(state, k); });
         // 通常時の予告 (ステップアップ予告・群予告。役で選ぶ)。期待度のカットインが出たゲームでは出さない
-        if (!hype.cutin || debugNotice) Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
+        // 群予告 (2026-11-03 ユーザー指定): 出たら 確定で 当たり (GameFlow.rollGun)。出る ゲームは かならず 見せる
+        outcome.gun = debugNotice === 'gun' ? Notice.allowed(state) : GameFlow.rollGun(state, outcome, config);
+        if (!hype.cutin || debugNotice || outcome.gun) Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
         debugNotice = null;
         // 前兆と 違和感演出 (2026-10-23 A4。js/zencho.js)
         const zc = Zencho.beforeGame(state, config);

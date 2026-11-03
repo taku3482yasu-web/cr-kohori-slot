@@ -24,9 +24,13 @@ const Notice = {
         if (!this.allowed(state) || outcome.isFreeze) return null;
         const cfg = config.notice;
         const cls = this.classOf(outcome.role, config);
-        if (!force && rng() >= cfg.rate[cls]) return null;
-        const kind = force || Lottery.weightedPick(Object.keys(cfg.kinds[cls]), k => cfg.kinds[cls][k], rng);
         const pickKey = table => Lottery.weightedPick(Object.keys(table), k => table[k], rng);
+        // 群予告は 当たりの しるし (2026-11-03 ユーザー指定)。outcome.gun (GameFlow.rollGun) の ゲームだけ 出る
+        if (outcome.gun) return { kind: 'gun', who: pickKey(cfg.gun[cls]) };
+        if (force === 'gun') return null;
+        if (!force && rng() >= cfg.rate[cls]) return null;
+        const kinds = Object.keys(cfg.kinds[cls]).filter(k => k !== 'gun');
+        const kind = force || Lottery.weightedPick(kinds, k => cfg.kinds[cls][k], rng);
         if (kind === 'stepUp') {
             const outcomeKey = pickKey(cfg.stepUp.outcomes[cls]);
             const steps = Number(outcomeKey[1]);

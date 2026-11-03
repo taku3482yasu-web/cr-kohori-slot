@@ -573,6 +573,18 @@ const GameFlow = {
         return events;
     },
 
+    // 群予告 (2026-11-03 ユーザー指定): 出たら 確定で 当たり。予告を 出せる 場面 (通常時の マップ・SE城前) だけ。
+    //   レバー ON で 引いて outcome.gun に 入れる (main.js)。シミュレーターでは ここで 引く
+    rollGun(state, outcome, config, rng = Math.random) {
+        if (state.mode !== MODES.NORMAL || state.normal.dance || state.normal.mini || state.normal.revengeGames > 0 || outcome.isFreeze) return false;
+        const cls = config.notice.classes[outcome.role] || 'cold';
+        return rng() < config.notice.gunRate[cls];
+    },
+    gunOf(state, outcome, config, rng) {
+        if (outcome.gun === undefined) outcome.gun = this.rollGun(state, outcome, config, rng);
+        return outcome.gun;
+    },
+
     // 通常時: マップループ・チャンスポイント・SE城前
     handleNormal(state, outcome, config, rng) {
         const normal = state.normal;
@@ -581,6 +593,8 @@ const GameFlow = {
         if (modeEvents.go) return modeEvents.events;
         const modePrefix = modeEvents.events;
 
+        // 群予告 (レバー ON で 引いた ぶん。ゾーン・天井で 直行した ゲームでも 引いておく)
+        const gun = this.gunOf(state, outcome, config, rng);
         // SE城前: 待機ゲーム数を消化したら城突入チャレンジへ
         if (normal.map === config.map.castle) {
             normal.castleWaitRemaining = Math.max(0, normal.castleWaitRemaining - 1);
@@ -594,6 +608,11 @@ const GameFlow = {
             if (outcome.aligned && outcome.role === 'bar' && !state.challenge.guaranteed && rng() < config.barBonus.castleWait.sure) {
                 state.challenge.guaranteed = true;
                 events.push({ type: 'castleSure', role: 'bar' });
+            }
+            // 群予告: このあとの 城突入チャレンジは 突破 確定 (2026-11-03 ユーザー指定)
+            if (gun && !state.challenge.guaranteed) {
+                state.challenge.guaranteed = true;
+                events.push({ type: 'castleSure', role: 'gun' });
             }
             // チャンス目を引くと、このあとの城突入チャレンジの突入率UP (1回だけ。重ねがけはしない)
             if (outcome.isChance && !state.challenge.chanceBoost) {
@@ -609,6 +628,13 @@ const GameFlow = {
 
         const events = [...modePrefix];
         const cp = config.chancePoint;
+        // 群予告: 通常時の マップは SE城前へ 直行 (2026-11-03 ユーザー指定)
+        if (gun) {
+            if (normal.chanceTime) events.push(this.endChanceTime(state));
+            events.push({ type: 'gunHit' });
+            events.push(this.goToCastle(state, config));
+            return events;
+        }
 
         // リベンジチャンス: チャンス目で RASH に再突入
         if (normal.revengeGames > 0) {
