@@ -10,8 +10,14 @@ const Sound = (() => {
         if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
     }
 
+    // タブを 切りかえて 画面が かくれたら 音を 止め、もどったら 再開する (2026-11-04 ユーザー指定)
+    document.addEventListener('visibilitychange', () => {
+        if (!ctx) return;
+        if (document.hidden) ctx.suspend(); else ctx.resume();
+    });
+
     function tone(freq, type, duration, volume = 0.1) {
-        if (!ctx || muted) return;
+        if (!ctx || muted || document.hidden) return;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = type;
@@ -26,7 +32,7 @@ const Sound = (() => {
 
     // ザーッというノイズ (ロングフリーズ)
     function noise(duration, volume = 0.12) {
-        if (!ctx || muted) return;
+        if (!ctx || muted || document.hidden) return;
         const length = Math.floor(ctx.sampleRate * duration);
         const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -47,7 +53,7 @@ const Sound = (() => {
 
     // 音程が from → to に動く音 (ビーム・振り下ろしなど)
     function sweep(from, to, type, duration, volume = 0.1, delay = 0) {
-        if (!ctx || muted) return;
+        if (!ctx || muted || document.hidden) return;
         setTimeout(() => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
