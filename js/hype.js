@@ -2,14 +2,15 @@
 // 期待度の演出の抽選 (2026-10-23 アップグレード A3。最新のスロット koori-slot の 画面設計書 3-6 を参考に)
 // ---------------------------------------------------------------------
 // レバー ON で そのゲームの 熱さ (Furukawa.heat。0〜6) が 決まったら、plan() で 出す 演出を まとめて 選ぶ。
-//   カットイン   : 青 < 緑 < 赤 < 金 < 虹 (虹は 熱さ 6 = 確定 だけ)
+//   カットイン   : 青 < 緑 < 赤 < 金 < 虹 (虹は 熱さ 6 = 確定 だけ)。
+//                  2026-11-10 ユーザー指定: 金は 当たり 確定・赤は ガセなし (fit で 結果の 先読みに 合わせる)
 //   先バレ音     : レバー ON で 鳴る (熱い ゲームほど 鳴りやすい)
 //   確定音       : 鳴ったら 熱さ 6 (確定) だけ
 //   金発光       : 筐体が 金色に 光る (熱さ 5 以上)
 //   フラッシュ   : 弱 (リールが 白く 光る) / 強 (液晶と リールが 大きく 光る)
 //   PUSH ボタン  : 白 < 青 < 赤 < 金 < 虹。激熱は 飛び出す。押し方は 1 回・長押し・連打
 // 高い 色・強い 演出ほど 熱い ゲームでしか 出ないので、色の 順に 期待度が 上がる。数字は config.hype (案)。
-// 演出だけで、役・バトル・出玉は 変えない (UI 側の 乱数で 選ぶ)。
+// 演出だけで、役・バトル・出玉は 変えない (UI 側の 乱数で 選ぶ。fit も 色を 選ぶ だけ)。
 // reveal() (2026-10-27 ユーザー指定): ゲームの 結果が 決まった あと、PUSH を その 結果に 合わせて 選び直す。
 //   RASH の BATTLE (撃破するか) と 城突入チャレンジ (突入するか) は、赤以上の PUSH なら 80% 以上・
 //   「レバーを叩け!!」なら 90% で 勝つ (config.hype.reveal)。長押しは 台が チャージを 決めた ゲームだけ
@@ -44,6 +45,21 @@ const Hype = {
             flash: this.pick(at(h.flash), rng) || 'none',
             push
         };
+    },
+
+    // カットインの 色を 先読みの 結果 (GameFlow.predict) に 合わせる (2026-11-10 ユーザー指定)
+    //   金: 当たり 確定 / 赤: ガセなし (当たり か なにか 起きる)。合わない ときは 金 → 赤 → 緑 と 下げる
+    //   (先読みが 当てに ならない ゲームは 赤・金を 出さない)。虹は 熱さ 6 だけ なので そのまま
+    fit(plan, verdict, config, rng = Math.random) {
+        const ok = { gold: verdict.reliable && verdict.win, red: verdict.reliable && verdict.something };
+        let tier = plan.cutin;
+        if (tier === 'gold' && !ok.gold) tier = 'red';
+        if (tier === 'red' && !ok.red) tier = 'green';
+        if (tier !== plan.cutin) {
+            plan.cutin = tier;
+            plan.cutinWho = this.castFor(tier, config, rng, plan.heat);
+        }
+        return plan;
     },
 
     // PUSH を 選び直す ための、この ゲームの 結果 (reveal の ctx。events は GameFlow.onGameEnd の 返り値)

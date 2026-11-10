@@ -1513,12 +1513,13 @@ const Lcd = (() => {
     }
 
     // list: Lottery.findReaches の 結果 (強い 絵柄から)。1 つなら 前と 同じ 表示
-    function reach(list) {
+    // won: リーチが 揃う か (7 の リーチの 赤カットインは 揃う ときだけ。揃わない ときは 青。2026-11-10 ユーザー指定: 赤は ガセなし)
+    function reach(list, won = false) {
         const { symbol, lineName } = list[0];
         reachView = { symbol, lineName, list, won: null, start: performance.now() };
         startFlash(symbol === 'seven' ? '#ffffff' : '#ff3030', 300);
         if (symbol === 'seven' && list.length === 1) {   // 2 つ 以上の ときは「どれが出るかな？」を 見せる
-            cutIn = { who: 'koori', text: '7が来る…!?', color: '#b01828', start: performance.now(), duration: 1200 };
+            cutIn = { who: 'koori', text: '7が来る…!?', color: won ? '#b01828' : '#2a5ad8', start: performance.now(), duration: 1200 };
         }
     }
 

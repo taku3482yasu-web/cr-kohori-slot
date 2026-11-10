@@ -3,6 +3,10 @@
 // ---------------------------------------------------------------------
 // 曲は 8分音符単位の音名の並び。'.' は休符。メロディ (矩形波) とベース (三角波) の2パート。
 // 先の音を少しずつ予約して鳴らすので、画面の描画が重くてもテンポがずれにくい。
+// 2026-11-10 (ユーザー指摘: 通常時などで BGM がおかしくなる) の 修正:
+//   - 予約を 0.15 秒 → 0.4 秒先までにして、描画が重いときも 音が 途切れにくくした
+//   - 曲を 切り替えたとき、前の 曲の 予約ずみの 音を 止める (2 曲が 重なって 鳴らない)
+//   - タブが 裏に 回ったら 止める (裏では タイマーが 遅くなり、音が とびとびに なるため)。戻ったら 続きから
 // =====================================================================
 
 const BGM_TRACKS = {
@@ -105,7 +109,7 @@ const BGM_TRACKS = {
 };
 
 const Bgm = (() => {
-    const LOOKAHEAD = 0.15;   // 何秒先まで音を予約するか
+    const LOOKAHEAD = 0.4;    // 何秒先まで音を予約するか
     const NOTE_INDEX = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
 
     let ctx = null;
@@ -117,6 +121,8 @@ const Bgm = (() => {
     let volume = 0.5;
     let enabled = true;
     let paused = false;
+    let hidden = false;       // タブが 裏に 回っている
+    let scheduled = [];       // 予約した 音 { osc, gain, time } (曲を 切り替えたら 止める)
 
     function frequency(note) {
         const match = /^([A-G]#?)(\d)$/.exec(note);
@@ -125,7 +131,7 @@ const Bgm = (() => {
     }
 
     function applyVolume() {
-        if (master) master.gain.setTargetAtTime(enabled && !paused ? volume * 0.12 : 0, ctx.currentTime, 0.02);
+        if (master) master.gain.setTargetAtTime(enabled && !paused && !hidden ? volume * 0.12 : 0, ctx.currentTime, 0.02);
     }
 
     // 音声の準備 (ユーザー操作のあとで呼ぶ)
@@ -137,6 +143,29 @@ const Bgm = (() => {
         master.connect(ctx.destination);
         applyVolume();
         timer = setInterval(schedule, 25);
+        document.addEventListener('visibilitychange', () => {
+            hidden = document.hidden;
+            if (hidden) cancelScheduled();
+            else if (ctx) nextTime = ctx.currentTime + 0.1;
+            applyVolume();
+        });
+    }
+
+    // 予約ずみで まだ 鳴り終わって いない 音を 止める
+    function cancelScheduled() {
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        for (const n of scheduled) {
+            try {
+                if (n.time > now) n.osc.stop();   // まだ 鳴って いない 音
+                else {                            // 鳴って いる 音は すぐに 消す
+                    n.gain.gain.cancelScheduledValues(now);
+                    n.gain.gain.setTargetAtTime(0.0001, now, 0.01);
+                    n.osc.stop(now + 0.05);
+                }
+            } catch (e) { /* もう 止まって いる */ }
+        }
+        scheduled = [];
     }
 
     function note(freq, type, time, duration, level) {
@@ -150,10 +179,12 @@ const Bgm = (() => {
         gain.connect(master);
         osc.start(time);
         osc.stop(time + duration + 0.02);
+        scheduled.push({ osc, gain, time, end: time + duration + 0.02 });
     }
 
     function schedule() {
-        if (!ctx || !trackName || !enabled || paused) return;
+        if (!ctx || !trackName || !enabled || paused || hidden) return;
+        scheduled = scheduled.filter(n => n.end > ctx.currentTime);   // 鳴り終わった 音は 忘れる
         const track = BGM_TRACKS[trackName];
         const stepDur = 60 / track.bpm / 2;
         if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05;
@@ -170,6 +201,7 @@ const Bgm = (() => {
     // 曲を切り替える (同じ曲なら何もしない)
     function play(name) {
         if (trackName === name) return;
+        cancelScheduled();   // 前の 曲の 予約を 止める (重ならない ように)
         trackName = name;
         step = 0;
         if (ctx) nextTime = ctx.currentTime + 0.1;
@@ -182,12 +214,14 @@ const Bgm = (() => {
 
     function setEnabled(on) {
         enabled = on;
+        if (!on) cancelScheduled();
         if (on && ctx) nextTime = ctx.currentTime + 0.1;
         applyVolume();
     }
 
     // 一時停止 (ロングフリーズ中は無音にする)
     function setPaused(on) {
+        if (on && !paused) cancelScheduled();   // 止める ときは 予約ずみの 音も 止める
         paused = on;
         if (!on && ctx) nextTime = ctx.currentTime + 0.1;
         applyVolume();

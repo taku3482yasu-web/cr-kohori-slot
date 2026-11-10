@@ -392,6 +392,38 @@ test('期待度の演出 (A3): カットイン・PUSH は 色の 順に 熱い �
     console.log(`  熱いゲーム (熱さ 4 以上) の 割合: ぜんぶ ${pct(hot('all'))} / カットイン ${Hy.TIERS.map(t => `${t} ${stat['cutin:' + t] ? pct(hot('cutin:' + t)) : '-'}`).join('・')} / PUSH ${Hy.PUSH_TIERS.map(t => `${t} ${stat['push:' + t] ? pct(hot('push:' + t)) : '-'}`).join('・')}`);
 });
 
+test('カットインの 先読み (2026-11-10): 金カットインは 当たり 確定・赤カットインは ガセなし。先読みと 本番の 結果は 同じ', () => {
+    const g = loadGame(53);
+    const { config: cfg, Lottery: L, Furukawa: F, Hype: Hy, GameFlow: GF } = g;
+    const state = g.createInitialState(cfg);
+    const n = { gold: 0, goldMiss: 0, red: 0, redMiss: 0, games: 0, mismatch: 0, wins: 0 };
+    const byMode = {};
+    for (let i = 0; i < 300000; i++) {
+        state.coins = 1e6;
+        const o = L.draw(state, cfg);
+        const heat = F.canAppear(state, cfg) ? F.heat(state, o, cfg) : 0;
+        // main.js と 同じ 順番: 群予告 → チャージ → 先読み → 色を 合わせる → 本番は 同じ 乱数
+        o.gun = GF.rollGun(state, o, cfg);
+        const scene = GF.drawCharge(state, o, cfg);
+        const verdict = GF.predict(state, o, cfg);
+        const plan = Hy.fit(Hy.plan(heat, cfg), verdict, cfg);
+        const mode = state.mode;
+        o.charged = Boolean(scene) && Math.random() < 0.5;
+        const events = GF.onGameEnd(state, o, cfg, GF.replayRng(o));
+        const win = GF.isWin(events, cfg), something = win || GF.isSomething(events, o);
+        n.games++;
+        if (win) n.wins++;
+        if (verdict.reliable && !o.charged && verdict.win !== win) n.mismatch++;
+        if (plan.cutin === 'gold') { n.gold++; if (!win) n.goldMiss++; (byMode[mode] = byMode[mode] || { gold: 0, red: 0 }).gold++; }
+        if (plan.cutin === 'red') { n.red++; if (!something) n.redMiss++; (byMode[mode] = byMode[mode] || { gold: 0, red: 0 }).red++; }
+    }
+    assertEqual(n.mismatch, 0, '先読みと 本番の 当たりが ちがう ゲーム');
+    assertEqual(n.goldMiss, 0, '金カットインで 当たらなかった ゲーム');
+    assertEqual(n.redMiss, 0, '赤カットインで なにも 起きなかった ゲーム');
+    assert(n.gold > 0 && n.red > 0, `金・赤が 出る (金 ${n.gold}・赤 ${n.red})`);
+    console.log(`  金 ${n.gold} 回・赤 ${n.red} 回 (${n.games} G)。場面ごと: ${Object.entries(byMode).map(([m, c]) => `${m} 金${c.gold}/赤${c.red}`).join('・')}`);
+});
+
 test('レバーの 演出 (2026-10-24): 叩け！は 熱い ゲームで 出て RASH 中は 確定、遅れは チャンス目・BAR 以上、逆回転は 7揃い・ロングフリーズ級、レバブルは 熱い ほど', () => {
     const g = loadGame(37);
     const { config: cfg, Lottery: L, Furukawa: F, Hype: Hy, LeverFx: LF, GameFlow: GF, Notice: N, StateMachine: SM } = g;

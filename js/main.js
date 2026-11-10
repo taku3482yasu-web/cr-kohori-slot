@@ -22,9 +22,10 @@
     let debugNotice = null;     // デバッグ: 次のゲームの予告の種類を指定 ('stepUp' | 'gun')
     let debugEndCard = -1;      // デバッグ: 最後に見た RASH 終了画面の絵の番号
 
-    function refresh() {
+    // bgm: false なら 曲は 切り替えない (結果の 演出の 前。次の 場面の 曲が 先に 流れて しまうため。2026-11-10)
+    function refresh(bgm = true) {
         UI.update(state);
-        Bgm.play(bgmTrack(state));
+        if (bgm) Bgm.play(bgmTrack(state));
     }
 
     // ロングフリーズ: STOP を押せなくし、BGM を止めて液晶の演出を流す
@@ -116,7 +117,12 @@
 
         // 期待度の 演出 (2026-10-23 A3。js/hype.js): 熱さに 合わせて カットイン・先バレ音・確定音・金発光・フラッシュ・PUSH
         const heat = talk ? talk.heat : Furukawa.canAppear(state, config) ? Furukawa.heat(state, outcome, config) : 0;
-        const hype = Hype.plan(heat, config);
+        // 群予告・長押しの チャージは 先読みより 前に 決める (結果に かかわる ため)
+        outcome.gun = debugNotice === 'gun' ? Notice.allowed(state) : GameFlow.rollGun(state, outcome, config);
+        const chargeScene = GameFlow.drawCharge(state, outcome, config);
+        // 結果の 先読み (2026-11-10 ユーザー指定): 金カットインは 当たり 確定・赤カットインは ガセなし。本番は 同じ 乱数で 打つ
+        const verdict = GameFlow.predict(state, outcome, config);
+        const hype = Hype.fit(Hype.plan(heat, config), verdict, config);
         hype.push = LeverFx.tataki(state, hype.push, heat, config);   // レバーを叩け！ (2026-10-24)
         const leverFx = LeverFx.atLever(state, outcome, heat, config);   // レバブル・遅れ・逆回転 (2026-10-24)
         playHypeAtLever(hype);
@@ -128,7 +134,6 @@
         ['buru', 'okure', 'reverse'].forEach(k => { if (leverFx[k]) Collection.seeLever(state, k); });
         // 通常時の予告 (ステップアップ予告・群予告。役で選ぶ)。期待度のカットインが出たゲームでは出さない
         // 群予告 (2026-11-03 ユーザー指定): 出たら 確定で 当たり (GameFlow.rollGun)。出る ゲームは かならず 見せる
-        outcome.gun = debugNotice === 'gun' ? Notice.allowed(state) : GameFlow.rollGun(state, outcome, config);
         if (!hype.cutin || debugNotice || outcome.gun) Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
         debugNotice = null;
         // 前兆と 違和感演出 (2026-10-23 A4。js/zencho.js)
@@ -155,7 +160,8 @@
                 if (reach) {
                     stopButtons[remaining].classList.add('reach');
                     Reels.setLamp(remaining, 'reach');
-                    Lcd.reach(reach);   // 2 つ 以上は「どれが出るかな？」
+                    // 2 つ 以上は「どれが出るかな？」。7 の リーチの 赤カットインは 揃う ときだけ (ガセなし。2026-11-10)
+                    Lcd.reach(reach, reach.some(r => r.lines.includes(outcome.winLine)));
                     Sound.chance();
                 } else if (outcome.isChance && Math.random() < effects.pushRate) {
                     stopButtons[remaining].classList.add('push');
@@ -231,11 +237,11 @@
         //   PUSH の 色は ためきれなかった ときの 結果で 選ぶ。BATTLE は 結果の あと、ためきれたら 撃破率 UP
         const coinsBefore = state.coins;
         Lcd.hold();   // 液晶の ゲーム数・ランプなどは 演出が 始まるまで 前の まま (結果が 先に 見えないように)
-        const chargeScene = GameFlow.drawCharge(state, outcome, config);
+        const replay = GameFlow.replayRng(outcome);   // 先読みと 同じ 乱数
         let events = null, battleCharge = false, ctx;
         if (chargeScene) ctx = GameFlow.chargePreview(state, outcome, config);
         else {
-            events = GameFlow.onGameEnd(state, outcome, config);
+            events = GameFlow.onGameEnd(state, outcome, config, replay);
             battleCharge = GameFlow.battleChargeChance(state, events, config);
             ctx = { ...Hype.contextOf(events, state), charge: battleCharge };
         }
@@ -250,11 +256,11 @@
         const charged = Boolean(pushed && pushed.charged);
         if (chargeScene) {
             outcome.charged = charged;
-            events = GameFlow.onGameEnd(state, outcome, config);
+            events = GameFlow.onGameEnd(state, outcome, config, replay);
         } else if (battleCharge && charged) events.push(...GameFlow.applyBattleCharge(state, config));
         setPayout(Math.max(0, state.coins - coinsBefore));
         if (config.debug) console.log('outcome', outcome, 'events', events);
-        refresh();
+        refresh(false);   // 曲は 演出の あとで 次の 場面の 曲に する
         // バトルに負けたときは、演出のあいだ敗北の BGM
         const defeated = events.some(e => (e.type === 'questionResult' && !e.continued) || (e.type === 'naiteiResult' && !e.win));
         if (defeated) Bgm.play('defeat');

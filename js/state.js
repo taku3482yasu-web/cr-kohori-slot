@@ -585,6 +585,52 @@ const GameFlow = {
         return outcome.gun;
     },
 
+    // 結果の 先読み (2026-11-10 ユーザー指定: 金カットインは 当たり 確定・赤カットインは ガセなし)
+    //   レバー ON で 状態の 写しに この ゲームを 1 回 打たせて、当たるか・なにか 起きるかを 見る。
+    //   使った 乱数は outcome.rolls に 残し、本番の onGameEnd は replayRng(outcome) で 同じ 乱数を 使う (結果が 同じに なる)。
+    //   演出の 色を 選ぶ だけで、当たる 確率・出玉は 変わらない。
+    //   通常時の 長押しの チャージ (ためきれたら 加算が 増える) の ゲームは 結果が 変わりうるので reliable = false
+    predict(state, outcome, config, rng = Math.random) {
+        const rolls = [];
+        const rec = () => { const r = rng(); rolls.push(r); return r; };
+        outcome.rolls = rolls;
+        let events;
+        try {
+            events = this.playGame(JSON.parse(JSON.stringify(state)), { ...outcome }, config, rec);
+        } catch (e) {
+            return { reliable: false, win: false, something: false };
+        }
+        const win = this.isWin(events, config);
+        return { reliable: outcome.chargeScene !== 'normal', win, something: win || this.isSomething(events, outcome) };
+    },
+    // predict で 使った 乱数を 順に 返し、使いきったら rng (ふつうの 乱数)
+    replayRng(outcome, rng = Math.random) {
+        const rolls = outcome.rolls || [];
+        let i = 0;
+        return () => (i < rolls.length ? rolls[i++] : rng());
+    },
+    // 当たり: SE城前へ・城突入 (確定)・撃破・継続・内定突破・RASH 復活・SUPER・ボーナス・ゾーン・ミニゲーム成功・上乗せの ゾーン など
+    isWin(events, config) {
+        const WIN = ['gunHit', 'castleSure', 'castleEntry', 'defeat', 'companionSave', 'revival', 'revengeSuccess', 'superStart',
+            'zoneHit', 'bonusGames', 'freezeBonus', 'ceiling', 'treasureStart', 'tokkaStart', 'rashStart'];
+        return events.some(e => WIN.includes(e.type)
+            || (e.type === 'questionResult' && e.continued)
+            || (e.type === 'naiteiResult' && e.win)
+            || (e.type === 'miniResult' && e.success)
+            || (e.type === 'challengeGame' && e.success)
+            || (e.type === 'danceGame' && e.hype === 3)
+            || (e.type === 'mapChange' && e.to === config.map.castle));
+    },
+    // なにか 起きる (赤カットインの ガセなし): 当たりの ほか、レア役 (チャンス目・BAR・7) か、ポイントの チャンス・
+    //   チャンスタイム・ダンシングステージ・ミニゲーム・ブレイク・BAR揃いの 恩恵・撃破率 UP (+10% 以上)・仲間の チャレンジ成功
+    isSomething(events, outcome) {
+        if (outcome.isChance || outcome.isFreeze || ['seven', 'sevenBar', 'bar', 'chance'].includes(outcome.role)) return true;
+        const EVENT = ['pointChance', 'chanceTimeStart', 'danceStart', 'miniStart', 'miniDecided', 'break', 'barBonus', 'castleBoost', 'zoneStart'];
+        return events.some(e => EVENT.includes(e.type)
+            || (e.type === 'killRate' && e.to - e.from >= 0.1)   // ダイヤ・チェリー・スイカの 少しの UP は 入れない
+            || (e.type === 'companionChallenge' && e.success));
+    },
+
     // 通常時: マップループ・チャンスポイント・SE城前
     handleNormal(state, outcome, config, rng) {
         const normal = state.normal;
