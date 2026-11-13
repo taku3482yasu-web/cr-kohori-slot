@@ -105,8 +105,18 @@
     document.addEventListener('pointerdown', startAudio, { once: true });
     document.addEventListener('keydown', startAudio, { once: true });
 
+    // レバーが 下に 倒れる 動き (2026-11-14 ユーザー指定: 実機の ような レバーに。キーボードで 叩いた ときも 動く)
+    function pullLever() {
+        spinButton.classList.remove('lever-pulled');
+        void spinButton.offsetWidth;
+        spinButton.classList.add('lever-pulled');
+        clearTimeout(pullLever.timer);
+        pullLever.timer = setTimeout(() => spinButton.classList.remove('lever-pulled'), 220);
+    }
+
     async function playGame() {
         startAudio();
+        pullLever();
         // レバーを叩け！ (2026-10-24): ゲームの 途中で レバーが 押せる のは この ときだけ
         if (PushButton.leverActive()) {
             PushButton.hitLever();

@@ -249,6 +249,11 @@ const Lcd = (() => {
             drawFreeze(time);
             return;
         }
+        if (bigKokuchi) {   // 一発告知 (虹色の こおりくんの ドアップ・フラッシュ連打)
+            drawBigKokuchi(time);
+            drawFlash(time);
+            return;
+        }
         if (naiteiGet) {
             drawNaiteiGet(time);
             drawFlash(time);
@@ -1854,6 +1859,115 @@ const Lcd = (() => {
             g.fillRect(0, 0, size, size);
         }
         ctx.drawImage(rainbowCanvas, x, y);
+    }
+
+    // ----- 一発告知 (2026-11-14 ユーザー指定: 当たり・復活 などで 曲を 止め、告知音と 重低音。虹色の こおりくんを 大きく 映し、激しく フラッシュ) -----
+    // 実機の 一発告知の 型 (消灯 → 告知音 → 虹の フラッシュ連打 → キャラの ドアップ → 確定の 文字) を まねた オリジナルの 演出。
+    // 流れ: プチュン (暗転 0.26 秒) → ピキュイーン + ブウううん → 白・虹・黒の フラッシュ連打 (0.9 秒) と こおりくんが 一気に 寄る
+    //   → 回る 虹の 光と 集中線の 中で 白く 点滅 →「〇〇 確定!!」が たたきつけられる (全部で 約 2.2 秒)。その あと いつもの 演出
+    let bigKokuchi = null;     // { label, start }
+    const KOKUCHI_LABELS = {
+        castleSure: '城突入 確定!!', castleEntry: '城突入!!', rashStart: 'RASH 確定!!', superStart: 'SUPER 確定!!', revival: '復活!!',
+        zoneHit: 'ZONE 突入!!', tokkaStart: '上乗せ特化!!', companionSave: '仲間が 救った!!', revengeSuccess: 'リベンジ 成功!!', ceiling: '天井 到達!!'
+    };
+    function kokuchiLabel(e) {
+        if (e.type === 'naiteiResult') return e.win ? '突破!!' : null;
+        if (e.type === 'questionResult') return e.continued ? '継続!!' : null;
+        return KOKUCHI_LABELS[e.type] || null;
+    }
+    async function playKokuchi(label) {
+        Bgm.climax();
+        Sound.puchun();
+        bigKokuchi = { label, start: performance.now() };
+        await sleep(260);
+        Sound.kokuchi();
+        Sound.juteion();
+        await sleep(1950);
+        bigKokuchi = null;
+        startFlash('#ffffff', 450);
+    }
+    function drawBigKokuchi(time) {
+        const t = time - bigKokuchi.start;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        if (t < 260) {   // プチュン: 横線に つぶれて 消える
+            const k = t / 120;
+            if (k < 1) {
+                ctx.fillStyle = '#ffffff';
+                const h = Math.max(1, Math.round(H * (1 - k) * 0.3));
+                ctx.fillRect(0, Math.round(H / 2 - h / 2), W, h);
+            }
+            return;
+        }
+        const k = t - 260;
+        const hue = (k / 3) % 360;
+        const cx = W / 2, cy = 66;
+        const strobe = k < 900;
+        // 背景: はじめは 白・虹・黒の フラッシュ連打、そのあと 回る 虹の 光
+        if (strobe) {
+            const f = Math.floor(k / 60) % 3;
+            ctx.fillStyle = f === 0 ? '#ffffff' : f === 1 ? `hsl(${(hue * 3) % 360}, 100%, 55%)` : '#000000';
+            ctx.fillRect(0, 0, W, H);
+        }
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(k / 500);
+        for (let i = 0; i < 16; i++) {
+            ctx.rotate(Math.PI / 8);
+            ctx.fillStyle = `hsla(${(hue + i * 24) % 360}, 100%, 58%, ${strobe ? 0.35 : 0.55})`;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(220, -22);
+            ctx.lineTo(220, 22);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
+        drawRainbowGlow(cx, cy, 80, hue);
+        // 広がる 光の 輪
+        for (let r = 0; r < 3; r++) {
+            const p = ((k + r * 250) % 750) / 750;
+            ctx.strokeStyle = `hsla(${(hue + r * 120) % 360}, 100%, 70%, ${1 - p})`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, 20 + p * 180, 14 + p * 110, 0, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        // 集中線
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const seed = Math.floor(k / 50);
+        for (let i = 0; i < 26; i++) {
+            const a = ((i * 137 + seed * 61) % 360) * Math.PI / 180;
+            ctx.moveTo(cx + Math.cos(a) * 260, cy + Math.sin(a) * 260);
+            ctx.lineTo(cx + Math.cos(a) * 95, cy + Math.sin(a) * 70);
+        }
+        ctx.stroke();
+        // 虹色の こおりくん: 一気に 寄って (2 → 8 倍)、少し 行きすぎて 戻る。点滅しながら ぶるぶる
+        const zoom = Math.min(1, k / 280);
+        const over = k > 280 && k < 480 ? Math.sin((k - 280) / 200 * Math.PI) * 0.8 : 0;
+        const scale = Math.max(2, Math.round(2 + 6 * ease(zoom) + over));
+        const size = 16 * scale;
+        const jx = Math.round((Math.random() * 2 - 1) * (strobe ? 3 : 1));
+        const jy = Math.round((Math.random() * 2 - 1) * (strobe ? 3 : 1));
+        const white = k % 160 < 50 ? 0.85 : 0;
+        drawRainbowKoori(Math.round(cx - size / 2) + jx, Math.round(cy - size / 2) + jy + 6, scale, hue, white);
+        drawSparkles(time, hue);
+        // 確定の 文字: 大きく たたきつけて、虹色に ゆれる
+        if (k > 420) {
+            const kk = Math.min(1, (k - 420) / 160);
+            const size2 = Math.round(34 - 12 * ease(kk));
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(0, H - 40, W, 34);
+            drawRainbowText(bigKokuchi.label, H - 38 + Math.round((22 - size2) / 2), size2, time, hue);
+        }
+        // ふちの 白い 光
+        if (strobe && Math.floor(k / 60) % 2 === 0) {
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(2, 2, W - 4, H - 4);
+        }
     }
 
     // ----- 内定の時の突破 -----
@@ -3549,9 +3663,24 @@ const Lcd = (() => {
 
     // GameFlow が返した events を順に演出する
     async function playEvents(events) {
+        try {
+            await playEventList(events);
+        } finally {
+            Bgm.endClimax();   // 盛り上がる ところで 止めた 曲を 戻す (次に 鳴る 曲は サビから)
+        }
+    }
+    async function playEventList(events) {
+        let kokuchiDone = false;
         for (const event of events) {
-            if (typeof Lights !== 'undefined') Lights.event(event);
-            BeatFx.event(event);   // 当たり演出 (光の 輪・紙吹雪。js/lcd/beat-fx.js)   // 筐体の 光 (当たりは 虹色。js/lights.js)
+            // 盛り上がる ところ (2026-11-14 ユーザー指定): 曲を 止めて 一発告知 (1 回の 演出に 1 度だけ)。フリーズは それ自体が 告知
+            const label = kokuchiLabel(event);
+            if (label && !kokuchiDone) {
+                kokuchiDone = true;
+                if (typeof Lights !== 'undefined') Lights.set('strobe', 2300);
+                await playKokuchi(label);
+            } else if (label || event.type === 'freezeBonus') Bgm.climax();
+            if (typeof Lights !== 'undefined') Lights.event(event);   // 筐体の 光 (当たりは 虹色。js/lights.js)
+            BeatFx.event(event);   // 当たり演出 (光の 輪・紙吹雪。js/lcd/beat-fx.js)
             switch (event.type) {
                 case 'payout':
                     if (event.amount > 0) {

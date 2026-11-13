@@ -739,3 +739,84 @@ body.cab-bar .slot-machine.cabinet {
     box-shadow: 0 0 0 2px #5a3a0a, 0 0 60px var(--cab-glow), 0 0 130px color-mix(in srgb, var(--cab-glow) 55%, transparent);
     border-color: color-mix(in srgb, var(--cab-gold) 60%, #ffffff);
 }
+
+/* ----- 実機の ような レバー (2026-11-14 ユーザー指定: ボタンでは なく 実際に ある ような レバーに) -----
+   金属の 丸い 台座から 銀の 棒が 斜め上に のび、先に 赤い 玉。叩くと 棒が 下へ 倒れて 戻る (.lever-pulled・:active)。
+   棒は 前の 金棒と 同じ .cab-kanabo なので、レバーを叩け!!・レバブル・叩いた ときの 動きは そのまま */
+.cabinet #spin-button {
+    padding: 6px 22px 6px 12px;
+    border-radius: 14px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 40%),
+        linear-gradient(180deg, #44444e, #1a1a20);
+}
+.cab-lever {
+    position: relative;
+    display: inline-block;
+    width: 96px;
+    height: 50px;
+    flex: none;
+}
+.cab-lever-base {
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    width: 34px;
+    height: 34px;
+    margin-top: -12px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffffff 0 2px, #c8c8d4 5px, #6a6a78 55%, #26262e 80%);
+    box-shadow: 0 3px 0 #000, inset 0 -3px 4px rgba(0, 0, 0, 0.6), 0 0 0 2px #1a1a20;
+}
+.cabinet .cab-lever .cab-kanabo {
+    position: absolute;
+    left: 17px;
+    top: 50%;
+    width: 60px;
+    height: 9px;
+    margin-top: 0;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #ffffff, #b4b4c2 40%, #5a5a68 85%, #34343e);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+    transform-origin: 2px 50%;
+    transform: rotate(-30deg);
+    transition: transform 0.06s ease-out;
+    z-index: 1;
+}
+.cab-lever-ball {
+    --ball: #e8202a;
+    position: absolute;
+    right: -14px;
+    top: 50%;
+    width: 26px;
+    height: 26px;
+    margin-top: -13px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 34% 30%, #ffffff 0 3px, color-mix(in srgb, var(--ball) 70%, #ffffff) 5px, var(--ball) 9px, color-mix(in srgb, var(--ball) 45%, #000000) 100%);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6), 0 0 12px color-mix(in srgb, var(--cab-glow) 60%, transparent);
+}
+.cabinet #spin-button:disabled .cab-lever-ball { filter: brightness(0.6) saturate(0.7); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); }
+.cabinet #spin-button.lever-call .cab-lever-ball { --ball: var(--push); box-shadow: 0 0 16px var(--push), 0 0 30px var(--push); }
+/* 叩くと 下へ 倒れる */
+.cabinet #spin-button:not(:disabled):active .cab-lever .cab-kanabo,
+.cabinet #spin-button.lever-pulled .cab-lever .cab-kanabo,
+.cabinet #spin-button.lever-hit .cab-lever .cab-kanabo { animation: none; transform: rotate(26deg); transition-duration: 0.04s; }
+.cabinet #spin-button .cab-lever-text { font-size: 0.95rem; }
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+    .cab-lever { width: 78px; height: 44px; }
+    .cab-lever-base { width: 28px; height: 28px; margin-top: -10px; }
+    .cabinet .cab-lever .cab-kanabo { left: 14px; width: 48px; height: 8px; }
+    .cab-lever-ball { width: 22px; height: 22px; margin-top: -11px; right: -11px; }
+}
+
+/* ボタンの 枠は 出さず、石垣の 台座に レバーが 直に 付いて いる 見た目に (光るのは 玉と 台座の まわり) */
+.cabinet #spin-button,
+.cabinet #spin-button:disabled,
+.cabinet #spin-button.lever-call {
+    background: radial-gradient(ellipse 60px 34px at 46px 54%, rgba(0, 0, 0, 0.45), transparent 70%);
+    border-color: transparent;
+    box-shadow: none;
+}
+.cabinet #spin-button:not(:disabled) .cab-lever-base { box-shadow: 0 3px 0 #000, inset 0 -3px 4px rgba(0, 0, 0, 0.6), 0 0 0 2px #1a1a20, 0 0 14px color-mix(in srgb, var(--cab-glow) 70%, transparent); }
+.cabinet #spin-button .cab-lever-text { color: #ffe680; text-shadow: 0 2px 0 #000; }
+.cabinet #spin-button:disabled .cab-lever-text { color: #8a8270; }

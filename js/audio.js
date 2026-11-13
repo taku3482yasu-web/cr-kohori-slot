@@ -102,6 +102,7 @@ const Sound = (() => {
         return bus;
     }
     const canPlay = () => ctx && !muted && !document.hidden;
+    let lastJuteion = -1e9;
 
     // 1 つの 音を 鳴らす (時刻は いまから の 秒)。o: { type, from, to, at, dur, vol, attack, detune, vib, echo, lp, shape }
     function voice(o) {
@@ -199,11 +200,15 @@ const Sound = (() => {
                 voice({ type: 'triangle', from: [2637, 3136, 3951, 3136, 3951, 4699][i], at: 0.55 + t, dur: 0.35, vol: 0.035, echo: true }));
         },
         // 大当たりの 重低音:「ドゥゥゥン…」(腹に 響く 低い うなり + ドスッ。フリーズ・突入の 瞬間)
+        // 2026-11-14 (ユーザー指定: もっと 長く「ブウううううううん」と): 4.5 秒。低い うなりを のばし、
+        //   うねり (ビブラート) を かけて ゆっくり 下がり、最後に すうっと 消える。ひずみの 層で 小さい スピーカーでも 聞こえる
         juteion() {
-            thump(0, 0.5, 0.9, 180);
-            voice({ type: 'sine', from: 62, to: 30, at: 0, dur: 2.2, glide: 1.8, vol: 0.5, attack: 0.01, hold: 0.25 });
-            voice({ type: 'sawtooth', from: 124, to: 58, at: 0, dur: 1.6, glide: 1.4, vol: 0.12, shape: 3, lp: { from: 900, to: 120, q: 4 } });
-            voice({ type: 'square', from: 41, to: 31, at: 0.02, dur: 1.9, glide: 1.6, vol: 0.06, lp: 160 });
+            thump(0, 0.6, 1, 180);
+            voice({ type: 'sine', from: 58, to: 41, at: 0, dur: 4.6, glide: 4.2, vol: 0.55, attack: 0.02, hold: 2.6, vib: { rate: 5.5, depth: 2.5 } });
+            voice({ type: 'sawtooth', from: 116, to: 82, at: 0, dur: 4.4, glide: 4, vol: 0.13, attack: 0.04, hold: 2.4, shape: 3,
+                vib: { rate: 5.5, depth: 4 }, lp: { from: 1400, to: 160, q: 5 } });
+            voice({ type: 'square', from: 58.5, to: 41.3, at: 0.02, dur: 4.3, glide: 4, vol: 0.05, attack: 0.05, hold: 2.2, lp: 240, detune: 9 });
+            voice({ type: 'sine', from: 29, to: 24, at: 0, dur: 4.2, glide: 4, vol: 0.35, attack: 0.05, hold: 2.4 });   // 腹に くる いちばん 低い 音
         },
         // 当たり音 (突入の ファンファーレ):「パパパパーン！」(上がる 和音を 刻んで、最後に のばす)
         bonusIn() {
@@ -213,6 +218,16 @@ const Sound = (() => {
             [698.46, 880, 1046.5, 1396.9].forEach(f =>
                 voice({ type: 'sawtooth', from: f, at: 0.4, dur: 1.3, vol: 0.04, attack: 0.02, hold: 0.6, lp: { from: 900, to: 5000 }, vib: { rate: 5.5, depth: 4 } }));
             voice({ type: 'square', from: 87.31, at: 0.4, dur: 1.2, vol: 0.08, lp: 400 });
+        },
+        // 一発告知 (2026-11-14 ユーザー指定: 当たり・復活 など 盛り上がる ところで 曲を 止めて 鳴らす):
+        //   無音の 一瞬の あとに「ピキュイーン!!」(高く 上がる キュイン + 鐘の ような 余韻) と 腹に 響く ドスッ
+        kokuchi() {
+            thump(0, 0.35, 0.8, 220);
+            kyuin(0, 500, 3400, 0.09);
+            voice({ type: 'square', from: 1200, to: 4200, at: 0.02, dur: 0.5, glide: 0.18, vol: 0.05, echo: true, lp: 9000 });
+            [2093, 2637, 3136, 4186].forEach((f, i) =>
+                voice({ type: 'triangle', from: f, at: 0.22 + i * 0.015, dur: 1.4, vol: 0.05, attack: 0.005, hold: 0.1, echo: true }));
+            voice({ type: 'sine', from: 1046.5, at: 0.22, dur: 1.6, vol: 0.06, attack: 0.005, echo: true });
         },
         // 消灯 (プチュン): 液晶・リールが ふっと 消える ときの 音
         puchun() {
@@ -238,7 +253,11 @@ const Sound = (() => {
         chop: () => { sweep(3000, 600, 'sawtooth', 0.1, 0.07); setTimeout(() => tone(110, 'square', 0.15, 0.15), 100); }
     };
 
-    return {
+    // 大きな 効果音の あいだは BGM を 下げて 効果音を 聞こえやすく (2026-11-14 ユーザー指摘: 効果音が 聞こえない)
+    const duck = (ms, min) => { if (typeof Bgm !== 'undefined' && Bgm.duck) Bgm.duck(ms, min); };
+    const ducked = (fn, ms, min = 0.35) => (...args) => { duck(ms, min); return fn(...args); };
+
+    const api = {
         init,
         setMuted: on => { muted = on; },
         context: () => ctx,
@@ -260,7 +279,14 @@ const Sound = (() => {
         // 2026-11-13: 先バレ・確定・重低音・突入の 音を 作り直した (HIT_SOUNDS)
         sakibare: () => canPlay() && HIT_SOUNDS.sakibare(),
         kakutei: () => canPlay() && HIT_SOUNDS.kakutei(),
-        juteion: () => canPlay() && HIT_SOUNDS.juteion(),
+        // 重低音は 長いので、続けて 呼ばれても 2.5 秒は 重ねない (一発告知と 演出の 両方から 呼ばれる ため)
+        juteion: () => {
+            if (!canPlay()) return;
+            const now = performance.now();
+            if (now - lastJuteion < 2500) return;
+            lastJuteion = now;
+            HIT_SOUNDS.juteion();
+        },
         bonusIn: () => canPlay() && HIT_SOUNDS.bonusIn(),
         puchun: () => canPlay() && HIT_SOUNDS.puchun(),
         // プレミア: 液晶が ひび割れて おにおに (2026-10-24): ピキッ / バリィン / 咆哮
@@ -277,4 +303,11 @@ const Sound = (() => {
             : tier === 'gold' ? sequence([659.25, 830.61, 987.77, 1318.5], 70, 'triangle', 0.3, 0.09)
             : sweep(500, 1400, 'square', 0.18, 0.07))
     };
+    // BGM を 下げる 効果音 (ミリ秒は 鳴って いる 長さの めやす)
+    const DUCK = { sakibare: 900, kakutei: 1600, juteion: 4200, bonusIn: 1900, kokuchi: 2200, rainbow: 1100, fanfare: 800, win: 600,
+        chance: 600, defeat: 800, miss: 600, special: 1200, bigHit: 500, talk: 300, pushReady: 400, leverCall: 600, zencho: 1400,
+        premiumCrack: 600, premiumSmash: 1200, premiumRoar: 1600, gyaku: 1000 };
+    for (const [name, ms] of Object.entries(DUCK)) if (api[name]) api[name] = ducked(api[name], ms);
+    api.kokuchi = ducked(() => canPlay() && HIT_SOUNDS.kokuchi(), 2400, 0.2);
+    return api;
 })();
