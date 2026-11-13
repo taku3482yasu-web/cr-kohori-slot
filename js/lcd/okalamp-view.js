@@ -236,8 +236,9 @@ const OkaLampView = (() => {
     // 8頭身のおかがっぱ。(x, ground) は足もと、h は全身の高さ
     function drawTall(ctx, t, x, ground, h, lamp, litSince = 99999) {
         const u = h / 8;
-        const beat = Math.floor(t / BEAT_MS);
-        const inBeat = t - beat * BEAT_MS;
+        const mt = BeatFx.musicTime(t, BEAT_MS);   // 曲 (おかピポ) の 拍に 合わせて 踊る (2026-11-14)
+        const beat = Math.floor(mt / BEAT_MS);
+        const inBeat = mt - beat * BEAT_MS;
         const prev = poseAt(beat - 1), next = poseAt(beat);
         const k = inBeat < SNAP_MS ? ease(inBeat / SNAP_MS) : 1;
         // 決めた直後は少しだけ行きすぎてから戻る (ピタッと止まる感じ)
@@ -280,7 +281,7 @@ const OkaLampView = (() => {
 
     // 左右のいつものおかがっぱ (ランプなし。まんなかに合わせて体をゆらす)
     function drawBackup(ctx, t, x, ground, scale, right) {
-        const beat = t / BEAT_MS;
+        const beat = BeatFx.musicTime(t, BEAT_MS) / BEAT_MS;
         const bob = Math.abs(Math.sin(beat * Math.PI)) * 3;
         const sway = Math.sin(beat * Math.PI / 2) * 4 * (right ? -1 : 1);
         Characters.drawEnemy(ctx, 'okagappa', x + sway, ground - bob, { scale, flip: right !== (Math.floor(beat / 2) % 2 === 1), frame: Math.floor(beat) % 2 });

@@ -230,6 +230,7 @@ const Lcd = (() => {
     }
 
     function draw(time) {
+        BeatFx.tick(time);   // 曲名の 切り替わり・筐体を 拍で 光らせる (js/lcd/beat-fx.js)
         if (tokkaSelect) {
             drawTokkaSelect(time);
             drawFlash(time);
@@ -287,6 +288,8 @@ const Lcd = (() => {
             if (scene === 'challenge') drawChallengeHud(time);
         }
         ctx.restore();
+        // 流れて いる 曲に 合わせた 動く 飾り (2026-11-14 ユーザー指定。ミニゲーム・ダンス・宝物庫は それぞれの 絵が あるので 出さない)
+        BeatFx.drawAmbient(ctx, W, H, time, { calm: Boolean(miniView) || Boolean(dance && scene === 'field') || Boolean(treasure && scene === 'rash') });
         drawZencho(time);
         drawNoise(time);
         drawRevival(time);
@@ -308,6 +311,8 @@ const Lcd = (() => {
         drawGateText(time);
         EndCardView.draw(time);
         TrophyView.draw(time);
+        BeatFx.drawJackpot(ctx, W, H, time);   // 当たりの 光の 輪・紙吹雪 (拍に 合わせて)
+        BeatFx.drawTelop(ctx, W, H, time);     // 曲の 頭の「♪ 曲名」
         drawFlash(time);
     }
 
@@ -905,8 +910,9 @@ const Lcd = (() => {
     function drawDance(time) {
         const hall = Backgrounds.get('danceHall');
         Backgrounds.draw(ctx, 'danceHall', 0);
-        const beat = Math.floor(time / DANCE_BEAT);
-        const phase = (time % DANCE_BEAT) / DANCE_BEAT;
+        const mt = BeatFx.musicTime(time, DANCE_BEAT);   // 曲の 拍に そろえる (2026-11-14)
+        const beat = Math.floor(mt / DANCE_BEAT);
+        const phase = (mt - beat * DANCE_BEAT) / DANCE_BEAT;
         // 直前のゲームの出目で盛り上がる (1.6秒)
         const hot = dance.hypeAt && time - dance.hypeAt < 1600 ? dance.hype : 0;
         const gold = hot === 3;
@@ -1022,6 +1028,7 @@ const Lcd = (() => {
         const hall = Backgrounds.get(hallId);
         Backgrounds.draw(ctx, hallId, 0);
         drawFlames(hall.braziers, time);
+        if (!naiteiZone) BeatFx.drawBackdrop(ctx, W, H, time, hall.groundY);   // 曲ごとの 広間の 絵 (2026-11-14)
         if (naiteiZone) {
             // 内定の時ゾーン: 赤黒く沈んだ広間がゆっくり脈打つ
             const pulse = 0.5 + 0.08 * Math.sin(time / 400);
@@ -1038,7 +1045,7 @@ const Lcd = (() => {
             ctx.fillRect(x + 4, hall.groundY - 2, 24, 3);
             const hurtBlink = time < koori.hurtUntil && Math.floor(time / 70) % 2 === 0;
             if (down) drawKooriDown(time, x, hall.groundY);
-            else if (!hurtBlink) drawSprite(ctx, SPRITES.koori, frame, x, hall.groundY - 16 * KOORI_SCALE, KOORI_SCALE);
+            else if (!hurtBlink) drawSprite(ctx, SPRITES.koori, frame, x, hall.groundY - 16 * KOORI_SCALE - (koori.moving ? 0 : BeatFx.bounce(time, 2)), KOORI_SCALE);   // 曲の 拍で はねる
         }
 
         // 「？？」の間は敵が必殺技を溜める (赤いオーラが脈打つ)
@@ -1255,7 +1262,7 @@ const Lcd = (() => {
     function drawBigLogo(time) {
         if (!bigLogo || time > bigLogo.until) return;
         const t = Math.min(1, (time - bigLogo.start) / 250);
-        const size = Math.round(bigLogo.size * (1.6 - 0.6 * t));
+        const size = Math.round(bigLogo.size * (1.6 - 0.6 * t)) + (t >= 1 ? BeatFx.bounce(time, 3) : 0);   // 曲の 拍で 脈打つ
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(0, H / 2 - 30, W, 60);
         text(bigLogo.text, W / 2, H / 2 - 24 + (bigLogo.size - size) / 2, { color: bigLogo.color, size, align: 'center', outline: bigLogo.outline });
@@ -3543,7 +3550,8 @@ const Lcd = (() => {
     // GameFlow が返した events を順に演出する
     async function playEvents(events) {
         for (const event of events) {
-            if (typeof Lights !== 'undefined') Lights.event(event);   // 筐体の 光 (当たりは 虹色。js/lights.js)
+            if (typeof Lights !== 'undefined') Lights.event(event);
+            BeatFx.event(event);   // 当たり演出 (光の 輪・紙吹雪。js/lcd/beat-fx.js)   // 筐体の 光 (当たりは 虹色。js/lights.js)
             switch (event.type) {
                 case 'payout':
                     if (event.amount > 0) {

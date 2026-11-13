@@ -730,3 +730,12 @@ body.reel-gyaku .cabinet .reel::after {
     pointer-events: none;
 }
 [id^="stop-button-"].long-stop.holding { transform: translateY(2px); }
+
+/* ----- 曲の 拍で 光る (2026-11-14 ユーザー指定: 曲の リズムに 合わせる。js/lcd/beat-fx.js が 拍ごとに class を つける) ----- */
+body.cab-beat .slot-machine.cabinet {
+    box-shadow: 0 0 0 2px #5a3a0a, 0 0 46px var(--cab-glow), 0 0 80px color-mix(in srgb, var(--cab-glow) 35%, transparent);
+}
+body.cab-bar .slot-machine.cabinet {
+    box-shadow: 0 0 0 2px #5a3a0a, 0 0 60px var(--cab-glow), 0 0 130px color-mix(in srgb, var(--cab-glow) 55%, transparent);
+    border-color: color-mix(in srgb, var(--cab-gold) 60%, #ffffff);
+}

@@ -23,31 +23,36 @@
 // 2026-11-14: ユーザーが Suno で 作った 曲を 入れた。gain は 曲の 大きさ (ラウドネス) を 測って そろえた
 // 2026-11-13 (ユーザー指定: ほかの BGM も Suno の 曲に): どの 曲も sound/<曲の 名前>.mp3 を 置けば その 曲に なる。
 //   置いて いない 曲は 今までの チップチューン。Suno に 入れる 内容は sound/SUNO.md
+// 2026-11-14 (ユーザー指定: 曲に 合わせて 演出を): bpm・offset (曲の 頭から 最初の 拍までの 秒) は 曲を 解析して 測った 値。
+//   Bgm.beat() で いまの 拍が わかる (js/lcd/beat-fx.js が 光・動きを 拍に 合わせる)。title は 曲の 頭に 出す 曲名
 const BGM_FILES = {
-    field: { src: 'sound/field.mp3', fallback: 'field', gain: 0.8 },       // 通常時 (ステージの 曲が ない ときも これ)
+    field: { src: 'sound/field.mp3', title: 'こおりくんの大冒険', fallback: 'field', gain: 0.8 },       // 通常時 (ステージの 曲が ない ときも これ)
     // 通常時の ステージ別の 曲 (2026-11-13 ユーザー指定)。ない ステージは field.mp3 → それも なければ チップチューン (main.js)
-    tsugakuro: { src: 'sound/stage-tsugakuro.mp3', fallback: 'field', gain: 0.64 },   // 通学路
-    ongagawa: { src: 'sound/stage-ongagawa.mp3', fallback: 'field', gain: 0.64 },     // 遠賀川
-    ebisucho: { src: 'sound/stage-ebisucho.mp3', fallback: 'field', gain: 0.76 },     // 恵比寿町
-    castle: { src: 'sound/castle.mp3', fallback: 'castle', gain: 0.67 },    // SE城前・城突入チャレンジ
-    battle: { src: 'sound/battle.mp3', fallback: 'battle', gain: 0.79 },   // おにおにRASH
+    tsugakuro: { src: 'sound/stage-tsugakuro.mp3', bpm: 133.0, offset: 0.169, title: '通学路', fallback: 'field', gain: 0.64 },   // 通学路
+    ongagawa: { src: 'sound/stage-ongagawa.mp3', bpm: 111.0, offset: 0.518, title: '遠賀川', fallback: 'field', gain: 0.64 },     // 遠賀川
+    ebisucho: { src: 'sound/stage-ebisucho.mp3', bpm: 124.0, offset: 0.141, title: '恵比寿町', fallback: 'field', gain: 0.76 },     // 恵比寿町
+    castle: { src: 'sound/castle.mp3', bpm: 121.22, offset: 0.351, title: 'SE城の門', fallback: 'castle', gain: 0.67 },    // SE城前・城突入チャレンジ
+    battle: { src: 'sound/battle.mp3', bpm: 174.0, offset: 0.201, title: 'おにおにRASH', fallback: 'battle', gain: 0.79 },   // おにおにRASH
     // おにおにRASH の 曲を 増やした (2026-11-13 ユーザー指定)。RASH に 入る たびに、置いて ある 曲から ランダム (main.js の RASH_SONGS)
-    rash2: { src: 'sound/rash2.mp3', fallback: 'battle', gain: 0.7 },     // こおりくんの テーマ
-    rash3: { src: 'sound/rash3.mp3', fallback: 'battle', gain: 0.64 },     // SE城 突撃 (ユーロビート)
-    rash4: { src: 'sound/rash4.mp3', fallback: 'battle', gain: 0.67 },     // 宿敵おにおに
-    battle2: { src: 'sound/battle2.mp3', fallback: 'battle', gain: 0.72 }, // おにおにRASH (歌あり)
-    super: { src: 'sound/super.mp3', fallback: 'super', gain: 0.8 },      // SUPERおにおにRASH (歌なし)
-    super2: { src: 'sound/super2.mp3', fallback: 'super', gain: 0.78 },    // SUPERおにおにRASH (歌あり)。SUPER に 入る たびに super と ランダム
-    defeat: { src: 'sound/defeat.mp3', fallback: 'defeat', gain: 0.78 },    // バトル敗北・復活待ち
-    dance: { src: 'sound/dance.mp3', fallback: 'dance', gain: 0.71 },      // ダンシングステージ
+    rash2: { src: 'sound/rash2.mp3', bpm: 170.0, offset: 0.015, title: 'こおりばりきつよい！', fallback: 'battle', gain: 0.7 },     // こおりくんの テーマ
+    rash3: { src: 'sound/rash3.mp3', bpm: 155.0, offset: 0.016, title: 'SE城 突撃', fallback: 'battle', gain: 0.64 },     // SE城 突撃 (ユーロビート)
+    rash4: { src: 'sound/rash4.mp3', bpm: 178.0, offset: 0.014, title: '宿敵おにおに', fallback: 'battle', gain: 0.67 },     // 宿敵おにおに
+    battle2: { src: 'sound/battle2.mp3', bpm: 177.76, offset: 0.084, title: 'おにおにRASH (歌あり)', fallback: 'battle', gain: 0.72 }, // おにおにRASH (歌あり)
+    super: { src: 'sound/super.mp3', bpm: 164.17, offset: 0.107, title: 'SUPERおにおにRASH', fallback: 'super', gain: 0.8 },      // SUPERおにおにRASH (歌なし)
+    super2: { src: 'sound/super2.mp3', bpm: 170.0, offset: 0.162, title: 'SUPERおにおにRASH (歌あり)', fallback: 'super', gain: 0.78 },    // SUPERおにおにRASH (歌あり)。SUPER に 入る たびに super と ランダム
+    defeat: { src: 'sound/defeat.mp3', bpm: 72.07, offset: 0.173, title: '凍える夜', fallback: 'defeat', gain: 0.78 },    // バトル敗北・復活待ち
+    dance: { src: 'sound/dance.mp3', bpm: 133.2, offset: 0.3, title: 'ダンシング おにおに', fallback: 'dance', gain: 0.71 },      // ダンシングステージ
     // 上乗せ特化ゾーン「おかランプ」(オカピポ): Suno で 作った ラップ入りの 曲 (sound/README.md)
     // old: 前の 曲を 選んだ ときの ファイル (ない 曲は チップチューン)。前の おかランプの 曲は「おかピポ・ナイト」
-    okapipo: { src: 'sound/okapipo.mp3', old: 'sound/okapipo-old.mp3', oldGain: 0.85, fallback: 'dance', gain: 0.75 },
+    okapipo: { src: 'sound/okapipo.mp3', bpm: 128.42, offset: 0.37, title: 'おかピポ・ナイト', old: 'sound/okapipo-old.mp3', oldGain: 0.85, oldBpm: 128, oldOffset: 0, oldTitle: 'おかピポ・ナイト (前の曲)', fallback: 'dance', gain: 0.75 },
     // ほかの 上乗せ特化ゾーン (2026-11-13 ユーザー指定)。ファイルが ない ときは RASH / SUPER の 曲 (main.js の bgmFallback)
-    tokkaFire: { src: 'sound/tokka-fire.mp3', fallback: 'battle', gain: 0.77 },        // こおりファイアー
-    tokkaIkkeki: { src: 'sound/tokka-ikkeki.mp3', fallback: 'battle', gain: 0.7 },    // おにおに一撃入魂
-    tokkaAsahara: { src: 'sound/tokka-asahara.mp3', fallback: 'battle', gain: 0.7 }   // ASAHARA CHANCE
+    tokkaFire: { src: 'sound/tokka-fire.mp3', bpm: 167.91, offset: 0.342, title: 'こおりファイアー', fallback: 'battle', gain: 0.77 },        // こおりファイアー
+    tokkaIkkeki: { src: 'sound/tokka-ikkeki.mp3', bpm: 150.04, offset: 0.017, title: '一撃入魂', fallback: 'battle', gain: 0.7 },    // おにおに一撃入魂
+    tokkaAsahara: { src: 'sound/tokka-asahara.mp3', bpm: 100.0, offset: 0.0, title: 'ASAHARA CHANCE', fallback: 'battle', gain: 0.7 }   // ASAHARA CHANCE
 };
+
+// チップチューンの 曲名 (曲名の 表示用)
+const CHIP_TITLES = { field: 'こおりくんの冒険 (8bit)', castle: 'SE城 (8bit)', battle: 'おにおにRASH (8bit)', defeat: '敗北 (8bit)', dance: 'ダンシング (8bit)', super: 'SUPER RASH (8bit)' };
 
 const BGM_TRACKS = {
     // 通常時: 明るい行進
@@ -331,6 +336,39 @@ const Bgm = (() => {
         return f.audio.readyState > 0 ? true : null;
     }
 
+    // いまの 拍: { beat: 曲の 頭からの 拍 (小数), bpm, name: 鳴って いる 曲, file: 音声ファイルか }。鳴って いない ときは null
+    // 音声ファイルは 再生位置から、チップチューンは 予約した 音の 位置から 計る (どちらも 実際の 音と ずれない)
+    function beat() {
+        if (!ctx || !trackName || !enabled || paused || hidden) return null;
+        const def = BGM_FILES[trackName];
+        const chip = chipName();
+        if (!chip) {
+            const f = fileOf(trackName);
+            if (!f || f.audio.paused || !(f.audio.currentTime > 0)) return null;
+            const old = style === 'old';
+            const bpm = (old ? def.oldBpm : def.bpm) || 120;
+            const offset = (old ? def.oldOffset : def.offset) || 0;
+            return { beat: (f.audio.currentTime - offset) * bpm / 60, bpm, name: trackName, file: true };
+        }
+        const track = BGM_TRACKS[chip];
+        if (!track || !nextTime) return null;
+        const stepDur = 60 / track.bpm / 2;
+        const pos = step - (nextTime - ctx.currentTime) / stepDur;   // 8分音符 いくつ目
+        return { beat: pos / 2, bpm: track.bpm, name: trackName, file: false };
+    }
+    // 鳴って いる 曲の 名前 (曲名の 表示用): { key: 切り替わりの 目印, title }
+    function nowPlaying() {
+        if (!ctx || !trackName || !enabled) return null;
+        const def = BGM_FILES[trackName];
+        const chip = chipName();
+        if (!chip && def) {
+            const title = style === 'old' ? def.oldTitle : def.title;
+            return title ? { key: style + ':' + trackName, title } : null;
+        }
+        const title = CHIP_TITLES[chip];
+        return title ? { key: 'chip:' + chip, title } : null;
+    }
+
     // 前の 曲 ('old') か 今の 曲 ('new') か。鳴って いる 曲も その 場で 切り替える
     function setStyle(next) {
         next = next === 'old' ? 'old' : 'new';
@@ -378,8 +416,9 @@ const Bgm = (() => {
     }
 
     return {
-        init, play, setVolume, setEnabled, setPaused, preload, fileState, setStyle,
+        init, play, setVolume, setEnabled, setPaused, preload, fileState, setStyle, beat, nowPlaying,
         get style() { return style; },
+        get track() { return trackName; },
         get volume() { return volume; },
         get enabled() { return enabled; }
     };
