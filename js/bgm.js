@@ -15,12 +15,38 @@
 //     止めて いない ときは 何も しない ように した
 //   - 描画が 重くて 予約が 遅れた ときは、遅れた 拍を とばして 拍子を 保つ (時刻だけ 合わせると リズムが ずれる)
 //   - 予約を 0.6 秒 先まで に した
+// 2026-11-14 (ユーザー指定: 今の 曲は 消さず、前の 曲か 今の 曲かを 選べる ように): setStyle('new' / 'old')。⚙ SETTINGS で 選ぶ。
+//   'new' = 今の 曲 (Suno の 曲。sound/*.mp3)。'old' = 前の 曲 (チップチューン。おかランプだけは 前の Suno の 曲 sound/okapipo-old.mp3)
 // =====================================================================
 
 // 音声ファイルの 曲: src は index.html から 見た 場所。gain は 音量の 倍率 (チップチューンと 大きさを そろえる)
+// 2026-11-14: ユーザーが Suno で 作った 曲を 入れた。gain は 曲の 大きさ (ラウドネス) を 測って そろえた
+// 2026-11-13 (ユーザー指定: ほかの BGM も Suno の 曲に): どの 曲も sound/<曲の 名前>.mp3 を 置けば その 曲に なる。
+//   置いて いない 曲は 今までの チップチューン。Suno に 入れる 内容は sound/SUNO.md
 const BGM_FILES = {
+    field: { src: 'sound/field.mp3', fallback: 'field', gain: 0.8 },       // 通常時 (ステージの 曲が ない ときも これ)
+    // 通常時の ステージ別の 曲 (2026-11-13 ユーザー指定)。ない ステージは field.mp3 → それも なければ チップチューン (main.js)
+    tsugakuro: { src: 'sound/stage-tsugakuro.mp3', fallback: 'field', gain: 0.64 },   // 通学路
+    ongagawa: { src: 'sound/stage-ongagawa.mp3', fallback: 'field', gain: 0.64 },     // 遠賀川
+    ebisucho: { src: 'sound/stage-ebisucho.mp3', fallback: 'field', gain: 0.76 },     // 恵比寿町
+    castle: { src: 'sound/castle.mp3', fallback: 'castle', gain: 0.67 },    // SE城前・城突入チャレンジ
+    battle: { src: 'sound/battle.mp3', fallback: 'battle', gain: 0.79 },   // おにおにRASH
+    // おにおにRASH の 曲を 増やした (2026-11-13 ユーザー指定)。RASH に 入る たびに、置いて ある 曲から ランダム (main.js の RASH_SONGS)
+    rash2: { src: 'sound/rash2.mp3', fallback: 'battle', gain: 0.7 },     // こおりくんの テーマ
+    rash3: { src: 'sound/rash3.mp3', fallback: 'battle', gain: 0.64 },     // SE城 突撃 (ユーロビート)
+    rash4: { src: 'sound/rash4.mp3', fallback: 'battle', gain: 0.67 },     // 宿敵おにおに
+    battle2: { src: 'sound/battle2.mp3', fallback: 'battle', gain: 0.72 }, // おにおにRASH (歌あり)
+    super: { src: 'sound/super.mp3', fallback: 'super', gain: 0.8 },      // SUPERおにおにRASH (歌なし)
+    super2: { src: 'sound/super2.mp3', fallback: 'super', gain: 0.78 },    // SUPERおにおにRASH (歌あり)。SUPER に 入る たびに super と ランダム
+    defeat: { src: 'sound/defeat.mp3', fallback: 'defeat', gain: 0.78 },    // バトル敗北・復活待ち
+    dance: { src: 'sound/dance.mp3', fallback: 'dance', gain: 0.71 },      // ダンシングステージ
     // 上乗せ特化ゾーン「おかランプ」(オカピポ): Suno で 作った ラップ入りの 曲 (sound/README.md)
-    okapipo: { src: 'sound/okapipo.mp3', fallback: 'dance', gain: 0.85 }
+    // old: 前の 曲を 選んだ ときの ファイル (ない 曲は チップチューン)。前の おかランプの 曲は「おかピポ・ナイト」
+    okapipo: { src: 'sound/okapipo.mp3', old: 'sound/okapipo-old.mp3', oldGain: 0.85, fallback: 'dance', gain: 0.75 },
+    // ほかの 上乗せ特化ゾーン (2026-11-13 ユーザー指定)。ファイルが ない ときは RASH / SUPER の 曲 (main.js の bgmFallback)
+    tokkaFire: { src: 'sound/tokka-fire.mp3', fallback: 'battle', gain: 0.77 },        // こおりファイアー
+    tokkaIkkeki: { src: 'sound/tokka-ikkeki.mp3', fallback: 'battle', gain: 0.7 },    // おにおに一撃入魂
+    tokkaAsahara: { src: 'sound/tokka-asahara.mp3', fallback: 'battle', gain: 0.7 }   // ASAHARA CHANCE
 };
 
 const BGM_TRACKS = {
@@ -137,40 +163,46 @@ const Bgm = (() => {
     let paused = false;
     let hidden = false;       // タブが 裏に 回っている
     let scheduled = [];       // 予約した 音 { osc, gain, time } (曲を 切り替えたら 止める)
-    const files = {};         // 音声ファイルの 曲 { audio, failed }
+    const files = {};         // 音声ファイルの 曲 { name, audio, failed }。キーは '<new|old>:<曲の 名前>'
+    let style = 'new';        // 'new' = 今の 曲 (Suno)、'old' = 前の 曲 (チップチューン)
+    const srcOf = def => (style === 'old' ? def.old : def.src);
+    const gainOf = def => (style === 'old' ? def.oldGain ?? def.gain : def.gain);
 
     // 音声ファイルの 曲を 用意する (はじめて 使う ときに 読み込む)
     function fileOf(name) {
         const def = BGM_FILES[name];
-        if (!def) return null;
-        if (!files[name]) {
+        if (!def || !srcOf(def)) return null;   // 前の 曲を 選んで いて、前は チップチューン だった 曲
+        const key = style + ':' + name;
+        if (!files[key]) {
             const audio = new Audio();
             audio.loop = true;
             audio.preload = 'auto';
-            const f = { audio, failed: false };
+            const f = { name, audio, failed: false };
             audio.addEventListener('error', () => {
                 f.failed = true;   // ファイルが ない → チップチューンに 切り替える
                 if (trackName === name && ctx) nextTime = ctx.currentTime + 0.05;
             });
-            audio.src = def.src;
-            files[name] = f;
+            audio.src = srcOf(def);
+            files[key] = f;
         }
-        return files[name];
+        return files[key];
     }
     // いま 鳴らす チップチューンの 曲の 名前 (音声ファイルの 曲が 鳴って いる ときは null)
+    let fallbackName = null;   // play() で 指定した ファイルが ない ときの 曲 (指定が なければ BGM_FILES の fallback)
     function chipName() {
         const def = BGM_FILES[trackName];
         if (!def) return trackName;
         const f = fileOf(trackName);
-        return f && f.failed ? def.fallback : null;
+        return !f || f.failed ? (fallbackName || def.fallback) : null;
     }
     // 音声ファイルの 曲を 鳴らす・止める (音量・一時停止・タブの 裏も ここで 合わせる)
     function syncFile() {
-        for (const [name, f] of Object.entries(files)) {
-            const active = name === trackName && !f.failed;
+        const current = fileOf(trackName);
+        for (const f of Object.values(files)) {
+            const active = f === current && !f.failed;
             const audible = active && ctx && enabled && !paused && !hidden;
             if (audible) {
-                f.audio.volume = Math.max(0, Math.min(1, volume * BGM_FILES[name].gain));
+                f.audio.volume = Math.max(0, Math.min(1, volume * gainOf(BGM_FILES[f.name])));
                 if (f.audio.paused && !f.starting) {
                     f.starting = true;
                     f.audio.play().catch(() => { /* まだ 操作の 前 */ }).finally(() => { f.starting = false; });
@@ -266,10 +298,11 @@ const Bgm = (() => {
     }
 
     // 曲を切り替える (同じ曲なら何もしない)
-    function play(name) {
-        if (trackName === name) return;
+    function play(name, fallback = null) {
+        if (trackName === name && fallbackName === fallback) return;
+        fallbackName = fallback;
         cancelScheduled();   // 前の 曲の 予約を 止める (重ならない ように)
-        const prev = files[trackName];
+        const prev = fileOf(trackName);
         if (prev) {
             prev.audio.pause();
             try { prev.audio.currentTime = 0; } catch (e) { /* まだ 読み込み中 */ }
@@ -278,6 +311,40 @@ const Bgm = (() => {
         step = 0;
         fileOf(name);
         if (ctx) nextTime = ctx.currentTime + 0.1;
+        syncFile();
+    }
+
+    // 曲の ファイルを 先に 読み込んで おく (あるか ないかを 早めに 知る ため)
+    function preload(names) {
+        names.forEach(name => {
+            const f = fileOf(name);
+            if (f && !f.failed) f.audio.load();
+        });
+    }
+    // 曲の ファイルが 使えるか: false = ない・読めない、true = 読める、null = まだ わからない
+    function fileState(name) {
+        const def = BGM_FILES[name];
+        if (def && !srcOf(def)) return false;   // 前の 曲を 選んで いる ときは チップチューン
+        const f = files[style + ':' + name];
+        if (!f) return null;
+        if (f.failed) return false;
+        return f.audio.readyState > 0 ? true : null;
+    }
+
+    // 前の 曲 ('old') か 今の 曲 ('new') か。鳴って いる 曲も その 場で 切り替える
+    function setStyle(next) {
+        next = next === 'old' ? 'old' : 'new';
+        if (next === style) return;
+        cancelScheduled();
+        const prev = fileOf(trackName);
+        if (prev) {
+            prev.audio.pause();
+            try { prev.audio.currentTime = 0; } catch (e) { /* まだ 読み込み中 */ }
+        }
+        style = next;
+        step = 0;
+        if (trackName) fileOf(trackName);
+        resumeAt();
         syncFile();
     }
 
@@ -311,7 +378,8 @@ const Bgm = (() => {
     }
 
     return {
-        init, play, setVolume, setEnabled, setPaused,
+        init, play, setVolume, setEnabled, setPaused, preload, fileState, setStyle,
+        get style() { return style; },
         get volume() { return volume; },
         get enabled() { return enabled; }
     };

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 曲の ファイル (sound/*.mp3) を ゲームと 同じ 場所から 読む ため、ひとつ 上の フォルダを 基準に する -->
+<base href="../">
+<title>おにおにの野望 — 音の 試聴</title>
+<style>
+    body { font-family: system-ui, sans-serif; background: #14101c; color: #eee; margin: 0; padding: 16px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 16px; margin: 20px 0 8px; color: #ffd76a; }
+    p { margin: 4px 0 8px; color: #aaa; font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+    button { background: #2a2238; color: #fff; border: 1px solid #4a3a66; border-radius: 8px; padding: 10px; text-align: left; cursor: pointer; font-size: 14px; }
+    button:hover { background: #3a2f4f; }
+    button small { display: block; color: #aaa; font-size: 11px; margin-top: 2px; }
+    button.new { border-color: #ffd76a; }
+    button.playing { background: #6a3a8a; }
+    .file { font-size: 11px; margin-top: 4px; }
+    .file.ok { color: #7f7; }
+    .file.none { color: #888; }
+    #stop { background: #5a1a2a; }
+</style>
+</head>
+<body>
+<h1>音の 試聴</h1>
+<p>ボタンを 押すと 鳴る。金の 枠は 2026-11-13 に 作り直した・足した 音。</p>
+
+<h2>当たりの 音 (新しい 音)</h2>
+<div class="grid" id="hit"></div>
+
+<h2>そのほかの 効果音</h2>
+<div class="grid" id="se"></div>
+
+<h2>BGM</h2>
+<p>sound/ に mp3 を 置いた 曲は その 曲、置いて いない 曲は チップチューンが 鳴る。</p>
+<div class="grid" id="bgm"></div>
+<p><button id="stop">■ BGM を 止める</button></p>
+
+<script src="js/audio.js"></script>
+<script src="js/bgm.js"></script>
+<script>
+    const HIT = [
+        ['sakibare', '先バレ音', 'レバー ON の「キュイン！」'],
+        ['kakutei', '当たり確定音', '「キュインキュインキュイン」'],
+        ['juteion', '大当たりの 重低音', '「ドゥゥゥン…」'],
+        ['bonusIn', '当たり音 (突入)', '「パパパパーン！」'],
+        ['puchun', '消灯音', 'フリーズの 暗転「プチュン」'],
+        ['__combo', '金カットイン の 組み合わせ', '確定音 + 重低音'],
+        ['__entry', '城突入 成功 の 組み合わせ', '確定音 → 重低音 + 突入']
+    ];
+    const SE = [
+        ['fanfare', 'ファンファーレ'], ['rainbow', '虹'], ['chance', 'チャンス'], ['win', '小役'],
+        ['bigHit', '大ダメージ'], ['hit', 'ダメージ'], ['miss', 'はずれ'], ['defeat', '撃破'],
+        ['zencho', '前兆 (ゴゴゴ)'], ['premiumCrack', 'プレミア: ピキッ'], ['premiumSmash', 'プレミア: バリィン'],
+        ['premiumRoar', 'プレミア: 咆哮'], ['leverCall', 'レバーを叩け！'], ['leverBuru', 'レバブル'],
+        ['okure', '遅れ'], ['gyaku', '逆回転'], ['talk', 'ふるカワ']
+    ];
+    const BGM = [
+        ['field', '通常時'], ['tsugakuro', 'ステージ: 通学路'], ['ongagawa', 'ステージ: 遠賀川'], ['ebisucho', 'ステージ: 恵比寿町'], ['castle', 'SE城前・城突入チャレンジ'], ['battle', 'おにおにRASH (歌なし)'], ['battle2', 'おにおにRASH (歌あり)'], ['rash2', 'RASH 2曲目: こおりくん'], ['rash3', 'RASH 3曲目: SE城 突撃'], ['rash4', 'RASH 4曲目: 宿敵おにおに'],
+        ['super', 'SUPER (歌なし)'], ['super2', 'SUPER (歌あり)'], ['defeat', 'バトル敗北・復活待ち'], ['dance', 'ダンシングステージ'],
+        ['okapipo', 'おかランプ (オカピポ)'], ['tokkaFire', 'こおりファイアー'],
+        ['tokkaIkkeki', 'おにおに一撃入魂'], ['tokkaAsahara', 'ASAHARA CHANCE']
+    ];
+
+    let started = false;
+    function start() {
+        if (started) return;
+        started = true;
+        Sound.init();
+        Bgm.init(Sound.context());
+        Bgm.setVolume(0.7);
+    }
+    function button(parent, label, sub, cls, onClick) {
+        const b = document.createElement('button');
+        b.innerHTML = `${label}${sub ? `<small>${sub}</small>` : ''}`;
+        if (cls) b.className = cls;
+        b.addEventListener('click', () => { start(); onClick(b); });
+        document.getElementById(parent).appendChild(b);
+        return b;
+    }
+    HIT.forEach(([key, label, sub]) => button('hit', label, sub, 'new', () => {
+        if (key === '__combo') { Sound.kakutei(); Sound.juteion(); return; }
+        if (key === '__entry') { Sound.kakutei(); setTimeout(() => { Sound.juteion(); Sound.bonusIn(); }, 1400); return; }
+        Sound[key]();
+    }));
+    SE.forEach(([key, label]) => button('se', label, key, '', () => Sound[key]()));
+    BGM.forEach(([key, label]) => {
+        const file = BGM_FILES[key].src;
+        const b = button('bgm', label, file, '', () => {
+            document.querySelectorAll('#bgm button').forEach(x => x.classList.remove('playing'));
+            b.classList.add('playing');
+            Bgm.play(key, key.startsWith('tokka') ? 'battle' : null);
+        });
+        // ファイルが 置いて あるか
+        const st = document.createElement('div');
+        st.className = 'file none';
+        st.textContent = '確かめ中…';
+        b.appendChild(st);
+        const a = new Audio();
+        a.addEventListener('canplay', () => { st.className = 'file ok'; st.textContent = '✔ mp3 あり'; }, { once: true });
+        a.addEventListener('error', () => { st.textContent = 'mp3 なし (チップチューン)'; }, { once: true });
+        a.preload = 'metadata';
+        a.src = file;
+    });
+    document.getElementById('stop').addEventListener('click', () => {
+        Bgm.play(null);
+        document.querySelectorAll('#bgm button').forEach(x => x.classList.remove('playing'));
+    });
+</script>
+</body>
+</html>

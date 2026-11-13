@@ -1,5 +1,8 @@
 # sound/ — 曲のファイル
 
+ほかの曲（通常時・SE城前・RASH・SUPER・敗北・ダンス・ほかの特化ゾーン）も、`sound/<名前>.mp3` を置けば差しかわる。Suno に入れる内容は **`sound/SUNO.md`**。
+音の試聴は `tools/sound-test.html`。
+
 ## okapipo.mp3（上乗せ特化ゾーン「おかランプ」の曲）
 
 ここに `okapipo.mp3` を置くと、おかランプ（オカピポ）の間にこの曲が流れる（`js/bgm.js` の `BGM_FILES`）。

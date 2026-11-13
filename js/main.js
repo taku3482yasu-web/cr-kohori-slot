@@ -25,7 +25,10 @@
     // bgm: false なら 曲は 切り替えない (結果の 演出の 前。次の 場面の 曲が 先に 流れて しまうため。2026-11-10)
     function refresh(bgm = true) {
         UI.update(state);
-        if (bgm) Bgm.play(bgmTrack(state));
+        if (bgm) {
+            const track = bgmTrack(state);
+            Bgm.play(track, bgmFallback(state, track));
+        }
     }
 
     // ロングフリーズ: STOP を押せなくし、BGM を止めて液晶の演出を流す
@@ -39,13 +42,53 @@
     }
 
     // 場面ごとの BGM
+    // おにおにRASH の 曲 (2026-11-13 ユーザー指定: 曲を 増やす)。RASH に 入る たびに、sound/ に 置いて ある 曲から ランダムで 1 曲。
+    //   置いて いない 曲は 選ばない。1 曲も ない ときは battle (チップチューン)。RASH の あいだ (特化ゾーン・復活を はさんでも) は 同じ 曲
+    const RASH_SONGS = ['battle', 'battle2', 'rash2', 'rash3', 'rash4'];
+    let rashSong = null;
+    // SUPERおにおにRASH の 曲 (2026-11-14): 歌なし (super) と 歌あり (super2) から、SUPER に 入る たびに ランダム
+    const SUPER_SONGS = ['super', 'super2'];
+    let superSong = null;
+    // 通常時の ステージ別の 曲 (config.map.loop の マップ。曲の 名前 = マップの id。js/bgm.js の BGM_FILES)
+    const STAGE_SONGS = ['tsugakuro', 'ongagawa', 'ebisucho'];
+    // ない と わかった 曲は 選ばない (スマホでは 読み込みが 遅く まだ わからない ことが あるので、わからない 曲は 選んで よい。
+    //   選んだ 曲が 読めなかった ときは チップチューンの 曲に なる)
+    function pickSong(names) {
+        const ok = names.filter(name => Bgm.fileState(name) !== false);
+        return ok.length ? ok[Math.floor(Math.random() * ok.length)] : names[0];
+    }
+    const pickRashSong = () => pickSong(RASH_SONGS);
+
+    // 上乗せ特化ゾーンの 見せ方 → 曲 (ファイルが ない ときは bgmFallback の 曲。js/bgm.js の BGM_FILES)
+    const TOKKA_TRACKS = { fire: 'tokkaFire', ikkeki: 'tokkaIkkeki', asahara: 'tokkaAsahara' };
+    // 特化ゾーンの 曲の ファイルが ない ときに 流す チップチューン (今までと 同じく RASH / SUPER の 曲)。ほかの 曲は null (BGM_FILES の fallback)
+    function bgmFallback(s, track) {
+        if (!Object.values(TOKKA_TRACKS).includes(track)) return null;
+        return s.mode === MODES.SUPER_RASH ? 'super' : 'battle';
+    }
     function bgmTrack(s) {
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return 'defeat';   // 復活待ちは負けたように見せる
-        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA && s.rash.tokka.kind === 'okaLamp') return 'okapipo';   // おかランプは Suno の ラップ入りの 曲 (ファイルが ない ときは ダンスの 曲。js/bgm.js)
-        if (s.mode === MODES.SUPER_RASH) return 'super';
-        if (s.mode === MODES.RASH) return 'battle';
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA) {
+            // 上乗せ特化ゾーンは 見せ方ごとの 曲 (2026-11-13 ユーザー指定。Suno の 曲を 置く。sound/SUNO.md)
+            const kind = s.rash.tokka.kind;
+            if (kind === 'okaLamp') return 'okapipo';   // おかランプは ラップ入りの 曲 (ファイルが ない ときは ダンスの 曲)
+            if (TOKKA_TRACKS[kind]) return TOKKA_TRACKS[kind];
+        }
+        if (s.mode === MODES.SUPER_RASH) {
+            if (!superSong) superSong = pickSong(SUPER_SONGS);
+            return superSong;
+        }
+        superSong = null;   // SUPER が 終わったら 次の SUPER で 選び直す
+        if (s.mode === MODES.RASH) {
+            if (!rashSong) rashSong = pickRashSong();
+            return rashSong;
+        }
+        rashSong = null;   // RASH が 終わったら 次の RASH で 選び直す
         if (s.mode === MODES.CASTLE_CHALLENGE || s.normal.map === config.map.castle) return 'castle';
         if (s.normal.dance) return 'dance';
+        // ステージ別の 曲 (2026-11-13 ユーザー指定)。その ステージの 曲が ない と わかって いれば field (field.mp3 か チップチューン)
+        const stage = s.normal.map;
+        if (STAGE_SONGS.includes(stage) && Bgm.fileState(stage) !== false) return stage;
         return 'field';
     }
 
@@ -53,6 +96,7 @@
     function startAudio() {
         Sound.init();
         Bgm.init(Sound.context());
+        Bgm.preload([...RASH_SONGS, ...SUPER_SONGS, ...STAGE_SONGS]);   // RASH・ステージの 曲が 置いて あるかを 先に 調べる
     }
     document.addEventListener('pointerdown', startAudio, { once: true });
     document.addEventListener('keydown', startAudio, { once: true });
@@ -325,8 +369,12 @@
     // レバー ON の 演出 (期待度。js/hype.js)
     function playHypeAtLever(hype) {
         document.body.classList.toggle('cab-gold', hype.gold || hype.kakutei);
-        if (hype.kakutei) Sound.kakutei();
-        else if (hype.sakibare) Sound.sakibare();
+        // 金・虹の カットインは 当たり 確定 (2026-11-10) なので 確定音 + 重低音 (2026-11-13)
+        const sure = hype.kakutei || hype.cutin === 'gold' || hype.cutin === 'rainbow';
+        if (sure) {
+            Sound.kakutei();
+            Sound.juteion();
+        } else if (hype.sakibare) Sound.sakibare();
         if (hype.cutin) Lcd.chanceCutIn(hype.cutin, hype.cutinWho);
         Lights.hype(hype);   // 筐体の 光 (カットインの 色・確定は 虹色)
         if (hype.flash !== 'none') {

@@ -1560,7 +1560,9 @@ const Lcd = (() => {
         const aruaru = event.who === 'aruaru';
         startFlash(aruaru ? '#ffffff' : '#ffd700', 600);
         startShake(config.effects.intensity.shakeLarge, 600);
-        if (aruaru) Sound.rainbow(); else Sound.fanfare();
+        Sound.kakutei();   // 天井は 城突入 確定 → 当たり確定の 音 + 重低音 (2026-11-13)
+        Sound.juteion();
+        if (aruaru) Sound.rainbow();
         await playCutIn(aruaru ? config.naitei.aruaru.id : NAITEI_ID(), aruaru ? '君には 内定が ある！！' : '…城へ 来るがいい', aruaru ? 'rainbow' : '#8a1a1a', 1600, '天井到達!!');
         showTitle('城突入 確定!!', `${event.games}G`, aruaru ? '#ff9ad0' : '#ffd700', 1800);
         await sleep(1800);
@@ -1988,9 +1990,11 @@ const Lcd = (() => {
         Sound.noise(timing.noise / 1000);
         await sleep(timing.noise);
         freeze.phase = 'black';
+        Sound.puchun();   // ふっと 消える (2026-11-13)
         await sleep(timing.black);
         freeze.phase = 'rainbow';
         freeze.start = performance.now();
+        Sound.juteion();   // 大当たりの 重低音 (2026-11-13)
         Sound.rainbow();
         await sleep(timing.rainbow);
         freeze = null;
@@ -2005,7 +2009,7 @@ const Lcd = (() => {
             : event.kind === 'super' ? '勝利確定!! 次はゴールド金面犬'
             : scene === 'rash' ? '完全撃破!!' : 'おにおにRASH 確定!! おにおにと対決';
         startShake(config.effects.intensity.shakeLarge, 600);
-        Sound.fanfare();
+        Sound.bonusIn();   // 突入の ファンファーレ (2026-11-13)
         showTitle('ロングフリーズ!!', sub, '#ffffff', 2200);
         await sleep(2200);
     }
@@ -2627,6 +2631,7 @@ const Lcd = (() => {
         await sleep(config.tokka.ikemen.ms * 0.58);
         startFlash('#ffffff', 300);
         startShake(config.effects.intensity.shakeLarge, 400);
+        Sound.juteion();
         Sound.fanfare();
         await done;
         startFlash('#ffffff', 400);
@@ -2917,7 +2922,8 @@ const Lcd = (() => {
         kooriAura = true;
         startFlash('#ffffff', 600);
         startShake(config.effects.intensity.shakeLarge, 500);
-        Sound.rainbow();
+        Sound.kakutei();   // 当たり確定 (2026-11-13)
+        Sound.juteion();
         showTitle('城突入 確定!!', event.role === 'bar' ? 'BAR揃い で 突破 確定！' : '7・7・7 で 突破 確定！', '#ffd700', 2000);
         await sleep(2000);
     }
@@ -2955,10 +2961,12 @@ const Lcd = (() => {
         letterboxTarget = 1;
         // こおりくんのカットイン「こおりばりきつよい！」→ 門が開く
         startFlash('#ffd700', 400);
-        Sound.chance();
+        Sound.kakutei();   // 当たり確定の キュインキュイン (2026-11-13)
         await playCutIn('koori', config.castle.entryCutIn, '#b01828', 1400, '突入成功!!');
         startFlash('#ffffff', 600);
         startShake(config.effects.intensity.shakeLarge, 500);
+        Sound.juteion();   // 門が 開く 瞬間に 重低音 + 突入の ファンファーレ (2026-11-13)
+        Sound.bonusIn();
         if (event.oni) {
             showTitle('7・7・BAR!! 突入!!', '最初の相手は おにおに!!', '#ff4040', timing.castleMovie);
         } else {
@@ -3384,8 +3392,8 @@ const Lcd = (() => {
         logoSuper = true;
         startFlash('#ffd700', 900);
         startShake(config.effects.intensity.shakeLarge, 700);
-        Sound.fanfare();
-        setTimeout(Sound.fanfare, 500);
+        Sound.juteion();   // 重低音 + 突入の ファンファーレ (2026-11-13)
+        Sound.bonusIn();
         const now = performance.now();
         bigLogo = {
             text: 'SUPERおにおにRASH', sub: `継続率${Math.round(config.rash.super.continueRate * 100)}%!!`,

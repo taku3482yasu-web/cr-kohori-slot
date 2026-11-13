@@ -1960,3 +1960,9 @@ body.layout-full .exit-fullscreen-button {
 body.layout-full .fs-coins {
     display: flex;
 }
+
+.sound-row select {
+    flex: 1;
+    font: inherit;
+    padding: 2px 4px;
+}

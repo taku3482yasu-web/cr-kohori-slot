@@ -50,6 +50,7 @@ const UI = (() => {
             revealSetting: $('reveal-setting-button'),
             bgmEnabled: $('bgm-enabled'),
             bgmVolume: $('bgm-volume'),
+            bgmStyle: $('bgm-style'),
             saveInfo: $('save-info'),
             resetData: $('reset-data-button'),
             resetButton: $('reset-button'),
@@ -425,7 +426,8 @@ const UI = (() => {
 
     // ----- サウンド (BGM のオン・オフと音量。ブラウザに保存) -----
     function initAudioSettings() {
-        let prefs = { enabled: true, volume: 0.5 };
+        // style: 'new' = 今の 曲 (Suno)、'old' = 前の 曲 (チップチューン。2026-11-14 ユーザー指定で 選べる ように)
+        let prefs = { enabled: true, volume: 0.5, style: 'new' };
         try {
             const saved = JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY));
             if (saved) prefs = { ...prefs, ...saved };
@@ -434,18 +436,24 @@ const UI = (() => {
         }
         Bgm.setEnabled(prefs.enabled);
         Bgm.setVolume(prefs.volume);
+        Bgm.setStyle(prefs.style);
         els.bgmEnabled.checked = prefs.enabled;
+        els.bgmStyle.value = Bgm.style;
         els.bgmVolume.value = Math.round(prefs.volume * 100);
 
         const store = () => {
             try {
-                localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify({ enabled: Bgm.enabled, volume: Bgm.volume }));
+                localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify({ enabled: Bgm.enabled, volume: Bgm.volume, style: Bgm.style }));
             } catch (e) {
                 // 保存できない環境ではこのセッション中のみ有効
             }
         };
         els.bgmEnabled.addEventListener('change', () => {
             Bgm.setEnabled(els.bgmEnabled.checked);
+            store();
+        });
+        els.bgmStyle.addEventListener('change', () => {
+            Bgm.setStyle(els.bgmStyle.value);
             store();
         });
         els.bgmVolume.addEventListener('input', () => {
