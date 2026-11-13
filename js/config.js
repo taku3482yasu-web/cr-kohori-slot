@@ -267,9 +267,9 @@ window.GAME_CONFIG = {
     notice: {
         classes: { seven: 'premium', sevenBar: 'premium', chance: 'hot', bar: 'hot', melon: 'warm', cherry: 'warm' },
         rate: { premium: 0.6, hot: 0.35, warm: 0.15, cold: 0.02 },
-        // 群予告 (2026-11-03 ユーザー指定: 出たら 確定で 当たり。通常時の マップは SE城前へ 直行・SE城前では 城突入 確定)。
-        //   出る 率は 役の 分類ごと (GameFlow.rollGun)。ほかの 予告とは べつに 引く
-        gunRate: { premium: 0.3, hot: 0.025, warm: 0.002, cold: 0.0002 },   // 出玉が かわらない ように 少なめ (設定1 99.4% → 99.7%)
+        // 群予告 (2026-11-13 ユーザー指定: 当たりが 確定した ゲームだけ 出る。あくまで 演出で、出玉は 変わらない)。
+        //   当たり 確定の ゲームで 出る 率 (役の 分類ごと。GameFlow.rollGun)。ほかの 予告とは べつに 引く
+        gunRate: { premium: 0.5, hot: 0.35, warm: 0.25, cold: 0.2 },
         kinds: {
             premium: { stepUp: 50, gun: 50 },
             hot: { stepUp: 65, gun: 35 },
@@ -435,6 +435,9 @@ window.GAME_CONFIG = {
         // おかランプが点灯する役 (rainbowRoles は虹色)
         lampRoles: ['diamond', 'cherry', 'melon', 'chance', 'bar', 'seven', 'sevenBar'],
         rainbowRoles: ['seven', 'sevenBar'],
+        // おかランプの 一発告知 (2026-11-13 ユーザー指定): 1 ゲームの 上乗せが minAdd 枚 以上に 決まったら、
+        //   イケメン風の おかがっぱが 出て「+N枚!!」(js/lcd/ikemen-view.js)。image を 置くと ドット絵の かわりに その 画像
+        ikemen: { minAdd: 300, ms: 2800, image: 'img/okagappa-ikemen.png' },
         // ASAHARA CHANCE: 合計がこの枚数に届いたら ASAHARA FLASH (1つ目でどちらか1人、2つ目でもう1人。2人そろえば上限の1000枚)
         tiers: [500, 1000]
     },

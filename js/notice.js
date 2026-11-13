@@ -25,7 +25,7 @@ const Notice = {
         const cfg = config.notice;
         const cls = this.classOf(outcome.role, config);
         const pickKey = table => Lottery.weightedPick(Object.keys(table), k => table[k], rng);
-        // 群予告は 当たりの しるし (2026-11-03 ユーザー指定)。outcome.gun (GameFlow.rollGun) の ゲームだけ 出る
+        // 群予告は 当たり 確定の しるし (2026-11-13 ユーザー指定)。outcome.gun (GameFlow.rollGun) の ゲームだけ 出る
         if (outcome.gun) return { kind: 'gun', who: pickKey(cfg.gun[cls]) };
         if (force === 'gun') return null;
         if (!force && rng() >= cfg.rate[cls]) return null;

@@ -41,7 +41,7 @@
     // 場面ごとの BGM
     function bgmTrack(s) {
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return 'defeat';   // 復活待ちは負けたように見せる
-        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA && s.rash.tokka.kind === 'okaLamp') return 'dance';   // おかランプは踊れる曲
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA && s.rash.tokka.kind === 'okaLamp') return 'okapipo';   // おかランプは Suno の ラップ入りの 曲 (ファイルが ない ときは ダンスの 曲。js/bgm.js)
         if (s.mode === MODES.SUPER_RASH) return 'super';
         if (s.mode === MODES.RASH) return 'battle';
         if (s.mode === MODES.CASTLE_CHALLENGE || s.normal.map === config.map.castle) return 'castle';
@@ -117,11 +117,12 @@
 
         // 期待度の 演出 (2026-10-23 A3。js/hype.js): 熱さに 合わせて カットイン・先バレ音・確定音・金発光・フラッシュ・PUSH
         const heat = talk ? talk.heat : Furukawa.canAppear(state, config) ? Furukawa.heat(state, outcome, config) : 0;
-        // 群予告・長押しの チャージは 先読みより 前に 決める (結果に かかわる ため)
-        outcome.gun = debugNotice === 'gun' ? Notice.allowed(state) : GameFlow.rollGun(state, outcome, config);
+        // 長押しの チャージは 先読みより 前に 決める (結果に かかわる ため)
         const chargeScene = GameFlow.drawCharge(state, outcome, config);
         // 結果の 先読み (2026-11-10 ユーザー指定): 金カットインは 当たり 確定・赤カットインは ガセなし。本番は 同じ 乱数で 打つ
         const verdict = GameFlow.predict(state, outcome, config);
+        // 群予告 (2026-11-13 ユーザー指定): 当たりが 確定した ゲームだけ 出る 演出 (結果は 変えない)。デバッグの 指定は そのまま 出す
+        outcome.gun = debugNotice === 'gun' ? Notice.allowed(state) : GameFlow.rollGun(state, outcome, verdict, config);
         const hype = Hype.fit(Hype.plan(heat, config), verdict, config);
         hype.push = LeverFx.tataki(state, hype.push, heat, config);   // レバーを叩け！ (2026-10-24)
         const leverFx = LeverFx.atLever(state, outcome, heat, config);   // レバブル・遅れ・逆回転 (2026-10-24)
@@ -133,7 +134,7 @@
         const inRash = StateMachine.isRashMode(state);   // 図鑑の「叩け」の 場面 (結果の あとでは 変わる ことが ある)
         ['buru', 'okure', 'reverse'].forEach(k => { if (leverFx[k]) Collection.seeLever(state, k); });
         // 通常時の予告 (ステップアップ予告・群予告。役で選ぶ)。期待度のカットインが出たゲームでは出さない
-        // 群予告 (2026-11-03 ユーザー指定): 出たら 確定で 当たり (GameFlow.rollGun)。出る ゲームは かならず 見せる
+        // 群予告 (2026-11-13 ユーザー指定): 当たり 確定の ゲームだけ (GameFlow.rollGun)。出る ゲームは かならず 見せる
         if (!hype.cutin || debugNotice || outcome.gun) Lcd.playNotice(Notice.pick(state, outcome, config, Math.random, debugNotice));
         debugNotice = null;
         // 前兆と 違和感演出 (2026-10-23 A4。js/zencho.js)

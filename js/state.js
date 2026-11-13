@@ -573,16 +573,15 @@ const GameFlow = {
         return events;
     },
 
-    // 群予告 (2026-11-03 ユーザー指定): 出たら 確定で 当たり。予告を 出せる 場面 (通常時の マップ・SE城前) だけ。
-    //   レバー ON で 引いて outcome.gun に 入れる (main.js)。シミュレーターでは ここで 引く
-    rollGun(state, outcome, config, rng = Math.random) {
+    // 群予告 (2026-11-13 ユーザー指定: 当たりが 確定した ときだけ 出る。あくまで 演出で、結果は 変えない)。
+    //   予告を 出せる 場面 (通常時の マップ・SE城前) で、先読み (predict) で この ゲームの 当たりが 確定して いる ときだけ
+    //   gunRate の 確率で 出す。レバー ON で 引いて outcome.gun に 入れる (main.js。表示 だけに 使う)
+    //   (2026-11-03〜11-12 は 「群予告が 出たら SE城前へ 直行」 だったが、出玉が 変わるので 演出 だけに 戻した)
+    rollGun(state, outcome, verdict, config, rng = Math.random) {
         if (state.mode !== MODES.NORMAL || state.normal.dance || state.normal.mini || state.normal.revengeGames > 0 || outcome.isFreeze) return false;
+        if (!verdict || !verdict.reliable || !verdict.win) return false;
         const cls = config.notice.classes[outcome.role] || 'cold';
         return rng() < config.notice.gunRate[cls];
-    },
-    gunOf(state, outcome, config, rng) {
-        if (outcome.gun === undefined) outcome.gun = this.rollGun(state, outcome, config, rng);
-        return outcome.gun;
     },
 
     // 結果の 先読み (2026-11-10 ユーザー指定: 金カットインは 当たり 確定・赤カットインは ガセなし)
@@ -611,7 +610,7 @@ const GameFlow = {
     },
     // 当たり: SE城前へ・城突入 (確定)・撃破・継続・内定突破・RASH 復活・SUPER・ボーナス・ゾーン・ミニゲーム成功・上乗せの ゾーン など
     isWin(events, config) {
-        const WIN = ['gunHit', 'castleSure', 'castleEntry', 'defeat', 'companionSave', 'revival', 'revengeSuccess', 'superStart',
+        const WIN = ['castleSure', 'castleEntry', 'defeat', 'companionSave', 'revival', 'revengeSuccess', 'superStart',
             'zoneHit', 'bonusGames', 'freezeBonus', 'ceiling', 'treasureStart', 'tokkaStart', 'rashStart'];
         return events.some(e => WIN.includes(e.type)
             || (e.type === 'questionResult' && e.continued)
@@ -639,8 +638,6 @@ const GameFlow = {
         if (modeEvents.go) return modeEvents.events;
         const modePrefix = modeEvents.events;
 
-        // 群予告 (レバー ON で 引いた ぶん。ゾーン・天井で 直行した ゲームでも 引いておく)
-        const gun = this.gunOf(state, outcome, config, rng);
         // SE城前: 待機ゲーム数を消化したら城突入チャレンジへ
         if (normal.map === config.map.castle) {
             normal.castleWaitRemaining = Math.max(0, normal.castleWaitRemaining - 1);
@@ -654,11 +651,6 @@ const GameFlow = {
             if (outcome.aligned && outcome.role === 'bar' && !state.challenge.guaranteed && rng() < config.barBonus.castleWait.sure) {
                 state.challenge.guaranteed = true;
                 events.push({ type: 'castleSure', role: 'bar' });
-            }
-            // 群予告: このあとの 城突入チャレンジは 突破 確定 (2026-11-03 ユーザー指定)
-            if (gun && !state.challenge.guaranteed) {
-                state.challenge.guaranteed = true;
-                events.push({ type: 'castleSure', role: 'gun' });
             }
             // チャンス目を引くと、このあとの城突入チャレンジの突入率UP (1回だけ。重ねがけはしない)
             if (outcome.isChance && !state.challenge.chanceBoost) {
@@ -674,14 +666,6 @@ const GameFlow = {
 
         const events = [...modePrefix];
         const cp = config.chancePoint;
-        // 群予告: 通常時の マップは SE城前へ 直行 (2026-11-03 ユーザー指定)
-        if (gun) {
-            if (normal.chanceTime) events.push(this.endChanceTime(state));
-            events.push({ type: 'gunHit' });
-            events.push(this.goToCastle(state, config));
-            return events;
-        }
-
         // リベンジチャンス: チャンス目で RASH に再突入
         if (normal.revengeGames > 0) {
             normal.revengeGames--;

@@ -10,9 +10,11 @@
 // このファイルの処理を変えたときは CACHE の番号を上げる
 // =====================================================================
 
-const CACHE = 'koori-v1';
+const CACHE = 'koori-v2';
 const PAGES = ['index.html', 'howto.html'];
-const STATIC = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+// img は 置いて いる ときだけ 保存する (ない ときは とばす)
+const STATIC = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+    'img/okagappa-ikemen.png'];
 const ASSET_PATTERN = /\b(?:src|href)="((?:js|css)\/[^"]+)"/g;
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
@@ -86,6 +88,8 @@ self.addEventListener('fetch', (event) => {
     const { request } = event;
     if (request.method !== 'GET') return;
     const url = new URL(request.url);
+    // 曲 (sound/) は 少しずつ 読む (Range) ので 保存しない。つながって いない ときは js/bgm.js が チップチューンに 切り替える
+    if (url.origin === self.location.origin && url.pathname.includes('/sound/')) return;
     if (request.mode === 'navigate' && url.origin === self.location.origin) {
         event.respondWith(fromNetworkOrCache(event));
     } else if (url.origin === self.location.origin || FONT_HOSTS.includes(url.hostname)) {

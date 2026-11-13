@@ -235,6 +235,11 @@ const Lcd = (() => {
             drawFlash(time);
             return;
         }
+        if (OkaIkemenView.active()) {   // おかランプの 一発告知 (イケメン風の おかがっぱ)
+            OkaIkemenView.draw(time);
+            drawFlash(time);
+            return;
+        }
         if (StoryView.active()) {
             StoryView.draw(time);
             return;
@@ -1568,14 +1573,6 @@ const Lcd = (() => {
     function modeHint(event) {
         FurukawaView.show({ text: event.text, color: 1, heat: 0 });
     }
-    // 群予告の あと (2026-11-03 ユーザー指定: 確定で SE城前へ 直行)
-    async function gunHit() {
-        startFlash('#ffffff', 600);
-        startShake(config.effects.intensity.shakeLarge, 400);
-        Sound.fanfare();
-        showTitle('群予告 確定!!', 'SE城へ 直行!!', '#ffd700', 1800);
-        await sleep(1800);
-    }
     async function zoneHit() {
         startFlash('#d8a8ff', 500);
         Sound.chance();
@@ -2599,6 +2596,8 @@ const Lcd = (() => {
             await sleep(400);
             return;
         }
+        // おかランプの 一発告知 (2026-11-13 ユーザー指定): 強い 上乗せが 決まったら イケメン風の おかがっぱ
+        if (t.kind === 'okaLamp' && event.add >= config.tokka.ikemen.minAdd) await okaIkemen(event);
         const level = fireLevelOf(event.add);
         t.fireLevel = level;
         t.fireAt = now;
@@ -2618,6 +2617,19 @@ const Lcd = (() => {
         await animateTo(koori.jump, -10, 120);
         await animateTo(koori.jump, 0, 120);
         await sleep(big ? 700 : 350);
+    }
+
+    // おかランプの 一発告知: 暗転 → 少女まんがふうの 背景に 流し目の おかがっぱ →「+N枚!!」(js/lcd/ikemen-view.js)
+    async function okaIkemen(event) {
+        startFlash('#000000', 300, 1);
+        Sound.rainbow();
+        const done = OkaIkemenView.start(event.add, config);
+        await sleep(config.tokka.ikemen.ms * 0.58);
+        startFlash('#ffffff', 300);
+        startShake(config.effects.intensity.shakeLarge, 400);
+        Sound.fanfare();
+        await done;
+        startFlash('#ffffff', 400);
     }
 
     // ASAHARA FLASH: 暗転 → 金と虹の光 → 仲間が歩いてくる →「〇枚以上確定!!」
@@ -2906,7 +2918,7 @@ const Lcd = (() => {
         startFlash('#ffffff', 600);
         startShake(config.effects.intensity.shakeLarge, 500);
         Sound.rainbow();
-        showTitle('城突入 確定!!', event.role === 'bar' ? 'BAR揃い で 突破 確定！' : event.role === 'gun' ? '群予告 で 突破 確定！' : '7・7・7 で 突破 確定！', '#ffd700', 2000);
+        showTitle('城突入 確定!!', event.role === 'bar' ? 'BAR揃い で 突破 確定！' : '7・7・7 で 突破 確定！', '#ffd700', 2000);
         await sleep(2000);
     }
     // 通常時の BAR揃い (2026-10-27 ユーザー指定): SE城前へ 直行 (ときどき 城突入 確定)
@@ -3667,9 +3679,6 @@ const Lcd = (() => {
                     break;
                 case 'zoneHit':
                     await zoneHit(event);
-                    break;
-                case 'gunHit':
-                    await gunHit(event);
                     break;
                 case 'treasureGame':
                     await treasureGame(event);

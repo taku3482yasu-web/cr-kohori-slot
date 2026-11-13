@@ -7,7 +7,16 @@
 //   - 予約を 0.15 秒 → 0.4 秒先までにして、描画が重いときも 音が 途切れにくくした
 //   - 曲を 切り替えたとき、前の 曲の 予約ずみの 音を 止める (2 曲が 重なって 鳴らない)
 //   - タブが 裏に 回ったら 止める (裏では タイマーが 遅くなり、音が とびとびに なるため)。戻ったら 続きから
+// 2026-11-13 (ユーザー指定: おかランプの 曲を Suno で 作った ラップ入りの 曲に): 音声ファイルの 曲 (BGM_FILES) も 流せる。
+//   ファイルが ない・読めない ときは fallback の チップチューンを 流す (ファイルを 置くまでは 今までの ダンスの 曲)。
+//   <audio> で 鳴らすので、index.html を 直接 開いても (file://) 鳴る
 // =====================================================================
+
+// 音声ファイルの 曲: src は index.html から 見た 場所。gain は 音量の 倍率 (チップチューンと 大きさを そろえる)
+const BGM_FILES = {
+    // 上乗せ特化ゾーン「おかランプ」(オカピポ): Suno で 作った ラップ入りの 曲 (sound/README.md)
+    okapipo: { src: 'sound/okapipo.mp3', fallback: 'dance', gain: 0.85 }
+};
 
 const BGM_TRACKS = {
     // 通常時: 明るい行進
@@ -123,6 +132,49 @@ const Bgm = (() => {
     let paused = false;
     let hidden = false;       // タブが 裏に 回っている
     let scheduled = [];       // 予約した 音 { osc, gain, time } (曲を 切り替えたら 止める)
+    const files = {};         // 音声ファイルの 曲 { audio, failed }
+
+    // 音声ファイルの 曲を 用意する (はじめて 使う ときに 読み込む)
+    function fileOf(name) {
+        const def = BGM_FILES[name];
+        if (!def) return null;
+        if (!files[name]) {
+            const audio = new Audio();
+            audio.loop = true;
+            audio.preload = 'auto';
+            const f = { audio, failed: false };
+            audio.addEventListener('error', () => {
+                f.failed = true;   // ファイルが ない → チップチューンに 切り替える
+                if (trackName === name && ctx) nextTime = ctx.currentTime + 0.05;
+            });
+            audio.src = def.src;
+            files[name] = f;
+        }
+        return files[name];
+    }
+    // いま 鳴らす チップチューンの 曲の 名前 (音声ファイルの 曲が 鳴って いる ときは null)
+    function chipName() {
+        const def = BGM_FILES[trackName];
+        if (!def) return trackName;
+        const f = fileOf(trackName);
+        return f && f.failed ? def.fallback : null;
+    }
+    // 音声ファイルの 曲を 鳴らす・止める (音量・一時停止・タブの 裏も ここで 合わせる)
+    function syncFile() {
+        for (const [name, f] of Object.entries(files)) {
+            const active = name === trackName && !f.failed;
+            const audible = active && ctx && enabled && !paused && !hidden;
+            if (audible) {
+                f.audio.volume = Math.max(0, Math.min(1, volume * BGM_FILES[name].gain));
+                if (f.audio.paused && !f.starting) {
+                    f.starting = true;
+                    f.audio.play().catch(() => { /* まだ 操作の 前 */ }).finally(() => { f.starting = false; });
+                }
+            } else if (!f.audio.paused) {
+                f.audio.pause();
+            }
+        }
+    }
 
     function frequency(note) {
         const match = /^([A-G]#?)(\d)$/.exec(note);
@@ -132,6 +184,7 @@ const Bgm = (() => {
 
     function applyVolume() {
         if (master) master.gain.setTargetAtTime(enabled && !paused && !hidden ? volume * 0.12 : 0, ctx.currentTime, 0.02);
+        syncFile();
     }
 
     // 音声の準備 (ユーザー操作のあとで呼ぶ)
@@ -185,7 +238,9 @@ const Bgm = (() => {
     function schedule() {
         if (!ctx || !trackName || !enabled || paused || hidden) return;
         scheduled = scheduled.filter(n => n.end > ctx.currentTime);   // 鳴り終わった 音は 忘れる
-        const track = BGM_TRACKS[trackName];
+        const chip = chipName();
+        if (!chip) return syncFile();   // 音声ファイルの 曲
+        const track = BGM_TRACKS[chip];
         const stepDur = 60 / track.bpm / 2;
         if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05;
         while (nextTime < ctx.currentTime + LOOKAHEAD) {
@@ -202,9 +257,16 @@ const Bgm = (() => {
     function play(name) {
         if (trackName === name) return;
         cancelScheduled();   // 前の 曲の 予約を 止める (重ならない ように)
+        const prev = files[trackName];
+        if (prev) {
+            prev.audio.pause();
+            try { prev.audio.currentTime = 0; } catch (e) { /* まだ 読み込み中 */ }
+        }
         trackName = name;
         step = 0;
+        fileOf(name);
         if (ctx) nextTime = ctx.currentTime + 0.1;
+        syncFile();
     }
 
     function setVolume(v) {

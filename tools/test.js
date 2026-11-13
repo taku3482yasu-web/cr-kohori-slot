@@ -402,10 +402,10 @@ test('カットインの 先読み (2026-11-10): 金カットインは 当たり
         state.coins = 1e6;
         const o = L.draw(state, cfg);
         const heat = F.canAppear(state, cfg) ? F.heat(state, o, cfg) : 0;
-        // main.js と 同じ 順番: 群予告 → チャージ → 先読み → 色を 合わせる → 本番は 同じ 乱数
-        o.gun = GF.rollGun(state, o, cfg);
+        // main.js と 同じ 順番: チャージ → 先読み → 群予告 → 色を 合わせる → 本番は 同じ 乱数
         const scene = GF.drawCharge(state, o, cfg);
         const verdict = GF.predict(state, o, cfg);
+        o.gun = GF.rollGun(state, o, verdict, cfg);
         const plan = Hy.fit(Hy.plan(heat, cfg), verdict, cfg);
         const mode = state.mode;
         o.charged = Boolean(scene) && Math.random() < 0.5;
@@ -1132,15 +1132,17 @@ test('通常時の予告: ステップアップ予告・群予告だけ (カッ�
         const outcome = Lottery.makeOutcome(role, config);
         let shown = 0;
         for (let i = 0; i < 4000; i++) {
-            outcome.gun = GameFlow.rollGun(state, outcome, config);   // main.js と 同じ (群予告は 当たりの しるし。2026-11-03)
+            // main.js と 同じ (群予告は 当たり 確定の しるし。2026-11-13)。ここでは 半分を 当たりの ゲームと して 見る
+            const win = i % 2 === 0;
+            outcome.gun = GameFlow.rollGun(state, outcome, { reliable: true, win }, config);
             const n = Notice.pick(state, outcome, config);
             if (!n) continue;
-            shown++;
+            if (!win) shown++;   // 出る 割合は 当たりで ない ゲームで 見る (群予告は 当たりの ゲームだけ)
             assert(n.kind === 'stepUp' || n.kind === 'gun', `予告の種類 ${n.kind}`);
             const key = n.kind === 'gun' ? `gun:${n.who}` : `step:${n.steps}${n.textColor}`;
             (seen[key] = seen[key] || new Set()).add(role);
         }
-        seen[`rate:${role}`] = shown / 4000;
+        seen[`rate:${role}`] = shown / 2000;
     }
     const hotUp = ['bar', 'chance', 'seven', 'sevenBar'];
     for (const role of seen['gun:hibikimakuri'] || []) assert(hotUp.includes(role), `ひびきまくり群が ${role} で出た`);
@@ -1153,29 +1155,46 @@ test('通常時の予告: ステップアップ予告・群予告だけ (カッ�
     assertEqual(Notice.pick(state, Lottery.makeOutcome('seven', config), config, Math.random, 'stepUp'), null, 'RASH 中の予告');
 });
 
-test('群予告 (2026-11-03 ユーザー指定): 出たら 確定で 当たり。通常時の マップは SE城前へ 直行・SE城前では 城突入 確定。予告は 群予告の ゲームだけ', () => {
+test('群予告 (2026-11-13 ユーザー指定): 当たりが 確定した ゲームだけ 出る 演出。結果・出玉は 変えない', () => {
     const game = loadGame(31);
-    const { createInitialState, Lottery, Notice, GameFlow, MODES, config } = game;
+    const { createInitialState, Lottery, Notice, GameFlow, Furukawa, config } = game;
+    // 当たりで ない ゲーム・先読みが あてに ならない ゲームでは 出ない
     const state = createInitialState(config);
-    const outcome = Lottery.makeOutcome('miss', config);
-    outcome.gun = true;
-    assertEqual(Notice.pick(state, outcome, config).kind, 'gun', '群予告の ゲームは 群予告');
-    const events = GameFlow.onGameEnd(state, outcome, config);
-    assert(events.some(e => e.type === 'gunHit'), '群予告の 確定');
-    assertEqual(state.normal.map, config.map.castle, 'SE城前へ 直行');
-    const o2 = Lottery.makeOutcome('miss', config);
-    o2.gun = true;
-    GameFlow.onGameEnd(state, o2, config);
-    assert(state.challenge.guaranteed, 'SE城前では 城突入 確定');
-    // 群予告で ない ゲームでは 群予告は 出ない
-    const state2 = createInitialState(config);
-    for (let i = 0; i < 3000; i++) {
-        const o = Lottery.makeOutcome('chance', config);
-        o.gun = false;
-        const n = Notice.pick(state2, o, config);
-        assert(!n || n.kind !== 'gun', '当たりで ない 群予告');
+    const seven = Lottery.makeOutcome('seven', config);
+    for (let i = 0; i < 2000; i++) {
+        assert(!GameFlow.rollGun(state, seven, { reliable: true, win: false }, config), '当たりで ない ゲームの 群予告');
+        assert(!GameFlow.rollGun(state, seven, { reliable: false, win: true }, config), '先読みが あてに ならない ゲームの 群予告');
     }
-    void MODES;
+    // 群予告が 出ても、その ゲームの 結果は 変わらない (SE城前へ 直行 しない・城突入 確定に ならない)
+    const s1 = createInitialState(config);
+    const o1 = Lottery.makeOutcome('miss', config);
+    o1.gun = true;
+    assertEqual(Notice.pick(s1, o1, config).kind, 'gun', '群予告の ゲームは 群予告');
+    const events = GameFlow.onGameEnd(s1, o1, config);
+    assert(!events.some(e => e.type === 'gunHit'), '群予告で 当たりに なった');
+    assert(s1.normal.map !== config.map.castle, '群予告で SE城前へ 直行した');
+    // 自動プレイ: 出た 群予告は すべて 当たりの ゲーム (本番の 結果で 確かめる)
+    const s2 = createInitialState(config);
+    let shown = 0, wins = 0;
+    for (let i = 0; i < 200000; i++) {
+        s2.coins = 1e6;
+        const o = Lottery.draw(s2, config);
+        void Furukawa;
+        GameFlow.drawCharge(s2, o, config);
+        const verdict = GameFlow.predict(s2, o, config);
+        o.gun = GameFlow.rollGun(s2, o, verdict, config);
+        o.charged = false;
+        const ev = GameFlow.onGameEnd(s2, o, config, GameFlow.replayRng(o));
+        const win = GameFlow.isWin(ev, config);
+        if (win && Notice.allowed(s2)) wins++;
+        if (o.gun) {
+            shown++;
+            assert(win, `当たりで ない ゲームで 群予告 (${o.role})`);
+        }
+    }
+    assert(shown > 20, `群予告が ほとんど 出ない (${shown} 回)`);
+    console.log(`  群予告: ${shown} 回 (すべて 当たり)`);
+    void wins;
 });
 
 test('こおりチャンスタイム: チャンス目などで突入し、10G のあいだチャンスポイント (ゲーム数) の加算が2倍。ミニゲームの あいだは 止まり、失敗で 終わったら 続く', () => {
