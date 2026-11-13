@@ -10,6 +10,11 @@
 // 2026-11-13 (ユーザー指定: おかランプの 曲を Suno で 作った ラップ入りの 曲に): 音声ファイルの 曲 (BGM_FILES) も 流せる。
 //   ファイルが ない・読めない ときは fallback の チップチューンを 流す (ファイルを 置くまでは 今までの ダンスの 曲)。
 //   <audio> で 鳴らすので、index.html を 直接 開いても (file://) 鳴る
+// 2026-11-13 (ユーザー指摘: 通常時や RASH で 回して いると 音が 飛んだり 変な音が 鳴る) の 修正:
+//   - 毎ゲームの 終わりの「一時停止を 解除」で、止めて いない のに 予約の 時刻を 今に 戻して いた → 同じ 音が ずれて 二重に 鳴って いた。
+//     止めて いない ときは 何も しない ように した
+//   - 描画が 重くて 予約が 遅れた ときは、遅れた 拍を とばして 拍子を 保つ (時刻だけ 合わせると リズムが ずれる)
+//   - 予約を 0.6 秒 先まで に した
 // =====================================================================
 
 // 音声ファイルの 曲: src は index.html から 見た 場所。gain は 音量の 倍率 (チップチューンと 大きさを そろえる)
@@ -118,7 +123,7 @@ const BGM_TRACKS = {
 };
 
 const Bgm = (() => {
-    const LOOKAHEAD = 0.4;    // 何秒先まで音を予約するか
+    const LOOKAHEAD = 0.6;    // 何秒先まで音を予約するか (リールや 液晶の 描画が 重い ときも 途切れない ように 長め)
     const NOTE_INDEX = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
 
     let ctx = null;
@@ -197,9 +202,10 @@ const Bgm = (() => {
         applyVolume();
         timer = setInterval(schedule, 25);
         document.addEventListener('visibilitychange', () => {
+            if (hidden === document.hidden) return;
             hidden = document.hidden;
             if (hidden) cancelScheduled();
-            else if (ctx) nextTime = ctx.currentTime + 0.1;
+            else resumeAt();
             applyVolume();
         });
     }
@@ -242,7 +248,13 @@ const Bgm = (() => {
         if (!chip) return syncFile();   // 音声ファイルの 曲
         const track = BGM_TRACKS[chip];
         const stepDur = 60 / track.bpm / 2;
-        if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05;
+        // 描画が 重くて 予約が 間に合わなかった ときは、遅れた ぶんの 拍を とばして 拍子を 保つ
+        // (前は 時刻だけ 今に 合わせて 拍は そのまま だったので、リズムが ずれて 飛んだように 聞こえた。2026-11-13)
+        if (nextTime < ctx.currentTime + 0.02) {
+            const missed = Math.ceil((ctx.currentTime + 0.05 - nextTime) / stepDur);
+            nextTime += missed * stepDur;
+            step += missed;
+        }
         while (nextTime < ctx.currentTime + LOOKAHEAD) {
             const m = track.melody[step % track.melody.length];
             const b = track.bass[step % track.bass.length];
@@ -274,18 +286,27 @@ const Bgm = (() => {
         applyVolume();
     }
 
+    // 止めて いた 曲を 鳴らし直す。予約は 止めた ときに 消して いるので、少し 先から 予約し直す
+    function resumeAt() {
+        if (ctx) nextTime = ctx.currentTime + 0.1;
+    }
+
     function setEnabled(on) {
+        if (on === enabled) return applyVolume();
         enabled = on;
         if (!on) cancelScheduled();
-        if (on && ctx) nextTime = ctx.currentTime + 0.1;
+        else resumeAt();
         applyVolume();
     }
 
     // 一時停止 (ロングフリーズ中は無音にする)
+    //   2026-11-13 修正: 止めて いない ときに「再開」を 呼ばれても 何も しない。前は 毎ゲームの 終わりに
+    //   予約の 時刻を 今に 戻して いたため、予約ずみの 音と 同じ 音が ずれて 二重に 鳴り (変な音)、リズムも 飛んで いた
     function setPaused(on) {
-        if (on && !paused) cancelScheduled();   // 止める ときは 予約ずみの 音も 止める
+        if (on === paused) return;
+        if (on) cancelScheduled();   // 止める ときは 予約ずみの 音も 止める
         paused = on;
-        if (!on && ctx) nextTime = ctx.currentTime + 0.1;
+        if (!on) resumeAt();
         applyVolume();
     }
 
