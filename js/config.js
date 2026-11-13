@@ -436,8 +436,8 @@ window.GAME_CONFIG = {
         lampRoles: ['diamond', 'cherry', 'melon', 'chance', 'bar', 'seven', 'sevenBar'],
         rainbowRoles: ['seven', 'sevenBar'],
         // おかランプの 一発告知 (2026-11-13 ユーザー指定): 1 ゲームの 上乗せが minAdd 枚 以上に 決まったら、
-        //   イケメン風の おかがっぱが 出て「+N枚!!」(js/lcd/ikemen-view.js)。image を 置くと ドット絵の かわりに その 画像
-        ikemen: { minAdd: 300, ms: 2800, image: 'img/okagappa-ikemen.png' },
+        //   イケメン風の おかがっぱが 出て「+N枚!!」(js/lcd/ikemen-view.js)。絵は ドット絵だけ
+        ikemen: { minAdd: 300, ms: 2800 },
         // ASAHARA CHANCE: 合計がこの枚数に届いたら ASAHARA FLASH (1つ目でどちらか1人、2つ目でもう1人。2人そろえば上限の1000枚)
         tiers: [500, 1000]
     },

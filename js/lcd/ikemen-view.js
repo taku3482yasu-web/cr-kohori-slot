@@ -5,28 +5,15 @@
 // 決まった ときに 流す。当たりの 虹色の 背景 (バラ・キラキラ・集中線) に、流し目の おかがっぱの 顔の アップ。
 // 「おかピポ…イェア。」→ 金の「+N枚!!」。上乗せが 決まった あとで 流すので、告知は かならず 当たる (結果は 変えない)。
 //
-// 絵の 差しかえ: config.tokka.ikemen.image (img/okagappa-ikemen.png) を 置くと、ドット絵の 顔の かわりに その 画像を 出す。
-//   ない ときは ドット絵 (characters.js の おかがっぱを 大きくして、目・まゆ・バラを 描き足す)。
+// 絵は ドット絵だけ (characters.js の おかがっぱを 大きくして、目・まゆ・バラを 描き足す)。
+//   2026-11-13 ユーザー指定: PNG での 差しかえは 使わない (読み込みの 仕組みを 消した)
 // Lcd が start(add) で 始め、active() の あいだ draw(time) を 呼ぶ。描く 先は LcdKit.canvas()
 // =====================================================================
 
 const OkaIkemenView = (() => {
     let view = null;          // { add, start, ms }
-    let image = null;         // 差しかえの 画像 (読めたら ready)
-    let imageTried = false;
-
-    function loadImage(src) {
-        if (imageTried || !src) return;
-        imageTried = true;
-        const img = new Image();
-        img.onload = () => { image = img; };
-        img.onerror = () => { image = null; };   // 置いて いなければ ドット絵
-        img.src = src;
-    }
-
     function start(add, config) {
         const cfg = config.tokka.ikemen;
-        loadImage(cfg.image);
         view = { add, start: performance.now(), ms: cfg.ms };
         return new Promise(resolve => setTimeout(() => { view = null; resolve(); }, cfg.ms));
     }
@@ -138,16 +125,6 @@ const OkaIkemenView = (() => {
         px(23, 14, 1, 1, '#b0103a');
     }
 
-    // 差しかえの 画像: 高さを 液晶に 合わせ、右に 寄せて 置く
-    function drawImage(ctx, W, H, slide) {
-        const h = H;
-        const w = image.width * (h / image.height);
-        ctx.save();
-        ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(image, Math.round(W - w + slide), 0, w, h);
-        ctx.restore();
-    }
-
     function draw(time) {
         if (!view) return;
         const { ctx, W, H } = LcdKit.canvas();
@@ -159,18 +136,14 @@ const OkaIkemenView = (() => {
         // 顔が 右から すべりこむ (0.1〜0.3)
         const slideK = LcdKit.ease((k - 0.1) / 0.2);
         const slide = (1 - slideK) * 140;
-        if (image) {
-            drawImage(ctx, W, H, slide);
-        } else {
-            // 顔 (絵の 10 ドット目) を (W*0.7, H*0.45) に。足もとは 液晶の 下より 下 (肩から 上だけ 見える)
-            const s = 5;
-            const bob = Math.sin(time / 260) * 1.5;
-            ctx.save();
-            ctx.translate(W * 0.7 + slide, H * 0.45);
-            ctx.rotate(-0.08);
-            drawPixelFace(ctx, 0, 30 * s + bob, s, time);
-            ctx.restore();
-        }
+        // 顔 (絵の 10 ドット目) を (W*0.7, H*0.45) に。足もとは 液晶の 下より 下 (肩から 上だけ 見える)
+        const s = 5;
+        const bob = Math.sin(time / 260) * 1.5;
+        ctx.save();
+        ctx.translate(W * 0.7 + slide, H * 0.45);
+        ctx.rotate(-0.08);
+        drawPixelFace(ctx, 0, 30 * s + bob, s, time);
+        ctx.restore();
 
         // 名前と ひとこと (0.3〜)
         if (k > 0.3) {

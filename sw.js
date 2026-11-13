@@ -12,9 +12,7 @@
 
 const CACHE = 'koori-v2';
 const PAGES = ['index.html', 'howto.html'];
-// img は 置いて いる ときだけ 保存する (ない ときは とばす)
-const STATIC = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
-    'img/okagappa-ikemen.png'];
+const STATIC = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 const ASSET_PATTERN = /\b(?:src|href)="((?:js|css)\/[^"]+)"/g;
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
