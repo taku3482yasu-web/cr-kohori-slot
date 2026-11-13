@@ -93,9 +93,13 @@
     }
 
     // 音は最初のユーザー操作のあとでないと鳴らせない
+    // 2026-11-14 修正: レバーの たびに 呼ばれるので、曲の 先読みは はじめの 1 回 だけ (前は 毎ゲーム 鳴って いる 曲が 頭に 戻って いた)
+    let audioStarted = false;
     function startAudio() {
         Sound.init();
         Bgm.init(Sound.context());
+        if (audioStarted) return;
+        audioStarted = true;
         Bgm.preload([...RASH_SONGS, ...SUPER_SONGS, ...STAGE_SONGS]);   // RASH・ステージの 曲が 置いて あるかを 先に 調べる
     }
     document.addEventListener('pointerdown', startAudio, { once: true });

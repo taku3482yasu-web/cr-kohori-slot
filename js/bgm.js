@@ -320,10 +320,14 @@ const Bgm = (() => {
     }
 
     // 曲の ファイルを 先に 読み込んで おく (あるか ないかを 早めに 知る ため)
+    // 2026-11-14 修正 (ユーザー指摘: RASH の 曲が 頭から 流れ直す): load() は 鳴って いる 曲も 頭に 戻すので、
+    //   1 つの ファイルに つき 1 回 だけ、まだ 読み込みを 始めて いない ときだけ 呼ぶ
     function preload(names) {
         names.forEach(name => {
             const f = fileOf(name);
-            if (f && !f.failed) f.audio.load();
+            if (!f || f.failed || f.preloaded) return;
+            f.preloaded = true;
+            if (f.audio.readyState === 0 && f.audio.paused) f.audio.load();
         });
     }
     // 曲の ファイルが 使えるか: false = ない・読めない、true = 読める、null = まだ わからない
