@@ -1939,7 +1939,7 @@ const Lcd = (() => {
     };
     function kokuchiLabel(e) {
         if (e.type === 'naiteiResult') return e.win ? '突破!!' : null;
-        if (e.type === 'questionResult') return e.continued ? '継続!!' : null;
+        // 継続は 一発告知 (先バレ音・虹色) なしの シンプルな 演出 (2026-11-14 ユーザー指定)
         return KOKUCHI_LABELS[e.type] || null;
     }
     async function playKokuchi(label) {
@@ -1948,7 +1948,7 @@ const Lcd = (() => {
         bigKokuchi = { label, start: performance.now() };
         await sleep(260);
         Sound.kokuchi();
-        Sound.juteion();
+        Sound.kokuchiBoom();   // うなりの ない 重低音 (2026-11-14)
         await sleep(1950);
         bigKokuchi = null;
         startFlash('#ffffff', 450);

@@ -45,7 +45,7 @@ const Lights = (() => {
             case 'defeat':
                 return set('rainbow', 3500);
             case 'questionResult':
-                return e.continued ? set('rainbow', 3000) : e.revival ? set('strobe', 1500) : set('dim', 2000);
+                return e.continued ? set('color', 1500, '#ffd700') : e.revival ? set('strobe', 1500) : set('dim', 2000);
             case 'naiteiResult':
                 return e.win ? set('rainbow', 4500) : set('dim', 2000);
             case 'challengeFail': case 'rashEnd': case 'revengeEnd':

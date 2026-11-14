@@ -501,7 +501,6 @@ const BeatFx = (() => {
     function event(e) {
         let kind = BIG[e.type];
         if (e.type === 'naiteiResult' && e.win) kind = 'rainbow';
-        if (e.type === 'questionResult' && e.continued) kind = 'gold';
         if (e.type === 'castleSure') kind = 'gold';
         if (!kind) return;
         const b = info();

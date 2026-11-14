@@ -9,22 +9,48 @@ const Sound = (() => {
     function init() {
         if (!ctx) {
             ctx = new (window.AudioContext || window.webkitAudioContext)();
-            loadHeso();
+            loadSeFiles();
         }
     }
 
-    // パチンコの 先バレ音 (ユーザーの 録音。js/sound-heso.js) を 読み込む。一発告知で 鳴らす (2026-11-14 ユーザー指定)
-    //   鳴らす ところ (秒) と 大きさは パチンコと 同じ (koori-pachinko の config.show.voice: 1.3〜3.5 秒・4 倍)
-    const HESO = { start: 1.3, end: 3.5, gain: 4 };
-    let hesoBuffer = null;
-    function loadHeso() {
-        if (typeof HESO_SOUND === 'undefined') return;
-        try {
-            const bin = atob(HESO_SOUND.split(',')[1]);
-            const bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            ctx.decodeAudioData(bytes.buffer).then(buf => { hesoBuffer = buf; }, () => { hesoBuffer = null; });
-        } catch (e) { hesoBuffer = null; }
+    // ユーザーが 用意した 効果音の ファイル (2026-11-14 ユーザー指定)。sound/se/ に 置く (.gitignore で GitHub には 上げない)。
+    //   sound_01.wav = 当たった ときの 一発告知音 / sound_01.mp3・sound_02.mp3 = 当たり確定音 (この 2 つも 一発告知音に 使う)
+    //   ファイルが ない (GitHub Pages など) ときは 今までの 音。<audio> で 鳴らすので index.html を 直接 開いても 鳴る
+    //   vol: 音量 (曲の 大きさを 測って そろえた)・max: 長い 音は ここで フェードアウトして 止める (秒)
+    const SE_FILES = {
+        hit: { src: 'sound/se/sound_01.wav', vol: 0.55, max: 3.5 },
+        kakutei1: { src: 'sound/se/sound_01.mp3', vol: 0.75, max: 3.6 },
+        kakutei2: { src: 'sound/se/sound_02.mp3', vol: 0.6, max: 3.2 }
+    };
+    const seFiles = {};   // name → { audio, ok }
+    function loadSeFiles() {
+        if (typeof Audio === 'undefined') return;
+        for (const [name, def] of Object.entries(SE_FILES)) {
+            const audio = new Audio();
+            audio.preload = 'auto';
+            const f = { audio, ok: false };
+            audio.addEventListener('canplaythrough', () => { f.ok = true; }, { once: true });
+            audio.addEventListener('error', () => { f.ok = false; });
+            audio.src = def.src;
+            seFiles[name] = f;
+        }
+    }
+    const seReady = names => names.filter(n => seFiles[n] && seFiles[n].ok);
+    function playSe(name) {
+        const def = SE_FILES[name];
+        const a = seFiles[name].audio.cloneNode();
+        a.volume = def.vol;
+        a.play().catch(() => { /* まだ 操作の 前 */ });
+        const fadeAt = (def.max - 0.4) * 1000;
+        setTimeout(() => {   // 最後の 0.4 秒で フェードアウトして 止める
+            const t0 = performance.now();
+            const iv = setInterval(() => {
+                const k = (performance.now() - t0) / 400;
+                if (k >= 1 || a.paused) { clearInterval(iv); a.pause(); return; }
+                a.volume = def.vol * (1 - k);
+            }, 30);
+        }, fadeAt);
+        return true;
     }
 
     // タブを 切りかえて 画面が かくれたら 音を 止め、もどったら 再開する (2026-11-04 ユーザー指定)
@@ -278,21 +304,40 @@ const Sound = (() => {
         // 一発告知 (2026-11-14 ユーザー指定: 当たり・復活 など 盛り上がる ところで 曲を 止めて 鳴らす)
         //   2026-11-14 作り直し (ユーザー指摘: 前より 劣化・情けない → パチンコの 先バレ音を 参考に):
         //   パチンコの 先バレ音 (ユーザーの 録音) を 鳴らし、高い 音に だけ やまびこを かけて 広がりを 出す。腹に 響く ドスッ も
+        //   2026-11-14 (ユーザー指定): sound/se/ の 音が あれば それ (sound_01.wav を 半分、sound_01.mp3・sound_02.mp3 を 4 分の 1 ずつ)
         kokuchi() {
             thump(0, 0.35, 0.8, 220);
-            if (!hesoBuffer) {   // まだ 読み込めて いない ときは 前の 虹の 音
-                sequence([523.25, 659.25, 783.99, 1046.5, 1318.5, 1568, 2093], 110, 'triangle', 0.5, 0.09);
+            const se = seReady(['hit', 'kakutei1', 'kakutei2']);
+            if (se.length) {
+                const name = se.includes('hit') && (se.length === 1 || Math.random() < 0.5) ? 'hit'
+                    : se.filter(n => n !== 'hit')[Math.floor(Math.random() * se.filter(n => n !== 'hit').length)];
+                playSe(name);
                 return;
             }
+            // 公開版 (sound/se/ が ない とき) の 一発告知音 (2026-11-14 ユーザー指定: 初めの うにょうにょ 音を なくす)。
+            //   前の パチンコの 先バレ音の 録音 (音程が ゆれる) は やめ、ゆれの ない 澄んだ 音に した:
+            //   一瞬で 駆け上がる「キュイッ」→ 高い 和音が「キィーン」と 鳴って やまびこで 広がる → きらきら 下りる 粒
             const b = busOf();
-            const src = ctx.createBufferSource();
-            const gain = ctx.createGain();
-            src.buffer = hesoBuffer;
-            gain.gain.value = HESO.gain;
-            src.connect(gain);
-            gain.connect(b.comp);
-            gain.connect(b.echo);
-            src.start(ctx.currentTime, HESO.start, HESO.end - HESO.start);
+            voice({ type: 'triangle', from: 1400, to: 4186, at: 0, dur: 0.16, glide: 0.09, vol: 0.12, attack: 0.002 });
+            voice({ type: 'square', from: 700, to: 2093, at: 0, dur: 0.14, glide: 0.09, vol: 0.04, attack: 0.002, lp: 5000 });
+            [2093, 2637, 3136, 4186].forEach((f, i) => {
+                const t0 = ctx.currentTime + 0.1;
+                const osc = ctx.createOscillator();
+                osc.type = i === 0 ? 'triangle' : 'sine';
+                osc.frequency.value = f;
+                const g = ctx.createGain();
+                const v = [0.13, 0.08, 0.07, 0.05][i];
+                g.gain.setValueAtTime(0.0001, t0);
+                g.gain.exponentialRampToValueAtTime(v, t0 + 0.006);
+                g.gain.setValueAtTime(v, t0 + 0.35);
+                g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.9);
+                osc.connect(g);
+                g.connect(b.comp);
+                g.connect(b.echo);
+                osc.start(t0);
+                osc.stop(t0 + 2);
+            });
+            [4186, 3520, 3136, 2637, 2349, 2093].forEach((f, i) => voice({ type: 'sine', from: f, at: 0.45 + i * 0.07, dur: 0.25, vol: 0.035, attack: 0.002 }));
         },
         // 消灯 (プチュン): 液晶・リールが ふっと 消える ときの 音
         puchun() {
@@ -344,7 +389,12 @@ const Sound = (() => {
         // 2026-11-14 (ユーザー指摘: 当たり音が 前より 劣化・情けない): 先バレ・確定・突入は 11-13 に 作り直す 前の 音に 戻した。
         //   重低音 (ブウううん) と プチュンは そのまま
         sakibare: () => { sweep(900, 1900, 'square', 0.16, 0.06); sweep(900, 1900, 'square', 0.16, 0.06, 170); },
-        kakutei: () => [0, 180, 360].forEach(d => sweep(1200, 2600, 'triangle', 0.2, 0.08, d)),
+        // 2026-11-14 (ユーザー指定): sound/se/ の sound_01.mp3・sound_02.mp3 が あれば その どちらか (ない ときは 前の 音)
+        kakutei: () => {
+            const se = seReady(['kakutei1', 'kakutei2']);
+            if (se.length) { if (canPlay()) playSe(se[Math.floor(Math.random() * se.length)]); return; }
+            [0, 180, 360].forEach(d => sweep(1200, 2600, 'triangle', 0.2, 0.08, d));
+        },
         // 重低音 (機械が 落ちる 音) は 続けて 呼ばれても 2.5 秒は 重ねない (一発告知と 演出の 両方から 呼ばれる ため)
         juteion: () => {
             if (!canPlay()) return;
@@ -356,6 +406,14 @@ const Sound = (() => {
         // 突入: 前と 同じ ファンファーレを 2 回 (はじめと 0.5 秒 あと)
         bonusIn: () => { if (!canPlay()) return; api.fanfare(); setTimeout(() => api.fanfare(), 500); },
         puchun: () => canPlay() && HIT_SOUNDS.puchun(),
+        // 一発告知の 重低音 (2026-11-14 ユーザー指定: 初めの うにょうにょ 音を なくす): 機械が 落ちる 音の うなり (ゆれる 音) は 鳴らさず、
+        //   腹に 響く 衝撃と 低い 落ちる 音だけ
+        kokuchiBoom: () => {
+            if (!canPlay()) return;
+            thump(0, 0.6, 1, 160);
+            voice({ type: 'sine', from: 90, to: 32, at: 0, dur: 0.9, glide: 0.7, vol: 0.5, attack: 0.003 });
+            voice({ type: 'square', from: 110, to: 40, at: 0, dur: 0.5, glide: 0.4, vol: 0.06, attack: 0.003, lp: 400 });
+        },
         // プレミア: 液晶が ひび割れて おにおに (2026-10-24): ピキッ / バリィン / 咆哮
         premiumCrack: () => { tone(2400, 'square', 0.05, 0.08); setTimeout(() => tone(1800, 'square', 0.05, 0.07), 70); sweep(3000, 900, 'square', 0.08, 0.08, 160); },
         premiumSmash: () => { noise(0.5, 0.15); sweep(80, 40, 'sawtooth', 0.5, 0.14); if (canPlay()) HIT_SOUNDS.juteion(); },
@@ -371,10 +429,10 @@ const Sound = (() => {
             : sweep(500, 1400, 'square', 0.18, 0.07))
     };
     // BGM を 下げる 効果音 (ミリ秒は 鳴って いる 長さの めやす)
-    const DUCK = { sakibare: 900, kakutei: 1600, juteion: 2300, bonusIn: 1900, kokuchi: 2200, rainbow: 1100, fanfare: 800, win: 600,
+    const DUCK = { sakibare: 900, kakutei: 3600, juteion: 2300, bonusIn: 1900, kokuchi: 2200, rainbow: 1100, fanfare: 800, win: 600,
         chance: 600, defeat: 800, miss: 600, special: 1200, bigHit: 500, talk: 300, pushReady: 400, leverCall: 600, zencho: 1400,
         premiumCrack: 600, premiumSmash: 1200, premiumRoar: 1600, gyaku: 1000 };
     for (const [name, ms] of Object.entries(DUCK)) if (api[name]) api[name] = ducked(api[name], ms);
-    api.kokuchi = ducked(() => canPlay() && HIT_SOUNDS.kokuchi(), 2400, 0.2);
+    api.kokuchi = ducked(() => canPlay() && HIT_SOUNDS.kokuchi(), 3600, 0.2);
     return api;
 })();
