@@ -46,17 +46,23 @@ const Battle = {
             rash.nameColor = 'gold';
             return;
         }
-        if (rash.shownRate == null && rng() < kr.fake.rate) rash.shownRate = kr.fake.values[Math.floor(rng() * kr.fake.values.length)];
+        // 違和感演出は いまの 撃破率より 下の 数字を 出さない (2026-11-14 ユーザー指定: 撃破率は 絶対に 減らない)
+        const fakes = kr.fake.values.filter(v => v >= rash.killRate);
+        if (rash.shownRate == null && fakes.length && rng() < kr.fake.rate) rash.shownRate = fakes[Math.floor(rng() * fakes.length)];
         if (rash.nameColor === 'white') {
             const r = rng();
             rash.nameColor = r < kr.nameColors.gold ? 'gold' : r < kr.nameColors.gold + kr.nameColors.red ? 'red' : 'white';
         }
     },
 
-    // 新しいセットを始める: 撃破率をキャラの値にし、その確率で勝ちセットにする
-    startSet(state, config, rng) {
+    // 新しいセットを始める: 撃破率をキャラの値にし、その確率で勝ちセットにする。
+    //   carry: 同じ 敵との 続き (「？？」の 継続・仲間の 肩代わり)。2026-11-14 ユーザー指定 (撃破率は 絶対に 減らない):
+    //   いままで 見せて いた 撃破率 (違和感演出の 7% / 77% も) より 下げない。100% だった ときは 次の セットも 100% (必ず 撃破)
+    startSet(state, config, rng, carry = false) {
         const rash = state.rash;
-        rash.killRate = this.baseKillRate(state, config, this.findEnemy(config, rash.enemyId));
+        const before = carry ? Math.min(1, Math.max(rash.killRate ?? 0, rash.shownRate ?? 0)) : 0;
+        const base = this.baseKillRate(state, config, this.findEnemy(config, rash.enemyId));
+        rash.killRate = before > base ? (before >= 1 ? 1 : this.safeRate(before)) : base;
         rash.setWillWin = rng() < rash.killRate || rash.killRate >= 1;
         rash.shownRate = null;     // 見せて いる 撃破率 (違和感演出の 7% / 77%。null は 本当の 値)
         rash.nameColor = 'white';  // 敵の 名前の 色
@@ -206,7 +212,7 @@ const Battle = {
         rash.gamesRemaining--;
         if (rash.probUpGames > 0) rash.probUpGames--;
 
-        // チェリー・チャンス目などで一定確率でブレイク状態に (撃破率 UP。2026-10-27 から ガードできない かわりに 撃破率が 上がる)
+        // チェリー・チャンス目などで一定確率でブレイク状態に (撃破率 UP と、2026-11-14 から また 敵が ガードできない)
         const breakRate = config.breakState.rates[outcome.role] || 0;
         const broke = !rash.breakActive && breakRate > 0 && rng() < breakRate;
         if (broke) {
@@ -228,8 +234,8 @@ const Battle = {
         const extra = companionHits.reduce((sum, h) => sum + h.amount, 0);
         const hpBefore = rash.enemyHp;
         let amount = kill ? rash.enemyHp : damage + extra;
-        // 負けセットでは敵がガードして倒しきれない
-        const canGuard = !rash.setWillWin && !kill;
+        // 負けセットでは敵がガードして倒しきれない。ブレイク中は ガードできない (2026-11-14 ユーザー指摘: ブレイクでも ガードする ことが ある)
+        const canGuard = !rash.setWillWin && !kill && !rash.breakActive;
         let guarded = false;
         let finalBlow = false;
         // デバッグ「次:とどめの一撃」: 対象の役が出たら、HP・セットに関係なくガード → とどめの一撃
@@ -639,7 +645,7 @@ const Battle = {
         if (outcome.aligned && !forceRevival) {
             const games = Lottery.weightedPick(config.rash.continueGames, g => g.weight, rng).games;
             rash.gamesRemaining = games;
-            this.startSet(state, config, rng);
+            this.startSet(state, config, rng, true);
             rash.phase = RASH_PHASES.BATTLE;
             return [{ type: 'questionResult', continued: true, games, killRate: rash.killRate, shown: rash.shownRate, nameColor: rash.nameColor }, ...this.addStreak(state, config)];
         }
@@ -648,7 +654,7 @@ const Battle = {
         if (saver) {
             const games = Lottery.weightedPick(config.rash.continueGames, g => g.weight, rng).games;
             rash.gamesRemaining = games;
-            this.startSet(state, config, rng);
+            this.startSet(state, config, rng, true);
             rash.phase = RASH_PHASES.BATTLE;
             return [{ type: 'companionSave', memberId: saver.id, name: saver.name, games, enemyId: rash.enemyId, killRate: rash.killRate, shown: rash.shownRate, nameColor: rash.nameColor }, ...this.addStreak(state, config)];
         }

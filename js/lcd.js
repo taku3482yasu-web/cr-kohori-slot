@@ -1161,7 +1161,8 @@ const Lcd = (() => {
     }
 
     // 撃破率の 数字 (%) と 色 (config.killRate.colors。虹は 色が 流れる)
-    const killRatePct = rate => Math.round(rate * 100);
+    // 100% は 必ず 撃破できる とき だけ (2026-11-14 ユーザー指定)。99.5% などを 四捨五入で 100% に しない
+    const killRatePct = rate => (rate < 1 ? Math.min(99, Math.round(rate * 100)) : Math.round(rate * 100));
     //   x0〜x1 (文字の 左はし〜右はし) を わたすと、虹は 文字の 中を 虹の グラデーションが 流れる
     function killRateColor(rate, time, x0 = null, x1 = null) {
         let color = config.killRate.colors[0].color;
@@ -1225,9 +1226,10 @@ const Lcd = (() => {
             return;
         }
         battle.killUp = performance.now();
+        const shownFrom = Math.max(event.from, valueAt(battle.killRate));   // 違和感演出の 77% から 100% に なる ときも 正しい 差を 出す
         animateTo(battle.killRate, event.to, 400);
         const word = event.reason === 'charge' ? 'チャージ!! ' : event.reason === 'break' ? 'BREAK!! ' : '';
-        damageNumbers.push({ text: `${word}撃破率 +${killRatePct(event.to) - killRatePct(event.from)}%`, color: killRateColor(event.to, performance.now()), size: 12, born: performance.now() });
+        damageNumbers.push({ text: `${word}撃破率 +${Math.max(0, killRatePct(event.to) - killRatePct(shownFrom))}%`, color: killRateColor(event.to, performance.now()), size: 12, born: performance.now() });
         if (event.to >= 1 && event.from < 1) {
             await playKillSplash(1, '撃破確定!!', event.from, 1400);
             return;
@@ -3449,7 +3451,7 @@ const Lcd = (() => {
         startShake(config.effects.intensity.shakeLarge, 400);
         Sound.bigHit();
         damageNumbers.push({ text: 'BREAK!!', color: '#e0b0ff', size: 16, born: performance.now() });
-        showTitle('BREAK!!', '撃破率UP!!', '#c080ff', 1500);
+        showTitle('BREAK!!', 'ガード不能&撃破率UP!!', '#c080ff', 1500);
         await sleep(1500);
     }
 

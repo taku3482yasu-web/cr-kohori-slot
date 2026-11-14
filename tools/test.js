@@ -545,6 +545,7 @@ test('ミニゲーム (2026-10-27): 100G から 抽選・150G で 確定・チ�
     const { config: cfg, Lottery: L, GameFlow: GF } = g;
     const state = g.createInitialState(cfg);
     const kinds = {}, trig = { count: 0, chance: 0 };
+    let rainbowPending = false;
     let rainbow = 0, rainbowOk = 0, startedLate = 0, countReset = 0, early = 0, tooEarly = 0, trainingEarly = 0;
     for (let i = 0; i < 600000; i++) {
         state.coins = 1e6;
@@ -556,8 +557,10 @@ test('ミニゲーム (2026-10-27): 100G から 抽選・150G で 確定・チ�
                 if (e.trigger === 'count' && state.normal.chancePoint !== 0) countReset++;
                 // 規定の ゲーム数: 100G から 抽選・150G で 確定 (2026-10-27)
                 if (e.trigger === 'count' && e.at < cfg.chancePoint.threshold) { early++; if (e.at < cfg.mini.early.from) tooEarly++; }
-                if (e.rainbow) rainbow++;
+                if (e.rainbow) { rainbow++; rainbowPending = true; }
             }
+            // ミニゲームの 途中で 天井 → SE城前 (ミニゲームは 打ち切り。天井で 城突入 する ので 損は ない) は 数えない
+            if (e.type === 'ceiling' && rainbowPending) { rainbow--; rainbowPending = false; }
             if (e.type === 'miniStart' && !pending) startedLate++;   // 決まった ゲームでは 始めない
             if (e.type === 'miniResult') {
                 // おにおに特訓は 5G 全部 やってから 結果
@@ -565,6 +568,7 @@ test('ミニゲーム (2026-10-27): 100G から 抽選・150G で 確定・チ�
                 const k = kinds[e.kind] || (kinds[e.kind] = [0, 0]);
                 k[0]++;
                 if (e.success) k[1]++;
+                if (e.rainbow) rainbowPending = false;
                 if (e.rainbow && e.success && state.challenge.guaranteed) rainbowOk++;
             }
         }
@@ -586,6 +590,40 @@ test('ミニゲーム (2026-10-27): 100G から 抽選・150G で 確定・チ�
     for (let i = 1; i < order.length; i++) assert(rate(order[i]) > rate(order[i - 1]), `成功しやすさの 順 (${order.map(id => `${id} ${pct(rate(id))}`).join(' < ')})`);
     assert(rainbow > 10 && rainbowOk === rainbow, `虹は 成功して 城突入 確定 (${rainbowOk} / ${rainbow})`);
     console.log(`  ミニゲーム: ${order.map(id => `${cfg.mini.kinds[id].short} ${pct(rate(id))} (${kinds[id][0]} 回)`).join('・')}・虹 ${rainbow} 回`);
+});
+
+test('撃破率は 同じ 敵の あいだ 減らない・100% は 必ず 撃破・ブレイク中は ガードしない (2026-11-14)', () => {
+    const g = loadGame(91);
+    const { config: cfg, Lottery: L, GameFlow: GF } = g;
+    const state = g.createInitialState(cfg);
+    let shownNow = null, enemy = null, drops = 0, checks = 0, full = 0, fullLose = 0, breakGuard = 0, breakHits = 0;
+    let fullEnemy = null, fullMissed = 0;
+    for (let i = 0; i < 300000; i++) {
+        state.coins = 1e6;
+        const before = state.rash.breakActive;
+        const ev = GF.playWithCharge(state, L.draw(state, cfg), cfg);
+        const rash = state.rash;
+        for (const e of ev) {
+            if (e.type === 'battleStart') { enemy = e.enemyId; shownNow = e.shown ?? e.killRate; continue; }
+            if (e.type === 'defeat' || e.type === 'revival' || (e.type === 'questionResult' && !e.continued)) {
+                if (fullEnemy && e.type !== 'defeat') fullMissed++;
+                enemy = null; shownNow = null; fullEnemy = null; continue;
+            }
+            if (e.type === 'damage' && e.breakActive && before && e.killRate != null) { breakHits++; if (e.guarded && !e.finalBlow) breakGuard++; }
+            const rate = e.type === 'killRate' ? (e.to >= 1 ? 1 : e.shown ?? e.to)
+                : (e.type === 'questionResult' || e.type === 'companionSave') ? e.shown ?? e.killRate : null;
+            if (rate == null || enemy == null) continue;
+            checks++;
+            if (rate < shownNow - 1e-9) drops++;
+            shownNow = Math.max(shownNow, rate);
+            if (rate >= 1) { full++; fullEnemy = enemy; if (!rash.setWillWin) fullLose++; }
+        }
+    }
+    assert(checks > 1000, `撃破率の 変化が 少ない (${checks})`);
+    assertEqual(drops, 0, '同じ 敵の あいだに 撃破率が 下がった 回数');
+    assert(full > 50 && fullLose === 0 && fullMissed === 0, `100% は 必ず 撃破 (${full} 回。負けセット ${fullLose}・撃破 できずに 終わった ${fullMissed})`);
+    assert(breakHits > 200, `ブレイク中の 攻撃が 少ない (${breakHits})`);
+    assertEqual(breakGuard, 0, 'ブレイク中の ガード');
 });
 
 test('撃破率の 違和感 (7% / 77% は 撃破 確定)・敵の 名前の 色 (赤 / 金は 確定)・BAR揃いの 恩恵・リーチの 見せ方 (2026-10-27)', () => {

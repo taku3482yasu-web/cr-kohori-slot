@@ -554,6 +554,8 @@ window.GAME_CONFIG = {
     // ----- 撃破率 (2026-10-27 ユーザー指定。js/battle.js) -----
     // RASH の BATTLE で、そのセットを勝ち (撃破 か「？？」で継続) にする確率。液晶の右上に % で出す。
     //   セットの始めは キャラごとの 値 (enemies の killRate / SUPER は superKillRate。数字は Claude が 決めた)。勝利確定の BATTLE は 100%
+    //   2026-11-14 (ユーザー指摘): 同じ 敵の あいだは 撃破率が 下がらない (「？？」の 継続・肩代わりでも 引き継ぐ)・100% は 必ず 撃破・
+    //   ブレイク中は ガードしない ように した ぶん 継続率が 上がったので、キャラの 値を 通常 -10%・SUPER -9% (継続率 約70% / 約85% を 守る)
     //   add: 役を引いたときに 上がる 量 (強い役・チャンス目ほど 大きい)。'kill' の役 (config.damage) は 100%
     //   breakAdd: ブレイクしたときに 上がる 量。上限は 100%
     //   revivalShow: 復活の 撃破で 出す 撃破率 (表示だけ。7.77 = 777%)
@@ -593,7 +595,7 @@ window.GAME_CONFIG = {
 
     // ----- ブレイク -----
     // BATTLE 中に rates の役が出たとき、その確率でブレイク状態に (今の敵を倒すか RASH が終わるまで続く)。
-    // 2026-10-27 から、ブレイクしたら 撃破率が killRate.breakAdd 上がる (前は 敵が ガードできなく なった)
+    // 2026-10-27 から、ブレイクしたら 撃破率が killRate.breakAdd 上がる。2026-11-14 (ユーザー指摘) から ブレイク中は 敵が ガードも できない
     breakState: {
         rates: {
             cherry: 0.25,     // チェリー揃い
@@ -621,31 +623,31 @@ window.GAME_CONFIG = {
         {
             id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
             lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！' },
-            weight: 50, superWeight: 40, hp: 60, killRate: 0.38, superKillRate: 0.57,
+            weight: 50, superWeight: 40, hp: 60, killRate: 0.28, superKillRate: 0.48,
             bonus: { type: 'coins', value: 35 }   // 2026-10-23 A5 で BIG・REG を足して 35 → 20 にしたが、BIG・REG を消したので 35 に戻した
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
             lines: { intro: '響きです。', special: 'これが４DXだ！' },
-            weight: 30, superWeight: 25, hp: 90, killRate: 0.34, superKillRate: 0.52,
+            weight: 30, superWeight: 25, hp: 90, killRate: 0.24, superKillRate: 0.43,
             bonus: { type: 'games', value: 5 }
         },
         {
             id: 'shibata', name: 'シバター', special: 'シバタードライバー',
             lines: { intro: 'ぶんぶん！', special: 'バーイ！' },
-            weight: 15, superWeight: 15, hp: 120, killRate: 0.3, superKillRate: 0.47,
+            weight: 15, superWeight: 15, hp: 120, killRate: 0.2, superKillRate: 0.38,
             bonus: { type: 'probUp', value: 1.5, games: 10 }
         },
         {
             id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
             lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。' },
-            weight: 8, superWeight: 12, hp: 150, killRate: 0.26, superKillRate: 0.42,
+            weight: 8, superWeight: 12, hp: 150, killRate: 0.16, superKillRate: 0.33,
             bonus: { type: 'coins', value: 120 }   // 2026-10-23 A5 で 120 → 60 にしたが、BIG・REG を消したので 120 に戻した
         },
         {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
             lines: { special: '金返せ！' },
-            weight: 16, superWeight: 15, hp: 200, killRate: 0.08, superKillRate: 0.7,   // 2026-11-03 ユーザー指定: SUPER 中は いつでも 候補で、ほかより たおしやすい (ほかの SUPER の 撃破率を 少し 下げて SUPER の 継続率 約85% を 守った)
+            weight: 16, superWeight: 15, hp: 200, killRate: 0.03, superKillRate: 0.61,   // 2026-11-03 ユーザー指定: SUPER 中は いつでも 候補で、ほかより たおしやすい (ほかの SUPER の 撃破率を 少し 下げて SUPER の 継続率 約85% を 守った)
             bonus: { type: 'tokka' },     // 撃破の報酬は上乗せ特化ゾーン (300枚保障。tokka)
             requiresUnlock: true          // 連数が rash.oni.unlockStreak に達するまで出ない (SUPER 中は常に候補)
         }
