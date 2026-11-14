@@ -690,5 +690,5 @@ const Characters = (() => {
         return list;
     }
 
-    return { drawEnemy, drawCompanion, size, rects, has: id => Boolean(ENEMIES[id]), isCompanion: id => Boolean(COMPANIONS[id]) };
+    return { drawEnemy, drawCompanion, size, rects, rig: id => RIGS[id] || null, has: id => Boolean(ENEMIES[id]), isCompanion: id => Boolean(COMPANIONS[id]) };
 })();

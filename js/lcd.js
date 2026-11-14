@@ -391,7 +391,8 @@ const Lcd = (() => {
     }
 
     // 仲間をこおりくんの後ろに並べて描く (近い順に後ろへ)
-    function drawParty(time, kooriX, groundY, scale) {
+    // smooth: 特化ゾーンでは 腕と 足を なめらかに 動かして 踊る (js/lcd/smooth-pose.js。2026-11-14 ユーザー指定)
+    function drawParty(time, kooriX, groundY, scale, smooth = false) {
         if (!koori.visible) return;
         const moving = isWalking() || koori.moving;
         party.forEach((id, k) => {
@@ -411,6 +412,11 @@ const Lcd = (() => {
                 Characters.drawCompanion(ctx, id, 0, h * scale / 2, { scale, frame: 0 });
                 ctx.restore();
                 if (fall >= 1) drawDizzy(time + k * 300, x - h * scale / 2 + 4, groundY - w * scale - 2);
+                return;
+            }
+            if (smooth && typeof SmoothPose !== 'undefined') {
+                const pose = SmoothPose.dance(BeatFx.musicTime(time, 300), 300, { arm: 70, leg: 1, phase: k * 0.5 });
+                SmoothPose.drawEnemy(ctx, id, x, groundY - pose.bob * 2 + valueAt(jumpOf(id), time), { scale, pose });
                 return;
             }
             Characters.drawCompanion(ctx, id, x, groundY + bob + valueAt(jumpOf(id), time), { scale, frame });
@@ -2615,8 +2621,10 @@ const Lcd = (() => {
         }
         ctx.globalAlpha = 1;
         if (hot >= 4) drawRainbowGlow(cx, ground - size / 2, size, (time / 6) % 360);
-        drawSprite(ctx, SPRITES.koori, Math.floor(time / 200) % 2 ? 'walk2' : 'walk1', cx - size / 2, ground - size + valueAt(koori.jump, time), 3);
-        drawParty(time, cx - size / 2 - 4, ground, 1.5);
+        // 2026-11-14 (ユーザー指定: なめらかに): 曲の 拍で はずみながら 足を 交互に 上げる (2 コマの 切り替えを やめた)
+        const kp = SmoothPose.dance(BeatFx.musicTime(time, 300), 300, { leg: 1 });
+        SmoothPose.drawSprite(ctx, SPRITES.koori, 'walk1', cx - size / 2, ground - size + valueAt(koori.jump, time) - kp.bob * 3, 3, { legRows: 3, pose: kp });
+        drawParty(time, cx - size / 2 - 4, ground, 1.5, true);
     }
 
     // おかランプ (新作と同じ。js/lcd/okalamp-view.js): まんなかで8頭身のおかがっぱがキレのあるダンスを踊り、
@@ -2647,7 +2655,16 @@ const Lcd = (() => {
         ctx.ellipse(ox, ground - 40, 26 + charge * 22, 40 + charge * 18, 0, 0, Math.PI * 2);
         ctx.fill();
         const struck = t.strikeAt && time - t.strikeAt < 1200;
-        Characters.drawEnemy(ctx, 'onioni', ox + (struck ? 30 : 0), ground, { scale: 2, frame: Math.floor(time / 300) % 2, flip: true });
+        // 2026-11-14 (ユーザー指定: なめらかに): 気合が たまるほど 金棒を ゆっくり ふり上げ、足を 交互に ふみしめる。一撃は 金棒を ふり下ろす
+        const om = BeatFx.musicTime(time, 300);
+        const sk = struck ? Math.min(1, (time - t.strikeAt) / 220) : 0;
+        const op = {
+            armR: struck ? 150 - 170 * (1 - Math.pow(1 - sk, 3)) : 20 + charge * 100 + 8 * Math.sin(time / 180),
+            armL: 10 + 12 * (0.5 - 0.5 * Math.cos(Math.PI * om / 300)),
+            legL: struck ? 0 : Math.max(0, Math.sin(Math.PI * om / 600)) * 2,
+            legR: struck ? 0 : Math.max(0, -Math.sin(Math.PI * om / 600)) * 2
+        };
+        SmoothPose.drawEnemy(ctx, 'onioni', ox + (struck ? 30 * Math.min(1, sk * 2) : 0), ground - (struck ? 0 : Math.abs(Math.sin(Math.PI * om / 600)) * 2), { scale: 2, flip: true, pose: op });
         // 千両箱
         const bx = 170, by = ground - 30;
         ctx.fillStyle = '#6a3a14';
@@ -2688,7 +2705,10 @@ const Lcd = (() => {
         ctx.fillStyle = '#a01828';
         ctx.fillRect(cx - 36, ground - 34, 72, 10);
         // すわっている KING.ASAHARA (足元を座面に合わせる)
-        Characters.drawEnemy(ctx, 'asahara', cx, ground - 6, { scale: 2, frame: Math.floor(time / 600) % 2 });
+        // 2026-11-14 (ユーザー指定: なめらかに): すわった まま 王笏を ゆったり ふり、左手で 手まねき (4 拍で 1 往復)
+        const am = BeatFx.musicTime(time, 300);
+        const ap = SmoothPose.dance(am, 300, { arm: 30, base: 0, leg: 0, beats: 4 });
+        SmoothPose.drawEnemy(ctx, 'asahara', cx, ground - 6 - ap.bob, { scale: 2, pose: { armL: ap.armL * 0.7, armR: ap.armR } });
         // 集まった仲間 (左右から歩いてくる)
         t.arrived.forEach((id, i) => {
             const fromLeft = i === 0;
@@ -2697,7 +2717,12 @@ const Lcd = (() => {
             const home = fromLeft ? 44 : W - 44;
             const x = fromLeft ? -30 + (home + 30) * k : W + 30 - (W + 30 - home) * k;
             drawRainbowGlow(x, ground - 40, 34, (time / 6 + i * 120) % 360);
-            Characters.drawEnemy(ctx, id, x, ground, { scale: 2, frame: Math.floor(time / 400) % 2, flip: fromLeft });
+            // 歩いて くる あいだは 足早に、着いたら 曲に 合わせて 踊る (2026-11-14 ユーザー指定: なめらかに)
+            const walking = k < 1;
+            const pp = walking
+                ? SmoothPose.dance(time, 120, { arm: 20, base: 0, leg: 2 })
+                : SmoothPose.dance(BeatFx.musicTime(time, 300), 300, { arm: id === 'sasaki' ? 50 : 70, leg: 1, phase: i });
+            SmoothPose.drawEnemy(ctx, id, x, ground - pp.bob * 2, { scale: 2, flip: fromLeft, pose: pp });
         });
         // まだ来ていない席は影だけ
         if (t.arrived.length < 2) {
