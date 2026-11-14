@@ -682,5 +682,13 @@ const Characters = (() => {
         return c ? { w: c.w, h: c.h } : { w: 0, h: 0 };
     }
 
-    return { drawEnemy, drawCompanion, size, has: id => Boolean(ENEMIES[id]), isCompanion: id => Boolean(COMPANIONS[id]) };
+    // もとの 絵の 四角の 一覧 { x, y, w, h, color } (腕・足は 動かさない)。おかランプの 8頭身おかがっぱの 頭に 使う
+    function rects(id, frame = 0) {
+        const c = ENEMIES[id] || COMPANIONS[id];
+        const list = [];
+        if (c) c.draw((x, y, w, h, color) => list.push({ x, y, w, h, color }), frame);
+        return list;
+    }
+
+    return { drawEnemy, drawCompanion, size, rects, has: id => Boolean(ENEMIES[id]), isCompanion: id => Boolean(COMPANIONS[id]) };
 })();
