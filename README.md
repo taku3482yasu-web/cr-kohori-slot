@@ -853,7 +853,7 @@ A5（疑似ボーナス・モード・ゾーン・天井）を足して合わせ
   - 当たり音 `bonusIn`：突入のファンファーレ「パパパパーン！」（城突入成功・ロングフリーズ・SUPER 突入）
   - 消灯音 `puchun`：ロングフリーズの暗転「プチュン」
   - 試聴は `tools/sound-test.html`
-- 音声ファイルの曲も流せる（`BGM_FILES`。2026-11-13）：どの曲も `sound/<曲の名前>.mp3`（field・stage-tsugakuro・stage-ongagawa・stage-ebisucho・castle・battle・rash2・rash3・rash4・super・defeat・dance・okapipo・tokka-fire・tokka-ikkeki・tokka-asahara）を置けばその曲になる。通常時はステージ（マップ）ごとの曲（2026-11-13 ユーザー指定。`main.js` の `STAGE_SONGS`。ない ステージは field.mp3 → チップチューン）。おにおにRASH の曲は 5 曲（battle・battle2・rash2〜4）のうち置いてある曲から、RASH に入るたびにランダムで 1 曲（2026-11-13 ユーザー指定。`main.js` の `RASH_SONGS`）。SUPER は super（歌なし）・super2（歌あり）からランダム（`SUPER_SONGS`）。**2026-11-14 にユーザーが Suno で作った 17 曲を入れた**。前の曲（チップチューン。おかランプだけは前の Suno の曲「おかピポ・ナイト」= `sound/okapipo-old.mp3`）も残してあり、⚙ SETTINGS の「サウンド」→「曲」で 今の曲 / 前の曲 を選べる（2026-11-14 ユーザー指定。`Bgm.setStyle('new' | 'old')`、`BGM_FILES` の `old`。選んだものはブラウザに保存）（field.mp3 はなし。ステージの曲が鳴らないときはチップチューン。曲の頭と終わりの無音を切り、`gain` を曲の大きさを測ってそろえた）。上乗せ特化ゾーンは見せ方ごとの曲（2026-11-13 ユーザー指定。`main.js` の `TOKKA_TRACKS`。ファイルがないときは今までどおり RASH・SUPER の曲）。Suno に入れる内容は `sound/SUNO.md`、おかランプは `sound/okapipo.mp3`（Suno のラップ入りの曲。`sound/README.md`）。ファイルがない・読めないときは `fallback` のチップチューン。`<audio>` で鳴らすので `index.html` を直接開いても鳴る。サービスワーカーは `sound/` を保存しない（少しずつ読み込むため）
+- 音声ファイルの曲も流せる（`BGM_FILES`。2026-11-13）：どの曲も `sound/<曲の名前>.mp3`（field・stage-tsugakuro・stage-ongagawa・stage-ebisucho・castle・battle・rash2・rash3・rash4・super・defeat・dance・okapipo・tokka-fire・tokka-ikkeki・tokka-asahara）を置けばその曲になる。通常時はステージ（マップ）ごとの曲（2026-11-13 ユーザー指定。`main.js` の `STAGE_SONGS`。ない ステージは field.mp3 → チップチューン）。内定の時ゾーンは専用の英語の曲（`naitei.mp3`。2026-11-14）。おにおにRASH の曲は 7 曲（battle・battle2・rash2〜4・rash-koori-the-fire「こおりくん THE FIRE」・テーマ曲 theme「輝く日々へ」。後ろの 2 曲と naitei は 2026-11-14 に追加）のうち置いてある曲から、RASH に入るたびにランダムで 1 曲（2026-11-13 ユーザー指定。`main.js` の `RASH_SONGS`）。SUPER は super（歌なし）・super2（歌あり）からランダム（`SUPER_SONGS`）。**2026-11-14 にユーザーが Suno で作った 17 曲を入れた**。前の曲（チップチューン。おかランプだけは前の Suno の曲「おかピポ・ナイト」= `sound/okapipo-old.mp3`）も残してあり、⚙ SETTINGS の「サウンド」→「曲」で 今の曲 / 前の曲 を選べる（2026-11-14 ユーザー指定。`Bgm.setStyle('new' | 'old')`、`BGM_FILES` の `old`。選んだものはブラウザに保存）（field.mp3 はなし。ステージの曲が鳴らないときはチップチューン。曲の頭と終わりの無音を切り、`gain` を曲の大きさを測ってそろえた）。上乗せ特化ゾーンは見せ方ごとの曲（2026-11-13 ユーザー指定。`main.js` の `TOKKA_TRACKS`。ファイルがないときは今までどおり RASH・SUPER の曲）。Suno に入れる内容は `sound/SUNO.md`、おかランプは `sound/okapipo.mp3`（Suno のラップ入りの曲。`sound/README.md`）。ファイルがない・読めないときは `fallback` のチップチューン。`<audio>` で鳴らすので `index.html` を直接開いても鳴る。サービスワーカーは `sound/` を保存しない（少しずつ読み込むため）
 - 場面ごとに4曲: 通常時（明るい行進）、SE城前・城突入チャレンジ（不穏）、おにおにRASH（速いバトル曲）、SUPERおにおにRASH（ファンファーレ風）
 - 最初のクリックかキー入力で鳴り始める（ブラウザの自動再生の制限のため）
 - ⚙ SETTINGS の「サウンド」で BGM のオン・オフと音量を変更（ブラウザに保存）
@@ -924,7 +924,7 @@ A5（疑似ボーナス・モード・ゾーン・天井）を足して合わせ
 
 - **ドット絵** (`js/pixel-hd.js`): 液晶の canvas を 3 倍の 画素に (座標は 256x144 の まま)。キャラ・背景・リールの 図柄は、もとの ドット絵から 自動で 4 倍の 細かさに 作り直す (Scale2x を 2 回で 輪郭を なめらかに・目や 口など 小さい かたまりは そのまま・外側の ふちに 光と 影と 細い 輪郭)。もとの 絵の データは 変えて いない
 - **カメラ** (`js/lcd/camera.js`): 通常時の 道・SE城前・城突入チャレンジと RASH の BATTLE で、数秒ごとに ショットが 変わる (引き・寄り・こおりくん / 敵の アップ・下から あおる・傾ける・反対側から・横に 流す)。攻撃が 当たると ぐっと 寄る。文字の 表示は 動かさない。⚙ SETTINGS の「演出」で 止められる
-- **曲送り**: 台の「♪ 曲送り」ボタンで 今の 場面の 別の 曲へ (RASH 5 曲・SUPER 2 曲・通常時 3 曲。1 曲しか ない 場面は 全部の 曲から)。選んだ 曲は 場面ごとに 覚えて おく (`koori-song-pref`)
+- **曲送り**: 台の「♪ 曲送り」ボタンで 今の 場面の 別の 曲へ (RASH 7 曲・SUPER 2 曲・通常時 3 曲。1 曲しか ない 場面は 全部の 曲から)。RASH・SUPER の あいだは 特化ゾーンの 4 曲 (おかランプ・こおりファイアー・一撃入魂・ASAHARA CHANCE) も 選べる (2026-11-14 ユーザー指定。`main.js` の `TOKKA_SONGS`)。選んだ 曲は 場面ごとに 覚えて おく (`koori-song-pref`)
 
 ### セットの 抽選と おにおに乱入 (2026-11-14 ユーザー指定)
 

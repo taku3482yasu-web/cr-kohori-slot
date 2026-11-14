@@ -60,7 +60,7 @@
         ['okure', '遅れ'], ['gyaku', '逆回転'], ['talk', 'ふるカワ']
     ];
     const BGM = [
-        ['field', '通常時'], ['tsugakuro', 'ステージ: 通学路'], ['ongagawa', 'ステージ: 遠賀川'], ['ebisucho', 'ステージ: 恵比寿町'], ['castle', 'SE城前・城突入チャレンジ'], ['battle', 'おにおにRASH (歌なし)'], ['battle2', 'おにおにRASH (歌あり)'], ['rash2', 'RASH 2曲目: こおりくん'], ['rash3', 'RASH 3曲目: SE城 突撃'], ['rash4', 'RASH 4曲目: 宿敵おにおに'],
+        ['field', '通常時'], ['tsugakuro', 'ステージ: 通学路'], ['ongagawa', 'ステージ: 遠賀川'], ['ebisucho', 'ステージ: 恵比寿町'], ['castle', 'SE城前・城突入チャレンジ'], ['battle', 'おにおにRASH (歌なし)'], ['battle2', 'おにおにRASH (歌あり)'], ['rash2', 'RASH 2曲目: こおりくん'], ['rash3', 'RASH 3曲目: SE城 突撃'], ['rash4', 'RASH 4曲目: 宿敵おにおに'], ['kooriFire', 'RASH: こおりくん THE FIRE'], ['theme', 'RASH: テーマ曲 輝く日々へ'], ['naitei', '内定の時ゾーン'],
         ['super', 'SUPER (歌なし)'], ['super2', 'SUPER (歌あり)'], ['defeat', 'バトル敗北・復活待ち'], ['dance', 'ダンシングステージ'],
         ['okapipo', 'おかランプ (オカピポ)'], ['tokkaFire', 'こおりファイアー'],
         ['tokkaIkkeki', 'おにおに一撃入魂'], ['tokkaAsahara', 'ASAHARA CHANCE']
@@ -93,7 +93,7 @@
         const b = button('bgm', label, file, '', () => {
             document.querySelectorAll('#bgm button').forEach(x => x.classList.remove('playing'));
             b.classList.add('playing');
-            Bgm.play(key, key.startsWith('tokka') ? 'battle' : null);
+            Bgm.play(key, key.startsWith('tokka') || key === 'naitei' ? 'battle' : null);
         });
         // ファイルが 置いて あるか
         const st = document.createElement('div');

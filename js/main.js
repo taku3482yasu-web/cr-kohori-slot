@@ -44,7 +44,7 @@
     // 場面ごとの BGM
     // おにおにRASH の 曲 (2026-11-13 ユーザー指定: 曲を 増やす)。RASH に 入る たびに、sound/ に 置いて ある 曲から ランダムで 1 曲。
     //   置いて いない 曲は 選ばない。1 曲も ない ときは battle (チップチューン)。RASH の あいだ (特化ゾーン・復活を はさんでも) は 同じ 曲
-    const RASH_SONGS = ['battle', 'battle2', 'rash2', 'rash3', 'rash4'];
+    const RASH_SONGS = ['battle', 'battle2', 'rash2', 'rash3', 'rash4', 'kooriFire', 'theme'];   // kooriFire・theme は 2026-11-14 追加
     let rashSong = null;
     // SUPERおにおにRASH の 曲 (2026-11-14): 歌なし (super) と 歌あり (super2) から、SUPER に 入る たびに ランダム
     const SUPER_SONGS = ['super', 'super2'];
@@ -63,26 +63,29 @@
     const TOKKA_TRACKS = { fire: 'tokkaFire', ikkeki: 'tokkaIkkeki', asahara: 'tokkaAsahara' };
     // 特化ゾーンの 曲の ファイルが ない ときに 流す チップチューン (今までと 同じく RASH / SUPER の 曲)。ほかの 曲は null (BGM_FILES の fallback)
     function bgmFallback(s, track) {
-        if (!Object.values(TOKKA_TRACKS).includes(track)) return null;
+        if (!Object.values(TOKKA_TRACKS).includes(track) && track !== 'naitei') return null;
         return s.mode === MODES.SUPER_RASH ? 'super' : 'battle';
     }
     // ----- 曲送り (2026-11-14 ユーザー指定: 曲の 切り替えを できる ように) -----
     // 台の「♪ 曲送り」ボタンで、今の 場面の 別の 曲へ (フェードで 切り替わり、曲名が 出る)。選んだ 曲は 場面ごとに 覚えておく。
-    //   RASH は 5 曲・SUPER は 2 曲・通常時は ステージの 3 曲から。1 曲しか ない 場面 (SE城前・ダンス・特化ゾーン) は 全部の 曲から
+    //   RASH は 7 曲・SUPER は 2 曲・通常時は ステージの 3 曲から。1 曲しか ない 場面 (SE城前・ダンス・特化ゾーン・内定の時) は 全部の 曲から
+    //   2026-11-14 (ユーザー指定): RASH・SUPER の あいだは 特化ゾーンの 曲 (おかランプ・こおりファイアー・一撃入魂・ASAHARA CHANCE) も 選べる
     const SONG_PREF_KEY = 'koori-song-pref';
-    const ALL_SONGS = ['tsugakuro', 'ongagawa', 'ebisucho', 'castle', 'battle', 'battle2', 'rash2', 'rash3', 'rash4', 'super', 'super2', 'dance', 'okapipo', 'tokkaFire', 'tokkaIkkeki', 'tokkaAsahara'];
+    const TOKKA_SONGS = ['okapipo', 'tokkaFire', 'tokkaIkkeki', 'tokkaAsahara'];
+    const ALL_SONGS = ['tsugakuro', 'ongagawa', 'ebisucho', 'castle', 'battle', 'battle2', 'rash2', 'rash3', 'rash4', 'kooriFire', 'theme', 'super', 'super2', 'dance', ...TOKKA_SONGS, 'naitei'];
     let songPref = {};
     try { songPref = JSON.parse(localStorage.getItem(SONG_PREF_KEY)) || {}; } catch (e) { songPref = {}; }
     function songScene(s) {
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return null;   // 復活待ちは 変えない
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA) return `tokka-${s.rash.tokka.kind}`;
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.NAITEI) return 'naitei';
         if (s.mode === MODES.SUPER_RASH) return 'super';
         if (s.mode === MODES.RASH) return 'rash';
         if (s.mode === MODES.CASTLE_CHALLENGE || s.normal.map === config.map.castle) return 'castle';
         if (s.normal.dance) return 'dance';
         return 'stage';
     }
-    const songPool = scene => (scene === 'rash' ? RASH_SONGS : scene === 'super' ? SUPER_SONGS : scene === 'stage' ? STAGE_SONGS : ALL_SONGS);
+    const songPool = scene => (scene === 'rash' ? [...RASH_SONGS, ...TOKKA_SONGS] : scene === 'super' ? [...SUPER_SONGS, ...TOKKA_SONGS] : scene === 'stage' ? STAGE_SONGS : ALL_SONGS);
     const prefFor = scene => (scene && songPref[scene] && Bgm.fileState(songPref[scene]) !== false ? songPref[scene] : null);
     function nextSong() {
         const scene = songScene(state);
@@ -113,6 +116,8 @@
             if (kind === 'okaLamp') return 'okapipo';   // おかランプは ラップ入りの 曲 (ファイルが ない ときは ダンスの 曲)
             if (TOKKA_TRACKS[kind]) return TOKKA_TRACKS[kind];
         }
+        // 内定の時ゾーンは 専用の 英語の 曲 (2026-11-14 ユーザー指定。負けた ゲームの 敗北の 曲は lcd.js が 流す)
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.NAITEI) return 'naitei';
         if (s.mode === MODES.SUPER_RASH) {
             if (!superSong) superSong = pickSong(SUPER_SONGS);
             return superSong;
@@ -139,7 +144,7 @@
         Bgm.init(Sound.context());
         if (audioStarted) return;
         audioStarted = true;
-        Bgm.preload([...RASH_SONGS, ...SUPER_SONGS, ...STAGE_SONGS]);   // RASH・ステージの 曲が 置いて あるかを 先に 調べる
+        Bgm.preload([...RASH_SONGS, ...SUPER_SONGS, ...STAGE_SONGS, ...TOKKA_SONGS]);   // RASH・ステージの 曲が 置いて あるかを 先に 調べる
     }
     document.addEventListener('pointerdown', startAudio, { once: true });
     document.addEventListener('keydown', startAudio, { once: true });

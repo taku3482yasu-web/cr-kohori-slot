@@ -39,6 +39,10 @@ const BGM_FILES = {
     rash2: { src: 'sound/rash2.mp3', bpm: 170.0, offset: 0.015, chorus: 28.25, title: 'こおりばりきつよい！', fallback: 'battle', gain: 0.7 },     // こおりくんの テーマ
     rash3: { src: 'sound/rash3.mp3', bpm: 155.0, offset: 0.016, chorus: 86.73, title: 'SE城 突撃', fallback: 'battle', gain: 0.64 },     // SE城 突撃 (ユーロビート)
     rash4: { src: 'sound/rash4.mp3', bpm: 178.0, offset: 0.014, chorus: 53.95, title: '宿敵おにおに', fallback: 'battle', gain: 0.67 },     // 宿敵おにおに
+    // 2026-11-14 (ユーザー指定: zip で 届いた 曲を 追加)。bpm・offset・chorus は 曲を 解析して 測った 値
+    theme: { src: 'sound/theme.mp3', bpm: 134.85, offset: 0.372, chorus: 98.26, title: '輝く日々へ', fallback: 'battle', gain: 0.78 },     // おにおにの野望の テーマ曲 (RASH の 曲の 1 つ)
+    kooriFire: { src: 'sound/rash-koori-the-fire.mp3', bpm: 150.0, offset: 0.09, chorus: 67.29, title: 'こおりくん THE FIRE', fallback: 'battle', gain: 0.7 }, // シリーズ全体の ラップの 曲 (RASH の 曲の 1 つ)
+    naitei: { src: 'sound/naitei.mp3', bpm: 150.0, offset: 0.01, chorus: 134.41, title: '内定の時', fallback: 'battle', gain: 0.7 },   // 内定の時ゾーン (英語の 曲。ない ときは RASH / SUPER の 曲)
     battle2: { src: 'sound/battle2.mp3', bpm: 177.76, offset: 0.084, chorus: 10.89, title: 'おにおにRASH (歌あり)', fallback: 'battle', gain: 0.72 }, // おにおにRASH (歌あり)
     super: { src: 'sound/super.mp3', bpm: 164.17, offset: 0.107, chorus: 105.37, title: 'SUPERおにおにRASH', fallback: 'super', gain: 0.8 },      // SUPERおにおにRASH (歌なし)
     super2: { src: 'sound/super2.mp3', bpm: 170.0, offset: 0.162, chorus: 62.28, title: 'SUPERおにおにRASH (歌あり)', fallback: 'super', gain: 0.78 },    // SUPERおにおにRASH (歌あり)。SUPER に 入る たびに super と ランダム
