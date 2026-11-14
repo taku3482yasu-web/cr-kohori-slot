@@ -3777,7 +3777,7 @@ const Lcd = (() => {
         try {
             await playEventList(events);
         } finally {
-            Bgm.endClimax();   // 盛り上がる ところで 止めた 曲を 戻す (次に 鳴る 曲は サビから)
+            Bgm.endClimax();   // 盛り上がる ところで 止めた 曲を 戻す (同じ 曲なら サビから・RASH などに 切り替わった 曲は 頭から)
         }
     }
     async function playEventList(events) {

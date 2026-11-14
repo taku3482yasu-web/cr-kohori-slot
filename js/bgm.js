@@ -181,7 +181,10 @@ const Bgm = (() => {
     const STOP_MS = 120;         // 一時停止・盛り上がる ところで 止める ときは すばやく
     const duck = { level: 1, min: 1, until: 0, timer: null };
     let climaxOn = false;        // 盛り上がる 演出の あいだ 曲を 止める
-    let chorusNext = false;      // 次に 鳴りはじめる 曲は サビから
+    // 盛り上がる ところの あと、止めて いた 曲を サビから 再開する (曲の 名前。false = しない)
+    // 2026-11-14 (ユーザー指定: RASH や 特化ゾーンなどの 曲は 入った ときに いちばん 最初から): サビから に するのは
+    //   演出の 前から 鳴って いた 同じ 曲が 再開する ときだけ。新しく 切り替わった 曲は いつも 頭から
+    let chorusNext = false;
     let lastFade = 0;
     const chorusOf = def => (style === 'old' ? def.oldChorus : def.chorus);
     const gainOf = def => (style === 'old' ? def.oldGain ?? def.gain : def.gain);
@@ -231,13 +234,16 @@ const Bgm = (() => {
             }
             if (audible) {
                 if (f.audio.paused && !f.starting) {
-                    if (chorusNext) {   // 盛り上がる ところの あと: サビから
+                    if (chorusNext) {   // 盛り上がる ところの あと: 同じ 曲なら サビから
+                        const same = chorusNext === f.name;
                         chorusNext = false;
-                        const c = chorusOf(BGM_FILES[f.name]);
-                        if (c != null) {
-                            try { f.audio.currentTime = c; } catch (e) { /* まだ 読み込み中 */ }
+                        if (same) {
+                            const c = chorusOf(BGM_FILES[f.name]);
+                            if (c != null) {
+                                try { f.audio.currentTime = c; } catch (e) { /* まだ 読み込み中 */ }
+                            }
+                            f.level = 0;
                         }
-                        f.level = 0;
                     }
                     f.starting = true;
                     f.audio.play().catch(() => { /* まだ 操作の 前 */ }).finally(() => { f.starting = false; });
@@ -325,9 +331,9 @@ const Bgm = (() => {
         if (!chip) return;   // 音声ファイルの 曲 (syncFile が 鳴らす)
         const track = BGM_TRACKS[chip];
         const stepDur = 60 / track.bpm / 2;
-        if (chorusNext) {   // 盛り上がる ところの あと: チップチューンは 曲の 後半から
+        if (chorusNext) {   // 盛り上がる ところの あと: 同じ 曲なら チップチューンは 曲の 後半から
+            if (chorusNext === trackName) step = Math.floor(track.melody.length / 2);
             chorusNext = false;
-            step = Math.floor(track.melody.length / 2);
         }
         // 描画が 重くて 予約が 間に合わなかった ときは、遅れた ぶんの 拍を とばして 拍子を 保つ
         // (前は 時刻だけ 今に 合わせて 拍は そのまま だったので、リズムが ずれて 飛んだように 聞こえた。2026-11-13)
@@ -352,9 +358,17 @@ const Bgm = (() => {
         fallbackName = fallback;
         cancelScheduled();   // 前の 曲の 予約を 止める (重ならない ように)
         // 前の 曲 (音声ファイル) は すぐ 止めずに syncFile が フェードアウトする (2026-11-14 ユーザー指摘: ぶつ切り)
+        const changed = trackName !== name;
         trackName = name;
         step = 0;
-        fileOf(name);
+        // 新しく 入った 曲は いちばん 最初から (前に 鳴らして フェードアウト中・途中で 止めた 曲でも 頭に 戻す)
+        chorusNext = false;
+        const next = fileOf(name);
+        if (changed && next && !next.failed) {
+            if (!next.audio.paused) next.audio.pause();
+            next.level = 0;
+            try { next.audio.currentTime = 0; } catch (e) { /* まだ 読み込み中 */ }
+        }
         if (ctx) nextTime = ctx.currentTime + 0.1;
         syncFile();
     }
@@ -462,10 +476,12 @@ const Bgm = (() => {
         duck.timer = setTimeout(applyVolume, duck.until - now + 20);   // チップチューンの 音量を 戻す
     }
     // 盛り上がる ところ (当たり・復活 など。2026-11-14 ユーザー指定): 曲を すっと 止めて 告知音を 目立たせ、
-    // 演出の あと (endClimax) 次に 鳴る 曲は サビから
+    // 演出の あと (endClimax)、同じ 曲が 続く ときは サビから (新しく 切り替わった 曲は 頭から)
     function climax() {
         climaxOn = true;
-        chorusNext = true;
+        // サビから 再開するのは、いま 鳴って いる 曲だけ (このあと 別の 曲に 切り替われば その曲は 頭から)
+        const cur = fileOf(trackName);
+        chorusNext = trackName && (chipName() || (cur && !cur.audio.paused && cur.audio.currentTime > 0.5)) ? trackName : false;
         cancelScheduled();
         applyVolume();
     }
