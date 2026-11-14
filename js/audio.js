@@ -7,7 +7,24 @@ const Sound = (() => {
     let muted = false;   // 違和感演出の 無音 (2026-10-23 A4)
 
     function init() {
-        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!ctx) {
+            ctx = new (window.AudioContext || window.webkitAudioContext)();
+            loadHeso();
+        }
+    }
+
+    // パチンコの 先バレ音 (ユーザーの 録音。js/sound-heso.js) を 読み込む。一発告知で 鳴らす (2026-11-14 ユーザー指定)
+    //   鳴らす ところ (秒) と 大きさは パチンコと 同じ (koori-pachinko の config.show.voice: 1.3〜3.5 秒・4 倍)
+    const HESO = { start: 1.3, end: 3.5, gain: 4 };
+    let hesoBuffer = null;
+    function loadHeso() {
+        if (typeof HESO_SOUND === 'undefined') return;
+        try {
+            const bin = atob(HESO_SOUND.split(',')[1]);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            ctx.decodeAudioData(bytes.buffer).then(buf => { hesoBuffer = buf; }, () => { hesoBuffer = null; });
+        } catch (e) { hesoBuffer = null; }
     }
 
     // タブを 切りかえて 画面が かくれたら 音を 止め、もどったら 再開する (2026-11-04 ユーザー指定)
@@ -181,24 +198,7 @@ const Sound = (() => {
         src.start(t0);
     }
 
-    // 1 回の「キュイン」(下から 上へ 一気に 駆け上がって、上で ふるえる)
-    function kyuin(at, from, to, vol, echo = true) {
-        voice({ type: 'square', from, to, at, dur: 0.24, glide: 0.07, vol, vib: { rate: 38, depth: to * 0.025 }, echo, lp: 7000 });
-        voice({ type: 'triangle', from: from * 2, to: to * 2, at, dur: 0.2, glide: 0.07, vol: vol * 0.6, detune: 8, echo });
-    }
-
     const HIT_SOUNDS = {
-        // 先バレ: レバー ON の「キュイン！」(AT 機の レバー ON 先告知の 感じ)。1 発 + 少し 高い 2 発目
-        sakibare() {
-            kyuin(0, 700, 2300, 0.07);
-            kyuin(0.15, 900, 2800, 0.06);
-        },
-        // 当たり確定: 「キュインキュインキュイン！」(上がりながら 4 回) → 上で キラキラが 残る
-        kakutei() {
-            [0, 0.13, 0.26, 0.39].forEach((t, i) => kyuin(t, 800 + i * 120, 2600 + i * 260, 0.07));
-            [0, 0.07, 0.14, 0.21, 0.28, 0.35].forEach((t, i) =>
-                voice({ type: 'triangle', from: [2637, 3136, 3951, 3136, 3951, 4699][i], at: 0.55 + t, dur: 0.35, vol: 0.035, echo: true }));
-        },
         // 大当たりの 重低音:「ドゥゥゥン…」(腹に 響く 低い うなり + ドスッ。フリーズ・突入の 瞬間)
         // 2026-11-14 (ユーザー指定: もっと 長く「ブウううううううん」と): 4.5 秒。低い うなりを のばし、
         //   うねり (ビブラート) を かけて ゆっくり 下がり、最後に すうっと 消える。ひずみの 層で 小さい スピーカーでも 聞こえる
@@ -210,24 +210,24 @@ const Sound = (() => {
             voice({ type: 'square', from: 58.5, to: 41.3, at: 0.02, dur: 4.3, glide: 4, vol: 0.05, attack: 0.05, hold: 2.2, lp: 240, detune: 9 });
             voice({ type: 'sine', from: 29, to: 24, at: 0, dur: 4.2, glide: 4, vol: 0.35, attack: 0.05, hold: 2.4 });   // 腹に くる いちばん 低い 音
         },
-        // 当たり音 (突入の ファンファーレ):「パパパパーン！」(上がる 和音を 刻んで、最後に のばす)
-        bonusIn() {
-            const chords = [[523.25, 659.25, 783.99], [587.33, 739.99, 880], [659.25, 830.61, 987.77]];
-            chords.forEach((ch, i) => ch.forEach(f =>
-                voice({ type: 'sawtooth', from: f, at: i * 0.12, dur: 0.11, vol: 0.035, lp: 3200 })));
-            [698.46, 880, 1046.5, 1396.9].forEach(f =>
-                voice({ type: 'sawtooth', from: f, at: 0.4, dur: 1.3, vol: 0.04, attack: 0.02, hold: 0.6, lp: { from: 900, to: 5000 }, vib: { rate: 5.5, depth: 4 } }));
-            voice({ type: 'square', from: 87.31, at: 0.4, dur: 1.2, vol: 0.08, lp: 400 });
-        },
-        // 一発告知 (2026-11-14 ユーザー指定: 当たり・復活 など 盛り上がる ところで 曲を 止めて 鳴らす):
-        //   無音の 一瞬の あとに「ピキュイーン!!」(高く 上がる キュイン + 鐘の ような 余韻) と 腹に 響く ドスッ
+        // 一発告知 (2026-11-14 ユーザー指定: 当たり・復活 など 盛り上がる ところで 曲を 止めて 鳴らす)
+        //   2026-11-14 作り直し (ユーザー指摘: 前より 劣化・情けない → パチンコの 先バレ音を 参考に):
+        //   パチンコの 先バレ音 (ユーザーの 録音) を 鳴らし、高い 音に だけ やまびこを かけて 広がりを 出す。腹に 響く ドスッ も
         kokuchi() {
             thump(0, 0.35, 0.8, 220);
-            kyuin(0, 500, 3400, 0.09);
-            voice({ type: 'square', from: 1200, to: 4200, at: 0.02, dur: 0.5, glide: 0.18, vol: 0.05, echo: true, lp: 9000 });
-            [2093, 2637, 3136, 4186].forEach((f, i) =>
-                voice({ type: 'triangle', from: f, at: 0.22 + i * 0.015, dur: 1.4, vol: 0.05, attack: 0.005, hold: 0.1, echo: true }));
-            voice({ type: 'sine', from: 1046.5, at: 0.22, dur: 1.6, vol: 0.06, attack: 0.005, echo: true });
+            if (!hesoBuffer) {   // まだ 読み込めて いない ときは 前の 虹の 音
+                sequence([523.25, 659.25, 783.99, 1046.5, 1318.5, 1568, 2093], 110, 'triangle', 0.5, 0.09);
+                return;
+            }
+            const b = busOf();
+            const src = ctx.createBufferSource();
+            const gain = ctx.createGain();
+            src.buffer = hesoBuffer;
+            gain.gain.value = HESO.gain;
+            src.connect(gain);
+            gain.connect(b.comp);
+            gain.connect(b.echo);
+            src.start(ctx.currentTime, HESO.start, HESO.end - HESO.start);
         },
         // 消灯 (プチュン): 液晶・リールが ふっと 消える ときの 音
         puchun() {
@@ -276,9 +276,10 @@ const Sound = (() => {
         miss: () => sequence([220, 160], 200, 'sawtooth', 0.4, 0.06),
         // 期待度の 演出 (2026-10-23 A3): 先バレ音・確定音・PUSH
         zencho: () => { sweep(70, 45, 'sawtooth', 0.8, 0.09); setTimeout(() => sweep(90, 50, 'sawtooth', 0.7, 0.07), 500); },   // 前兆の はじまり (ゴゴゴ)
-        // 2026-11-13: 先バレ・確定・重低音・突入の 音を 作り直した (HIT_SOUNDS)
-        sakibare: () => canPlay() && HIT_SOUNDS.sakibare(),
-        kakutei: () => canPlay() && HIT_SOUNDS.kakutei(),
+        // 2026-11-14 (ユーザー指摘: 当たり音が 前より 劣化・情けない): 先バレ・確定・突入は 11-13 に 作り直す 前の 音に 戻した。
+        //   重低音 (ブウううん) と プチュンは そのまま
+        sakibare: () => { sweep(900, 1900, 'square', 0.16, 0.06); sweep(900, 1900, 'square', 0.16, 0.06, 170); },
+        kakutei: () => [0, 180, 360].forEach(d => sweep(1200, 2600, 'triangle', 0.2, 0.08, d)),
         // 重低音は 長いので、続けて 呼ばれても 2.5 秒は 重ねない (一発告知と 演出の 両方から 呼ばれる ため)
         juteion: () => {
             if (!canPlay()) return;
@@ -287,7 +288,8 @@ const Sound = (() => {
             lastJuteion = now;
             HIT_SOUNDS.juteion();
         },
-        bonusIn: () => canPlay() && HIT_SOUNDS.bonusIn(),
+        // 突入: 前と 同じ ファンファーレを 2 回 (はじめと 0.5 秒 あと)
+        bonusIn: () => { if (!canPlay()) return; api.fanfare(); setTimeout(() => api.fanfare(), 500); },
         puchun: () => canPlay() && HIT_SOUNDS.puchun(),
         // プレミア: 液晶が ひび割れて おにおに (2026-10-24): ピキッ / バリィン / 咆哮
         premiumCrack: () => { tone(2400, 'square', 0.05, 0.08); setTimeout(() => tone(1800, 'square', 0.05, 0.07), 70); sweep(3000, 900, 'square', 0.08, 0.08, 160); },

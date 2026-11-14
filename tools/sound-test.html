@@ -27,7 +27,7 @@
 <h1>音の 試聴</h1>
 <p>ボタンを 押すと 鳴る。金の 枠は 2026-11-13 に 作り直した・足した 音。</p>
 
-<h2>当たりの 音 (新しい 音)</h2>
+<h2>当たりの 音</h2>
 <div class="grid" id="hit"></div>
 
 <h2>そのほかの 効果音</h2>
@@ -38,14 +38,16 @@
 <div class="grid" id="bgm"></div>
 <p><button id="stop">■ BGM を 止める</button></p>
 
+<script src="js/sound-heso.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/bgm.js"></script>
 <script>
     const HIT = [
-        ['sakibare', '先バレ音', 'レバー ON の「キュイン！」'],
-        ['kakutei', '当たり確定音', '「キュインキュインキュイン」'],
+        ['kokuchi', '一発告知音', 'パチンコの 先バレ音 (録音) + やまびこ'],
+        ['sakibare', '先バレ音', 'レバー ON (前の 音)'],
+        ['kakutei', '当たり確定音', '上がる 音 3 回 (前の 音)'],
         ['juteion', '大当たりの 重低音', '「ドゥゥゥン…」'],
-        ['bonusIn', '当たり音 (突入)', '「パパパパーン！」'],
+        ['bonusIn', '当たり音 (突入)', 'ファンファーレ 2 回 (前の 音)'],
         ['puchun', '消灯音', 'フリーズの 暗転「プチュン」'],
         ['__combo', '金カットイン の 組み合わせ', '確定音 + 重低音'],
         ['__entry', '城突入 成功 の 組み合わせ', '確定音 → 重低音 + 突入']
