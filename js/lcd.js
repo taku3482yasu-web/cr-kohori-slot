@@ -373,7 +373,8 @@ const Lcd = (() => {
         if (!koori.visible) return;
         const bg = Backgrounds.get(displayMap);
         const moving = isWalking() || koori.moving;
-        const frame = moving && Math.floor(time / 140) % 2 ? 'walk2' : 'walk1';
+        // 2026-11-14 (ユーザー指定: ずっと 立った まま 動かない): 止まって いる ときも ゆっくり 足ぶみ
+        const frame = Math.floor(time / (moving ? 140 : 420)) % 2 ? 'walk2' : 'walk1';
         const bob = moving && frame === 'walk2' ? -1 : 0;
         const size = 16 * KOORI_SCALE;
         const x = valueAt(koori.x, time);
@@ -394,7 +395,8 @@ const Lcd = (() => {
         if (!koori.visible) return;
         const moving = isWalking() || koori.moving;
         party.forEach((id, k) => {
-            const frame = moving && Math.floor(time / 140 + k) % 2 ? 1 : 0;
+            // 止まって いる ときも ゆっくり 腕と 足を 動かす (2026-11-14 ユーザー指定)
+            const frame = Math.floor(time / (moving ? 140 : 420) + k) % 2;
             const bob = moving && frame ? -1 : 0;
             const x = kooriX + 8 - COMPANION_GAP * (k + 1);
             ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -1069,7 +1071,7 @@ const Lcd = (() => {
         // 仲間とこおりくん
         drawParty(time, KOORI_BATTLE_X, hall.groundY, 1.5);
         if (koori.visible) {
-            const frame = koori.moving && Math.floor(time / 100) % 2 ? 'walk2' : 'walk1';
+            const frame = Math.floor(time / (koori.moving ? 100 : 420)) % 2 ? 'walk2' : 'walk1';   // 止まって いる ときも 足ぶみ
             const x = valueAt(koori.x, time);
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.fillRect(x + 4, hall.groundY - 2, 24, 3);

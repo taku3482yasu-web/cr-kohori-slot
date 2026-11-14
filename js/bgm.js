@@ -449,7 +449,11 @@ const Bgm = (() => {
     }
 
     // 効果音の あいだ BGM を 下げる (ms ミリ秒、min まで)。js/audio.js が 大きな 効果音で 呼ぶ
+    //   2026-11-14 (ユーザー指定: 音楽が 大きく なったり 小さく なったり するので 常に 一定に): 下げない。
+    //   BGM は 全体を 下げた (FILE_LEVEL) ままの 一定の 大きさで 鳴らす。呼ぶ 側は そのままで よい
+    const DUCK_ENABLED = false;
     function duckFor(ms, min = 0.35) {
+        if (!DUCK_ENABLED) return;
         const now = performance.now();
         duck.min = now < duck.until ? Math.min(duck.min, min) : min;
         duck.until = Math.max(duck.until, now + ms);

@@ -821,6 +821,61 @@ body.cab-bar .slot-machine.cabinet {
 .cabinet #spin-button .cab-lever-text { color: #ffe680; text-shadow: 0 2px 0 #000; }
 .cabinet #spin-button:disabled .cab-lever-text { color: #8a8270; }
 
+/* ----- まっすぐ 立つ レバー (2026-11-14 ユーザー指定: 横に 傾いて いるので まっすぐに。垂直に 下へ 倒して 作動させる) -----
+   台座の まんなかから 棒が まっすぐ 上に のび、先に 赤い 玉。叩くと 棒が 手前 (下) へ 倒れる =
+   棒を 下から 縦に ちぢめて (scaleY) 倒れこむ 見た目に する。玉は 形が つぶれない ように 逆に のばす */
+.cabinet #spin-button .cab-lever { width: 44px; height: 84px; }
+.cabinet #spin-button .cab-lever-base {
+    left: 50%; top: auto; bottom: 0;
+    width: 34px; height: 34px;
+    margin: 0 0 0 -17px;
+}
+.cabinet #spin-button .cab-lever .cab-kanabo {
+    left: 50%; top: auto; bottom: 17px;
+    width: 9px; height: 54px;
+    margin: 0 0 0 -4.5px;
+    background: linear-gradient(90deg, #34343e, #5a5a68 15%, #b4b4c2 45%, #ffffff 60%, #8a8a98 85%, #34343e);
+    transform-origin: 50% 100%;
+    transform: none;
+    transition: transform 0.06s ease-out;
+}
+.cabinet #spin-button .cab-lever-ball {
+    left: 50%; right: auto; top: -13px;
+    margin: 0 0 0 -13px;
+    transform: none;
+    transition: transform 0.06s ease-out;
+}
+/* 叩くと 手前 (下) へ 倒れる */
+.cabinet #spin-button:not(:disabled):active .cab-lever .cab-kanabo,
+.cabinet #spin-button.lever-pulled .cab-lever .cab-kanabo,
+.cabinet #spin-button.lever-hit .cab-lever .cab-kanabo { animation: none; transform: scaleY(0.4); transition-duration: 0.04s; }
+.cabinet #spin-button:not(:disabled):active .cab-lever-ball,
+.cabinet #spin-button.lever-pulled .cab-lever-ball,
+.cabinet #spin-button.lever-hit .cab-lever-ball { animation: none; transform: scale(1.1, 2.75); transition-duration: 0.04s; }
+/* レバーを叩け!!: 少し 倒れては 戻るを くり返す */
+.cabinet #spin-button.lever-call .cab-lever .cab-kanabo { animation: kanabo-call-v 0.35s ease-in-out infinite alternate; }
+.cabinet #spin-button.lever-call .cab-lever-ball { animation: ball-call-v 0.35s ease-in-out infinite alternate; }
+@keyframes kanabo-call-v { from { transform: none; } to { transform: scaleY(0.8); } }
+@keyframes ball-call-v { from { transform: none; } to { transform: scaleY(1.25); } }
+/* レバブル: 立った まま 左右に ぶるぶる */
+.cabinet #spin-button.lever-buru .cab-lever .cab-kanabo { animation: kanabo-buru-v 0.05s linear infinite; }
+@keyframes kanabo-buru-v {
+    0% { transform: translateX(-2px); }
+    50% { transform: translateX(2px); }
+    100% { transform: translateX(-2px); }
+}
+.cabinet #spin-button,
+.cabinet #spin-button:disabled,
+.cabinet #spin-button.lever-call {
+    background: radial-gradient(ellipse 40px 22px at 34px 80%, rgba(0, 0, 0, 0.45), transparent 70%);
+}
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+    .cabinet #spin-button .cab-lever { width: 36px; height: 66px; }
+    .cabinet #spin-button .cab-lever-base { width: 28px; height: 28px; margin-left: -14px; }
+    .cabinet #spin-button .cab-lever .cab-kanabo { bottom: 14px; width: 8px; height: 42px; margin-left: -4px; }
+    .cabinet #spin-button .cab-lever-ball { width: 22px; height: 22px; top: -11px; margin-left: -11px; }
+}
+
 /* ----- 曲送り ボタン (2026-11-14 ユーザー指定: 曲を 切り替えられる ように。js/main.js の nextSong) ----- */
 .cab-song {
     flex-shrink: 0;
