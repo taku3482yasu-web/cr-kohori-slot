@@ -1095,7 +1095,7 @@ const Lcd = (() => {
             ctx.fillRect(x + 4, hall.groundY - 2, 24, 3);
             const hurtBlink = time < koori.hurtUntil && Math.floor(time / 70) % 2 === 0;
             if (down) drawKooriDown(time, x, hall.groundY);
-            else if (!hurtBlink) drawSprite(ctx, SPRITES.koori, frame, x, hall.groundY - 16 * KOORI_SCALE - (koori.moving ? 0 : BeatFx.bounce(time, 2)), KOORI_SCALE);   // 曲の 拍で はねる
+            else if (!hurtBlink) drawSprite(ctx, SPRITES.koori, frame, x, hall.groundY - 16 * KOORI_SCALE - (koori.moving ? 0 : BeatFx.bounce(time, 2)) + valueAt(koori.jump, time), KOORI_SCALE);   // 曲の 拍で はねる・跳ぶ (かわす)
         }
 
         // 「？？」の間は敵が必殺技を溜める (赤いオーラが脈打つ)
@@ -1128,6 +1128,8 @@ const Lcd = (() => {
             });
         }
         drawRanyuField(time, hall.groundY);   // おにおに乱入: 走って きて 敵を 吹っ飛ばす
+        drawComboFx(time, hall.groundY);      // 連撃の 斬撃 (2026-11-14)
+        drawDodgeFx(time, hall.groundY);      // 敵の 攻撃を かわす (2026-11-14)
 
         drawSpecialFx(time, hall.groundY);
         ctx.restore();
@@ -2805,6 +2807,7 @@ const Lcd = (() => {
             await sleep(400);
             return;
         }
+        if (event.add >= (config.premiumChance && config.premiumChance.minAdd || 1e9)) await maybePremiumChance('tokka');   // 特化ゾーンの プレミア
         // おかランプの 一発告知 (2026-11-13 ユーザー指定): 強い 上乗せが 決まったら イケメン風の おかがっぱ
         if (t.kind === 'okaLamp' && event.add >= config.tokka.ikemen.minAdd) await okaIkemen(event);
         const level = fireLevelOf(event.add);
@@ -3223,6 +3226,91 @@ const Lcd = (() => {
     }
 
     // 対戦相手のルーレット → 敵の登場
+    // ----- 連撃 (2026-11-14 ユーザー指定: 連打の PUSH で ちゃんと 連撃で 攻撃して いる 様子を 描く) -----
+    // 押すたびに こおりくんが 踏みこんで 敵を 斬り (斬る 向きは 交互)、仲間も 順に 飛びこむ。敵は 白く 光って のけぞる。
+    // フィニッシュは 大きな 十字の 斬撃。演出だけで 結果は 変えない (push.js の 連打から 呼ぶ)
+    let comboFx = [];   // { at, n, color, finish }
+    function comboStrike(n, color) {
+        if (scene !== 'rash' || !battle.visible || !battle.enemyId) return;
+        const now = performance.now();
+        comboFx.push({ at: now, n, color });
+        if (comboFx.length > 12) comboFx.shift();
+        const member = party.length && n % 3 === 0 ? party[(n / 3 - 1) % party.length] : null;
+        if (member) {   // 仲間が 飛びこむ
+            animateTo(jumpOf(member), -26, 90);
+            setTimeout(() => animateTo(jumpOf(member), 0, 160), 110);
+        } else {        // こおりくんが 踏みこむ
+            animateTo(koori.x, ENEMY_X - 58, 70);
+            setTimeout(() => animateTo(koori.x, KOORI_BATTLE_X, 150), 90);
+        }
+        battle.hurtUntil = now + 110;
+        const ex = valueAt(battle.x, now);
+        animateTo(battle.x, Math.min(ENEMY_X + 14, ex + 3), 50);
+        setTimeout(() => animateTo(battle.x, ENEMY_X, 200), 80);
+        Sound.special(n % 2 ? 'slash' : 'punch');
+    }
+    function comboFinish(color) {
+        if (scene !== 'rash' || !battle.visible || !battle.enemyId) return;
+        const now = performance.now();
+        comboFx.push({ at: now, n: 0, color, finish: true });
+        animateTo(koori.x, ENEMY_X - 52, 60);
+        setTimeout(() => animateTo(koori.x, KOORI_BATTLE_X, 260), 260);
+        party.forEach(id => { animateTo(jumpOf(id), -30, 100); setTimeout(() => animateTo(jumpOf(id), 0, 220), 160); });
+        battle.hurtUntil = now + 300;
+        LcdCamera.punch(ENEMY_X, 80, 1.25, 380);
+    }
+    function drawComboFx(time, groundY) {
+        if (!comboFx.length) return;
+        comboFx = comboFx.filter(f => time - f.at < (f.finish ? 600 : 260));
+        const ex = valueAt(battle.x, time), ey = groundY - 44;
+        comboFx.forEach(f => {
+            const k = Math.max(0, (time - f.at) / (f.finish ? 600 : 260));
+            const col = f.color === 'rainbow' ? `hsl(${(time / 3) % 360}, 95%, 65%)` : f.color || '#ffffff';
+            ctx.save();
+            ctx.globalAlpha = 1 - k;
+            if (f.finish) {
+                // 十字の 大きな 斬撃と 光の 輪
+                const len = 30 + k * 60;
+                [[1, 1], [1, -1]].forEach(([a, b]) => {
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 5 * (1 - k) + 1;
+                    ctx.beginPath();
+                    ctx.moveTo(ex - len * a, ey - len * b * 0.8);
+                    ctx.lineTo(ex + len * a, ey + len * b * 0.8);
+                    ctx.stroke();
+                });
+                ctx.strokeStyle = col;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(ex, ey, 10 + k * 70, 0, Math.PI * 2);
+                ctx.stroke();
+            } else {
+                // 斜めの 斬撃 (交互に 向きを 変える) と 火花
+                const dir = f.n % 2 ? 1 : -1, len = 22 + k * 10;
+                const oy = ((f.n * 7) % 5 - 2) * 5;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3 * (1 - k) + 1;
+                ctx.beginPath();
+                ctx.moveTo(ex - len, ey + oy - len * 0.7 * dir);
+                ctx.lineTo(ex + len, ey + oy + len * 0.7 * dir);
+                ctx.stroke();
+                ctx.strokeStyle = col;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(ex - len, ey + oy - len * 0.7 * dir + 2);
+                ctx.lineTo(ex + len, ey + oy + len * 0.7 * dir + 2);
+                ctx.stroke();
+                ctx.fillStyle = '#ffe45a';
+                for (let i = 0; i < 6; i++) {
+                    const a = i / 6 * Math.PI * 2 + f.n, d = 6 + k * 26;
+                    ctx.fillRect(Math.round(ex + Math.cos(a) * d), Math.round(ey + oy + Math.sin(a) * d), 2, 2);
+                }
+                text(`${f.n}HIT`, ex + 18, ey - 30 - k * 10 + oy, { color: col, size: 10, outline: '#000' });
+            }
+            ctx.restore();
+        });
+    }
+
     // ----- おにおに乱入 (2026-11-14 ユーザー指定) -----
     // 2026-11-14 作り直し (ユーザー指定):
     //   敵の 決定 (when: 'start'): その 敵の カットインが 出た ところを おにおにが 金棒で 粉砕して 出てくる
@@ -3531,12 +3619,27 @@ const Lcd = (() => {
     }
 
     // こおりくんの攻撃 → ヒット (白く光る・揺れ・ダメージの数字・HPバーが減る)
+    // プレミア演出「CHANCE ボタン」: 当たりが 決まった 場面で たまに (2026-11-14 ユーザー指定。js/premium-chance.js)
+    async function maybePremiumChance(kind) {
+        const c = config.premiumChance;
+        if (!c || typeof PremiumChance === 'undefined' || Math.random() >= (c[kind] || 0)) return;
+        Bgm.climax();
+        if (kind === 'naitei') {   // 突破チャレンジ: いったん 失敗に 見せる
+            Sound.miss();
+            showTitle('突破失敗…', null, '#9fb8d8', 1100);
+            await sleep(1100);
+        }
+        await PremiumChance.play();
+        Bgm.endClimax();
+    }
+
     async function damage(event) {
         const timing = config.effects.timing;
         const intensity = config.effects.intensity;
         battle.games = event.gamesRemaining;
         battle.probUpGames = event.probUpGames;
         if (event.amount <= 0 && !event.guarded) return;   // ベル・ハズレは攻撃なし
+        if (event.kill && battle.enemyId === 'onioni') await maybePremiumChance('onioni');   // おにおにへの とどめ
 
         let kooriFx = null;   // こおりくんがとどめを刺すときの必殺技のエフェクト
         if (event.freeze) {
@@ -3705,6 +3808,7 @@ const Lcd = (() => {
     async function naiteiResult(event) {
         const intensity = config.effects.intensity;
         if (event.win) {
+            await maybePremiumChance('naitei');   // 突破チャレンジ: 失敗かと 思わせて CHANCE ボタン
             // アルアルの復活: いったん負けて (ナイナイの必殺技)、アルアルがナイナイを一撃で倒す
             if (event.aruaru) {
                 await enemySpecial(battle.enemyId);
@@ -3867,8 +3971,48 @@ const Lcd = (() => {
         await sleep(config.effects.timing.questionDisplay);
     }
 
+    // 敵の 攻撃を かわす (2026-11-14 ユーザー指定: 倒されるのを 回避した ときは 相手の 攻撃を かわす 演出):
+    //   敵が 飛びかかる → こおりくんが 残像を 残して 跳びあがって かわす (MISS) → 敵は 空振りして もどる
+    let dodgeFx = null;   // { start, x }
+    async function dodgeAttack() {
+        if (!battle.visible || !battle.enemyId) return;
+        const now = performance.now();
+        const kx = valueAt(koori.x, now);
+        Sound.leverCall();
+        animateTo(battle.x, kx + 34, 260);   // 飛びかかる
+        await sleep(200);
+        dodgeFx = { start: performance.now(), x: kx };
+        Sound.special('kick');
+        animateTo(koori.jump, -46, 160);       // 跳びあがって かわす
+        startFlash('#ffffff', 120, 0.5);
+        await sleep(260);
+        Sound.miss();
+        animateTo(koori.jump, 0, 220);
+        animateTo(battle.x, ENEMY_X, 320);     // 空振りして もどる
+        await sleep(420);
+        dodgeFx = null;
+    }
+    function drawDodgeFx(time, groundY) {
+        if (!dodgeFx) return;
+        const t = time - dodgeFx.start;
+        // 残像 (かわす 前の 位置に うすい こおりくん)
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 0.6 - t / 500);
+        drawSprite(ctx, SPRITES.koori, 'walk1', dodgeFx.x - 4, groundY - 16 * KOORI_SCALE, KOORI_SCALE);
+        ctx.globalAlpha = Math.max(0, 0.35 - t / 600);
+        drawSprite(ctx, SPRITES.koori, 'walk1', dodgeFx.x - 10, groundY - 16 * KOORI_SCALE - 12, KOORI_SCALE);
+        ctx.restore();
+        // 空を 切る 敵の 攻撃 (横の 線)
+        if (t < 260) {
+            ctx.fillStyle = `rgba(255,255,255,${1 - t / 260})`;
+            for (let i = 0; i < 4; i++) ctx.fillRect(Math.round(dodgeFx.x - 10 + i * 6), groundY - 30 + i * 6, 40, 1);
+        }
+        if (t > 120 && t < 900) text('MISS', dodgeFx.x + 14, groundY - 54 - (t - 120) / 40, { color: '#9fe6ff', size: 12, outline: '#002040' });
+    }
+
     async function questionResult(event) {
         if (event.continued) {
+            await dodgeAttack();   // 敵の 攻撃を かわして から 継続 (2026-11-14)
             battle.games = event.games;
             if (event.killRate != null) setNow(battle.killRate, event.shown ?? event.killRate);   // 新しい セットの 撃破率
             if (event.nameColor) battle.nameColor = event.nameColor;
@@ -4411,7 +4555,7 @@ const Lcd = (() => {
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, setHotFrame, playCrack, startPreview, stopPreview,
         reach, push, reachResult, hold, release, setHanase, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, startShake, setCharge, setZencho, noiseFx,
-        tokkaLever, tokkaSelectInput, playNotice,
+        tokkaLever, tokkaSelectInput, playNotice, comboStrike, comboFinish,
         tokkaSelecting: () => Boolean(tokkaSelect),
         setHandlers: h => { handlers = h; },
         playOpening: () => StoryView.play('opening'),

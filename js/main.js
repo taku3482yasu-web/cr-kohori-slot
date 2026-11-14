@@ -222,7 +222,8 @@
         outcome.gun = debugNotice === 'gun' ? Notice.allowed(state) : GameFlow.rollGun(state, outcome, verdict, config);
         const hype = Hype.fit(Hype.plan(heat, config), verdict, config);
         hype.push = LeverFx.tataki(state, hype.push, heat, config);   // レバーを叩け！ (2026-10-24)
-        const leverFx = LeverFx.atLever(state, outcome, heat, config);   // レバブル・遅れ・逆回転 (2026-10-24)
+        // レバブル・遅れ・逆回転 (2026-10-24)。レバブルは 当たる ゲームだけ (2026-11-14 ユーザー指定: 震えたら 確定)
+        const leverFx = LeverFx.atLever(state, outcome, heat, config, Math.random, () => verdict.reliable && verdict.win);
         playHypeAtLever(hype);
         playLeverFx(leverFx);
         // 熱い ゲームは 液晶の 枠が 震える (2026-10-24 ユーザー指定)。熱さ 4 赤 / 5 金 / 6 虹

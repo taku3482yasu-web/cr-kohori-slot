@@ -2,7 +2,8 @@
 // レバーの 演出 (2026-10-24 ユーザー指定。パチンコ koori-pachinko の「レバーを引け！」から)
 // ---------------------------------------------------------------------
 // atLever(): レバー ON の ときに 出す 演出を 選ぶ
-//   レバブル : 金棒の レバーが ぶるぶる 震える (熱い ゲームほど 出やすい)
+//   レバブル : レバーが ぶるぶる 震える。2026-11-14 (ユーザー指定): 震えたら 確定で 当たる・撃破できる。
+//              先読みで 当たり (撃破・継続・突入 など) が 決まって いる ゲームだけ、熱さに 応じた 割合で たまに 出す
 //   遅れ     : リールが 少し 遅れて 回り出す。チャンス目・BAR 以上 (役の 分類 hot / premium) だけ
 //   逆回転   : リールが しばらく 逆に 回る。7揃い・7・7・BAR・ロングフリーズ だけ
 // tataki(): 結果の 前の PUSH を「レバーを叩け！」に する (はじめ PUSH で、押すと 変わる ことも ある)。
@@ -12,13 +13,14 @@
 // =====================================================================
 
 const LeverFx = {
-    atLever(state, outcome, heat, config, rng = Math.random) {
+    //   isWin: この ゲームが 当たるか (先読み。main.js は GameFlow.predict の 結果)。必要な ときだけ 呼ぶ
+    atLever(state, outcome, heat, config, rng = Math.random, isWin = () => false) {
         const c = config.lever;
         const cls = Notice.classOf(outcome.role, config);
         const strong = cls === 'premium' || outcome.isFreeze;
         const reverse = strong && rng() < c.reverse.rate;
         const okure = !reverse && rng() < (outcome.isFreeze ? c.okure.rates.premium : c.okure.rates[cls] || 0);
-        const buru = rng() < c.buru.rates[Math.max(0, Math.min(6, heat))];
+        const buru = rng() < c.buru.rates[Math.max(0, Math.min(6, heat))] && isWin();
         return { buru, okure, reverse };
     },
 

@@ -424,7 +424,7 @@ test('カットインの 先読み (2026-11-10): 金カットインは 当たり
     console.log(`  金 ${n.gold} 回・赤 ${n.red} 回 (${n.games} G)。場面ごと: ${Object.entries(byMode).map(([m, c]) => `${m} 金${c.gold}/赤${c.red}`).join('・')}`);
 });
 
-test('レバーの 演出 (2026-10-24): 叩け！は 熱い ゲームで 出て RASH 中は 確定、遅れは チャンス目・BAR 以上、逆回転は 7揃い・ロングフリーズ級、レバブルは 熱い ほど', () => {
+test('レバーの 演出 (2026-10-24): 叩け！は 熱い ゲームで 出て RASH 中は 確定、遅れは チャンス目・BAR 以上、逆回転は 7揃い・ロングフリーズ級、レバブルは 当たる ゲームだけ (確定)', () => {
     const g = loadGame(37);
     const { config: cfg, Lottery: L, Furukawa: F, Hype: Hy, LeverFx: LF, GameFlow: GF, Notice: N, StateMachine: SM } = g;
     const state = g.createInitialState(cfg);
@@ -434,7 +434,8 @@ test('レバーの 演出 (2026-10-24): 叩け！は 熱い ゲームで 出て 
         const o = L.draw(state, cfg);
         const heat = F.canAppear(state, cfg) ? F.heat(state, o, cfg) : 0;
         const push = LF.tataki(state, Hy.plan(heat, cfg).push, heat, cfg);
-        const fx = LF.atLever(state, o, heat, cfg);
+        let verdict = null;
+        const fx = LF.atLever(state, o, heat, cfg, Math.random, () => { verdict = GF.predict(state, o, cfg); return verdict.reliable && verdict.win; });
         const cls = N.classOf(o.role, cfg);
         n.all++; if (heat >= 4) n.allHot++;
         if (push && push.lever) {
@@ -445,15 +446,18 @@ test('レバーの 演出 (2026-10-24): 叩け！は 熱い ゲームで 出て 
         if (fx.okure) { n.okure++; if (cls !== 'hot' && cls !== 'premium' && !o.isFreeze) n.okureBad++; }
         if (fx.reverse) { n.reverse++; if (cls !== 'premium' && !o.isFreeze) n.reverseBad++; }
         if (fx.buru) { n.buru++; if (heat >= 4) n.buruHot++; }
+        let events;
+        if (verdict) events = GF.onGameEnd(state, o, cfg, GF.replayRng(o));   // 先読みと 同じ 乱数で 打つ
+        else events = GF.onGameEnd(state, o, cfg);
+        if (fx.buru && !GF.isWin(events, cfg)) n.buruMiss = (n.buruMiss || 0) + 1;
         assert(!(fx.okure && fx.reverse), '遅れと 逆回転は いっしょに 出さない');
-        GF.onGameEnd(state, o, cfg);
     }
     assert(n.tataki > 20 && n.tatakiHot / n.tataki > 0.8, `通常時の 叩け！ (${n.tataki} 回・熱い ${pct(n.tatakiHot / n.tataki)})`);
     assert(n.rashTataki > 0 && n.rashTatakiSure === n.rashTataki, `RASH 中の 叩け！は 確定だけ (${n.rashTatakiSure} / ${n.rashTataki})`);
     assertBetween(n.change / (n.tataki + n.rashTataki), cfg.lever.tataki.change - 0.15, cfg.lever.tataki.change + 0.15, 'PUSH から 叩け！に 変わる 割合');
     assert(n.okure > 100 && n.okureBad === 0, `遅れ (${n.okure} 回。チャンス目・BAR 未満 ${n.okureBad})`);
     assert(n.reverse > 0 && n.reverseBad === 0, `逆回転 (${n.reverse} 回。7揃い・ロングフリーズ級 でない もの ${n.reverseBad})`);
-    assert(n.buru > 100 && n.buruHot / n.buru > n.allHot / n.all * 3, `レバブル (${n.buru} 回・熱い ${pct(n.buruHot / n.buru)}。ぜんぶ ${pct(n.allHot / n.all)})`);
+    assert(n.buru > 30 && !n.buruMiss, `レバブルは 当たる ゲームだけ (${n.buru} 回・はずれ ${n.buruMiss || 0} 回)`);
     // STOP の 色 (青 < 赤 < 金 < 虹。虹は 確定) と 長押しの STOP (2026-10-24)
     const tiers = {}, ls = [0, 0];
     for (let heat = 0; heat <= 6; heat++) {

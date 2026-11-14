@@ -94,6 +94,7 @@ const PushButton = (() => {
             Lcd.showMessage(`${active.count}連撃!`, color === 'rainbow' ? '#ffffff' : color, cfg.autoMs);
             Lcd.startShake(2 + active.count * 0.4, 140);
             Lcd.startFlash(color === 'rainbow' ? '#ffffff' : color, 140, 0.35);
+            Lcd.comboStrike(active.count, color);   // こおりくんと 仲間が 踏みこんで 斬る (2026-11-14 ユーザー指定)
             if (active.count >= cfg.mashCount) finish();
             return;
         }
@@ -147,7 +148,10 @@ const PushButton = (() => {
         const shown = color === 'rainbow' ? '#ffffff' : color;
         if (!push.lever && push.mode === 'long' && full) Lcd.showMessage('フルチャージ!!', shown, 900);
         else if (!push.lever && push.mode === 'long') Lcd.showMessage('チャージ失敗…', '#9fb8d8', 900);
-        if (!push.lever && push.mode === 'mash' && mashCount >= cfg.mashCount) Lcd.showMessage(`${mashCount}連撃フィニッシュ!!`, shown, 900);
+        if (!push.lever && push.mode === 'mash' && mashCount >= cfg.mashCount) {
+            Lcd.showMessage(`${mashCount}連撃フィニッシュ!!`, shown, 900);
+            Lcd.comboFinish(color);   // 十字の 大きな 斬撃
+        }
         Sound.pushHit(push.tier);
         setTimeout(() => resolve({ charged: full }), 450);
     }

@@ -25,7 +25,8 @@ const LcdCamera = (() => {
     // 場面ごとの ショットの 出やすさ
     const SHOTS = {
         field: { wide: 4, push: 3, hero: 2, low: 2, dutch: 1, reverse: 2, track: 2 },
-        rash: { wide: 3, push: 2, hero: 2, enemy: 3, low: 2, dutch: 2, reverse: 3, track: 2 },
+        // RASH は 敵が 画面の 外に 出ない ショット だけ (2026-11-14 ユーザー指摘: 敵が 映って いない ときが ある。こおりくんに 寄る hero は 使わない)
+        rash: { wide: 3, push: 2, enemy: 3, low: 2, dutch: 2, reverse: 3, track: 2 },
         calm: { wide: 1 }
     };
 
@@ -58,7 +59,11 @@ const LcdCamera = (() => {
             case 'low': return { x: enemy ? (hero.x + enemy.x) / 2 : hero.x + 40, y: g - 34, zoom: 1.32, rot: 0, flip: 1, sy: 1.12, drift: 4 };
             case 'dutch': { const s = Math.random() < 0.5 ? -1 : 1; return { x: W / 2, y: H / 2 + 6, zoom: 1.24, rot: 0.065 * s, flip: 1, sy: 1, drift: 0 }; }
             case 'reverse': return { x: W / 2, y: H / 2 + 2, zoom: 1.1, rot: 0, flip: -1, sy: 1, drift: rnd(-5, 5) };
-            case 'track': { const s = Math.random() < 0.5 ? -1 : 1; return { x: W / 2 - 34 * s, y: H / 2 + 4, zoom: 1.38, rot: 0, flip: 1, sy: 1, drift: 16 * s }; }
+            case 'track': {
+                const s = Math.random() < 0.5 ? -1 : 1;
+                if (enemy) return { x: W / 2 + 8, y: H / 2 + 4, zoom: 1.22, rot: 0, flip: 1, sy: 1, drift: 10 * s };   // 敵が いる ときは 両方 入る 寄り
+                return { x: W / 2 - 34 * s, y: H / 2 + 4, zoom: 1.38, rot: 0, flip: 1, sy: 1, drift: 16 * s };
+            }
             default: return { x: W / 2, y: H / 2, zoom: 1, rot: 0, flip: 1, sy: 1, drift: 0 };
         }
     }
@@ -76,7 +81,9 @@ const LcdCamera = (() => {
     }
 
     // view.kind: 'field' | 'rash' | 'calm' (動かさない)。view.lock でも 動かさない (演出の 途中)
+    let keep = null;   // 画面に 入れて おく 敵 { x }
     function update(time, view) {
+        keep = view.enemy && view.kind === 'rash' ? { x: view.enemy.x } : null;
         const dt = Math.min(100, lastTime ? time - lastTime : 16);
         lastTime = time;
         if (!enabled) return;
@@ -139,6 +146,12 @@ const LcdCamera = (() => {
         zoom = Math.max(zoom, need);
         const zx = zoom, zy = zoom * sy;
         const hw = W / (2 * zx) + Math.abs(Math.sin(rot)) * H / (2 * zy), hh = H / (2 * zy) + Math.abs(Math.sin(rot)) * W / (2 * zx);
+        // 敵が いる 場面では 敵 (と その まわり) が 画面に 入る ように 中心を ずらす
+        if (keep) {
+            const half = W / (2 * zx);
+            x = Math.min(x, keep.x - 20 + half);   // 敵の 左はしより 右に 画面の 右はし
+            x = Math.max(x, keep.x + 20 - half);
+        }
         x = Math.min(W - Math.min(hw, W / 2), Math.max(Math.min(hw, W / 2), x));
         y = Math.min(H - Math.min(hh, H / 2), Math.max(Math.min(hh, H / 2), y));
         return { x, y, zx, zy, rot, flip };

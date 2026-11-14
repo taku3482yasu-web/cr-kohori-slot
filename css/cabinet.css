@@ -903,3 +903,60 @@ body.cab-bar .slot-machine.cabinet {
     .cab-song-icon { font-size: 1.05rem; }
     .cab-song-text { font-size: 0.55rem; }
 }
+
+/* ----- プレミア演出「CHANCE ボタン」(2026-11-14 ユーザー指定。js/premium-chance.js) -----
+   まんなかの STOP が ガタガタ 震えて まんなかから 真っ二つに 開き、大きな CHANCE ボタンが 飛び出す */
+.pc-root { position: fixed; inset: 0; z-index: 9000; pointer-events: none; }
+.pc-half {
+    position: fixed; top: var(--y); height: var(--h); width: calc(var(--w) / 2);
+    overflow: hidden; pointer-events: none;
+    background: linear-gradient(180deg, #3a3a44, #16161c);
+    border: 2px solid #b8962e; box-sizing: border-box;
+    transition: transform 0.38s cubic-bezier(.2, 1.6, .4, 1);
+}
+.pc-left { left: var(--x); border-right: 0; border-radius: 12px 0 0 12px; }
+.pc-right { left: calc(var(--x) + var(--w) / 2); border-left: 0; border-radius: 0 12px 12px 0; }
+.pc-half span {
+    position: absolute; top: 0; width: var(--w); height: var(--h); line-height: var(--h);
+    text-align: center; color: #ffe680; font-weight: bold; letter-spacing: 0.06em;
+}
+.pc-left span { left: 0; }
+.pc-right span { right: 0; }
+.pc-shake .pc-half { animation: pc-shake 0.06s linear infinite; }
+@keyframes pc-shake { 0% { transform: translate(-2px, 1px); } 50% { transform: translate(2px, -1px); } 100% { transform: translate(-2px, 1px); } }
+.pc-open .pc-left { transform: translateX(calc(var(--w) * -0.9)) rotate(-14deg); }
+.pc-open .pc-right { transform: translateX(calc(var(--w) * 0.9)) rotate(14deg); }
+/* 割れめから もれる 光 */
+.pc-glow {
+    position: fixed; left: calc(var(--x) + var(--w) / 2 - 3px); top: calc(var(--y) - 30px);
+    width: 6px; height: calc(var(--h) + 60px); opacity: 0;
+    background: linear-gradient(180deg, transparent, #ffffff, #ffe060, #ffffff, transparent);
+    box-shadow: 0 0 30px 10px rgba(255, 230, 120, 0.8);
+}
+.pc-shake .pc-glow { opacity: 0.6; animation: pc-blink 0.1s steps(2) infinite; }
+.pc-open .pc-glow { opacity: 1; transform: scaleX(14); transition: transform 0.4s ease-out, opacity 0.6s; }
+.pc-popped .pc-glow { opacity: 0; }
+@keyframes pc-blink { 50% { opacity: 0.15; } }
+/* CHANCE ボタン: 虹の ふちの 大きな 赤い 丸ボタン */
+.pc-chance {
+    position: fixed; left: calc(var(--x) + var(--w) / 2); top: calc(var(--y) + var(--h) / 2);
+    width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #fff; text-shadow: 0 3px 0 #600, 0 0 10px #ff0; cursor: pointer; pointer-events: auto;
+    background: radial-gradient(circle at 35% 30%, #ffffff 0 8px, #ff8080 20px, #e8102a 55%, #7a0010 100%);
+    box-shadow: 0 8px 0 #3a0008, 0 0 0 7px #ffd700, 0 0 0 12px #ff3060, 0 0 40px 18px rgba(255, 220, 80, 0.8);
+    transform: scale(0) rotate(-30deg); opacity: 0;
+    transition: transform 0.42s cubic-bezier(.2, 1.8, .45, 1), opacity 0.2s;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+}
+.pc-chance b { font-size: 30px; letter-spacing: 0.04em; }
+.pc-chance small { font-size: 14px; margin-top: 2px; animation: pc-blink 0.3s steps(2) infinite; }
+.pc-popped .pc-chance { transform: scale(1) rotate(0); opacity: 1; animation: pc-pulse 0.5s ease-in-out 0.45s infinite alternate, pc-rainbow 1.2s linear infinite; }
+@keyframes pc-pulse { from { transform: scale(1); } to { transform: scale(1.08); } }
+@keyframes pc-rainbow { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+.pc-pushed .pc-chance { animation: none; transform: scale(1.6); opacity: 0; filter: brightness(3); transition: transform 0.5s ease-out, opacity 0.5s, filter 0.2s; }
+.pc-pushed .pc-half { opacity: 0; transition: opacity 0.3s; }
+@media (max-width: 600px) {
+    .pc-chance { width: 120px; height: 120px; margin: -60px 0 0 -60px; }
+    .pc-chance b { font-size: 24px; }
+}
