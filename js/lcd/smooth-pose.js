@@ -40,7 +40,7 @@ const SmoothPose = (() => {
             if (rig.legY != null && rc.y >= rig.legY) {
                 const left = rig.legGroup ? rig.legGroup(rc) === 0 : rc.x + rc.w / 2 < W / 2;
                 p = left ? 3 : 4;
-            } else if (rig.legY != null && rc.y + rc.h <= rig.legY + 1) {
+            } else if (rig.legY != null && rc.y + rc.h <= rig.legY + 1 && rc.y >= (rig.armY || 0)) {
                 if (rig.armL != null && rc.x + rc.w <= rig.armL) p = 1;
                 else if (rig.armR != null && rc.x >= rig.armR) p = 2;
             }
@@ -216,5 +216,25 @@ const SmoothPose = (() => {
         };
     }
 
-    return { drawEnemy, drawSprite, dance };
+    // キャラに 合わせた 動き (2026-11-14 ユーザー指摘: 全員 同じ 動きで 違和感): characters.js の RIGS の arms・legs・swing・lift・beats で
+    //   alt = 左右 交互 / both = 両腕 いっしょ・hop = 両足で はねる / L・R = 片腕だけ / none = 動かさない。phase で 拍を ずらす
+    function motion(id, t, beatMs, { phase = 0 } = {}) {
+        const rig = (typeof Characters !== 'undefined' && Characters.rig(id)) || {};
+        const arms = rig.arms || 'alt', legs = rig.legs || 'alt';
+        const swing = rig.swing ?? 60, lift = rig.lift ?? 1, beats = rig.beats || 2;
+        const b = (t / beatMs) * (2 / beats) + phase;
+        const wave = k => 0.5 - 0.5 * Math.cos(Math.PI * k);
+        const w = wave(b), step = Math.sin(Math.PI * b);
+        const up = 10 + swing * w, upAlt = 10 + swing * wave(b + 1);
+        return {
+            armL: arms === 'alt' ? up : arms === 'both' || arms === 'L' ? up : 0,
+            armR: arms === 'alt' ? upAlt : arms === 'both' || arms === 'R' ? up : 0,
+            legL: legs === 'alt' ? Math.max(0, step) * lift : legs === 'hop' ? w * lift : 0,
+            legR: legs === 'alt' ? Math.max(0, -step) * lift : legs === 'hop' ? w * lift : 0,
+            // 体の はずみ: はねる キャラは 大きく、どっしりした キャラ (足を 動かさない) は ほとんど なし
+            bob: legs === 'hop' ? w * 1.5 : legs === 'none' ? w * 0.3 : Math.abs(step)
+        };
+    }
+
+    return { drawEnemy, drawSprite, dance, motion };
 })();

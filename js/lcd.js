@@ -415,7 +415,7 @@ const Lcd = (() => {
                 return;
             }
             if (smooth && typeof SmoothPose !== 'undefined') {
-                const pose = SmoothPose.dance(BeatFx.musicTime(time, 300), 300, { arm: 70, leg: 1, phase: k * 0.5 });
+                const pose = SmoothPose.motion(id, BeatFx.musicTime(time, 300), 300, { phase: k * 0.5 });   // 仲間ごとの 動き
                 SmoothPose.drawEnemy(ctx, id, x, groundY - pose.bob * 2 + valueAt(jumpOf(id), time), { scale, pose });
                 return;
             }
@@ -2721,7 +2721,7 @@ const Lcd = (() => {
             const walking = k < 1;
             const pp = walking
                 ? SmoothPose.dance(time, 120, { arm: 20, base: 0, leg: 2 })
-                : SmoothPose.dance(BeatFx.musicTime(time, 300), 300, { arm: id === 'sasaki' ? 50 : 70, leg: 1, phase: i });
+                : SmoothPose.motion(id, BeatFx.musicTime(time, 300), 300, { phase: i });   // SASAKI は 指さし・KOTANI は クリップボード
             SmoothPose.drawEnemy(ctx, id, x, ground - pp.bob * 2, { scale: 2, flip: fromLeft, pose: pp });
         });
         // まだ来ていない席は影だけ
