@@ -9,6 +9,7 @@ const Sound = (() => {
     function init() {
         if (!ctx) {
             ctx = new (window.AudioContext || window.webkitAudioContext)();
+            loadHeso();
             loadSeFiles();
         }
     }
@@ -51,6 +52,20 @@ const Sound = (() => {
             }, 30);
         }, fadeAt);
         return true;
+    }
+
+    // パチンコの 先バレ音 (ユーザーの 録音。js/sound-heso.js) を 読み込む。一発告知で 鳴らす (2026-11-14 ユーザー指定)
+    //   鳴らす ところ (秒) と 大きさは パチンコと 同じ (koori-pachinko の config.show.voice: 1.3〜3.5 秒・4 倍)
+    const HESO = { start: 1.3, end: 3.5, gain: 4 };
+    let hesoBuffer = null;
+    function loadHeso() {
+        if (typeof HESO_SOUND === 'undefined') return;
+        try {
+            const bin = atob(HESO_SOUND.split(',')[1]);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            ctx.decodeAudioData(bytes.buffer).then(buf => { hesoBuffer = buf; }, () => { hesoBuffer = null; });
+        } catch (e) { hesoBuffer = null; }
     }
 
     // タブを 切りかえて 画面が かくれたら 音を 止め、もどったら 再開する (2026-11-04 ユーザー指定)
@@ -314,30 +329,20 @@ const Sound = (() => {
                 playSe(name);
                 return;
             }
-            // 公開版 (sound/se/ が ない とき) の 一発告知音 (2026-11-14 ユーザー指定: 初めの うにょうにょ 音を なくす)。
-            //   前の パチンコの 先バレ音の 録音 (音程が ゆれる) は やめ、ゆれの ない 澄んだ 音に した:
-            //   一瞬で 駆け上がる「キュイッ」→ 高い 和音が「キィーン」と 鳴って やまびこで 広がる → きらきら 下りる 粒
+            // 公開版 (sound/se/ が ない とき) は パチンコの 先バレ音の 録音 (2026-11-15 ユーザー指定で 元に 戻した)
+            if (!hesoBuffer) {   // まだ 読み込めて いない ときは 前の 虹の 音
+                sequence([523.25, 659.25, 783.99, 1046.5, 1318.5, 1568, 2093], 110, 'triangle', 0.5, 0.09);
+                return;
+            }
             const b = busOf();
-            voice({ type: 'triangle', from: 1400, to: 4186, at: 0, dur: 0.16, glide: 0.09, vol: 0.12, attack: 0.002 });
-            voice({ type: 'square', from: 700, to: 2093, at: 0, dur: 0.14, glide: 0.09, vol: 0.04, attack: 0.002, lp: 5000 });
-            [2093, 2637, 3136, 4186].forEach((f, i) => {
-                const t0 = ctx.currentTime + 0.1;
-                const osc = ctx.createOscillator();
-                osc.type = i === 0 ? 'triangle' : 'sine';
-                osc.frequency.value = f;
-                const g = ctx.createGain();
-                const v = [0.13, 0.08, 0.07, 0.05][i];
-                g.gain.setValueAtTime(0.0001, t0);
-                g.gain.exponentialRampToValueAtTime(v, t0 + 0.006);
-                g.gain.setValueAtTime(v, t0 + 0.35);
-                g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.9);
-                osc.connect(g);
-                g.connect(b.comp);
-                g.connect(b.echo);
-                osc.start(t0);
-                osc.stop(t0 + 2);
-            });
-            [4186, 3520, 3136, 2637, 2349, 2093].forEach((f, i) => voice({ type: 'sine', from: f, at: 0.45 + i * 0.07, dur: 0.25, vol: 0.035, attack: 0.002 }));
+            const src = ctx.createBufferSource();
+            const gain = ctx.createGain();
+            src.buffer = hesoBuffer;
+            gain.gain.value = HESO.gain;
+            src.connect(gain);
+            gain.connect(b.comp);
+            gain.connect(b.echo);
+            src.start(ctx.currentTime, HESO.start, HESO.end - HESO.start);
         },
         // 消灯 (プチュン): 液晶・リールが ふっと 消える ときの 音
         puchun() {
