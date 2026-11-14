@@ -406,7 +406,7 @@ window.GAME_CONFIG = {
         min: 300,
         max: 1000,
         kinds: ['fire', 'okaLamp', 'ikkeki', 'asahara'],
-        selectMs: 10000,
+        selectMs: 40000,   // 2026-11-14 (ユーザー指定: 選ぶ 時間が 短い → 40 秒 待ってから 決める)
         names: { fire: 'こおりファイアー', okaLamp: 'おかランプ', ikkeki: 'おにおに一撃入魂', asahara: 'ASAHARA CHANCE' },
         lottery: {
             replay: 1 / 2.5,
