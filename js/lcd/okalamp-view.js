@@ -380,12 +380,96 @@ const OkaLampView = (() => {
         }
     }
 
-    // 左右のいつものおかがっぱ (ランプなし。まんなかに合わせて体をゆらす)
+    // 左右のいつものおかがっぱ (ランプなし。まんなかに合わせて踊る)
+    // 2026-11-14 (ユーザー指定: 左右の おかがっぱも なめらかに 踊らせる): 2 コマの 絵の 切り替えと 2 拍ごとの 向きの 反転を やめ、
+    //   もとの ドット絵の 腕を 肩を 中心に ドットごと 回し (交互に ふり上げる)、足を 交互に 上げる。1 ドットずつ 塗って ぼかさず のせる
+    const BK = { W: 52, H: 50, OX: 10, OY: 8 };   // 小さな 画面 (もとの 絵 32x40 の まわりに 腕を ふる すきま)
+    let bk = null;
+    function backupSetup() {
+        if (bk) return bk;
+        if (typeof document === 'undefined') return null;
+        // もとの 絵を ドットに して、どこが 体・左腕・右腕・左足・右足かを 覚える (characters.js の RIGS と 同じ 分け方)
+        const W = 32, H = 40;
+        const color = new Array(W * H).fill(null), part = new Uint8Array(W * H);
+        Characters.rects('okagappa').forEach(rc => {
+            let p = 0;
+            if (rc.y >= 32) p = rc.x + rc.w / 2 < 16 ? 3 : 4;
+            else if (rc.y + rc.h <= 33 && rc.x + rc.w <= 8) p = 1;
+            else if (rc.y + rc.h <= 33 && rc.x >= 24) p = 2;
+            for (let y = rc.y; y < rc.y + rc.h; y++) for (let x = rc.x; x < rc.x + rc.w; x++) {
+                color[y * W + x] = rc.color;
+                part[y * W + x] = p;
+            }
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = BK.W;
+        canvas.height = BK.H;
+        const g = canvas.getContext('2d');
+        const image = g.createImageData(BK.W, BK.H);
+        return (bk = { W, H, color, part, canvas, g, image, solid: new Uint8Array(BK.W * BK.H) });
+    }
+    // 腕を ふり上げる 角度 (度) と 足を 上げる 高さ (ドット) で 1 枚 描く
+    function renderBackup(armL, armR, legL, legR) {
+        const { W, H, color, part, g, image, solid } = bk;
+        const d = image.data;
+        d.fill(0);
+        const put = (x, y, hex) => {
+            if (x < 0 || y < 0 || x >= BK.W || y >= BK.H) return;
+            const c = rgb(hex), i = (y * BK.W + x) * 4;
+            d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
+        };
+        // 体 → 足 (上げた ぶん 上へ)
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const c = color[y * W + x], p = part[y * W + x];
+            if (!c || p === 1 || p === 2) continue;
+            const lift = p === 3 ? legL : p === 4 ? legR : 0;
+            put(x + BK.OX, y + BK.OY - lift, c);
+        }
+        // 腕: 肩を 中心に 回す (画面の ドット → もとの 絵の ドット に 逆回転して 色を 拾う)
+        [[1, armL, 7, 21], [2, -armR, 24, 21]].forEach(([p, deg, sx, sy]) => {
+            const a = deg * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a);
+            for (let y = -14; y <= 14; y++) for (let x = -14; x <= 14; x++) {
+                const cx = x + 0.5, cy = y + 0.5;
+                const ix = Math.floor(sx + cos * cx + sin * cy), iy = Math.floor(sy - sin * cx + cos * cy);
+                if (ix < 0 || iy < 0 || ix >= W || iy >= H || part[iy * W + ix] !== p) continue;
+                put(sx + x + BK.OX, sy + y + BK.OY, color[iy * W + ix]);
+            }
+        });
+        // まわりに 1 ドットの 輪郭
+        const line = rgb(LINE);
+        for (let i = 0; i < BK.W * BK.H; i++) solid[i] = d[i * 4 + 3] ? 1 : 0;
+        for (let y = 0; y < BK.H; y++) for (let x = 0; x < BK.W; x++) {
+            const i = y * BK.W + x;
+            if (solid[i]) continue;
+            if ((x > 0 && solid[i - 1]) || (x < BK.W - 1 && solid[i + 1]) || (y > 0 && solid[i - BK.W]) || (y < BK.H - 1 && solid[i + BK.W])) {
+                d[i * 4] = line[0]; d[i * 4 + 1] = line[1]; d[i * 4 + 2] = line[2]; d[i * 4 + 3] = 255;
+            }
+        }
+        g.putImageData(image, 0, 0);
+    }
     function drawBackup(ctx, t, x, ground, scale, right) {
         const beat = BeatFx.musicTime(t, BEAT_MS) / BEAT_MS;
         const bob = Math.abs(Math.sin(beat * Math.PI)) * 3;
         const sway = Math.sin(beat * Math.PI / 2) * 4 * (right ? -1 : 1);
-        Characters.drawEnemy(ctx, 'okagappa', x + sway, ground - bob, { scale, flip: right !== (Math.floor(beat / 2) % 2 === 1), frame: Math.floor(beat) % 2 });
+        if (!backupSetup()) return;
+        // 2 拍で 1 往復。左腕と 右腕は 1 拍 ずらして 交互に ふり上げる (ゆっくり 出て ゆっくり 止まる)。左右の 2 人は 鏡うつし
+        const wave = k => 0.5 - 0.5 * Math.cos(Math.PI * k);
+        const near = right ? 1 : 0;
+        const armL = 20 + 120 * wave(beat + near), armR = 20 + 120 * wave(beat + 1 + near);
+        const step = Math.sin(Math.PI * (beat + near));
+        renderBackup(armL, armR, Math.round(Math.max(0, step) * 2), Math.round(Math.max(0, -step) * 2));
+        const left = x + sway - (BK.OX + bk.W / 2) * scale, top = ground - bob - (BK.OY + bk.H) * scale;
+        const smoothOld = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+        ctx.save();
+        if (right) {   // 右の 1 人は 左右反転 (まんなかを 向く)
+            ctx.translate(left + BK.W * scale / 2, 0);
+            ctx.scale(-1, 1);
+            ctx.translate(-(left + BK.W * scale / 2), 0);
+        }
+        ctx.drawImage(bk.canvas, left, top, BK.W * scale, BK.H * scale);
+        ctx.restore();
+        ctx.imageSmoothingEnabled = smoothOld;
     }
 
     // 場面全体: 暗いクラブ・スポットライト・ミラーボール・ダンスフロア・3人のおかがっぱ。
