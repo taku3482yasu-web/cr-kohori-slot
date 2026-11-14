@@ -219,10 +219,18 @@ const Lcd = (() => {
         lastTime = time;
         if (isWalking()) scroll += dt * WALK_SPEED;
         letterbox += (letterboxTarget - letterbox) * Math.min(1, dt / 120);
-        draw(time);
-        drawHotFrame(time);   // 熱いときに 震える 枠 (2026-10-24)
-        drawCrackFx(time);    // プレミア: 液晶が ひび割れて おにおに (2026-10-24)
+        // 2026-11-14 (ユーザー指摘: おにおに乱入で 画面が 止まる): 描画で エラーが 出ても 次の フレームを 必ず 予約する
+        //   (前は 1 回 エラーが 出ると ループが 止まり、画面が 固まって いた)
         requestAnimationFrame(loop);
+        try {
+            draw(time);
+            drawHotFrame(time);   // 熱いときに 震える 枠 (2026-10-24)
+            drawCrackFx(time);    // プレミア: 液晶が ひび割れて おにおに (2026-10-24)
+        } catch (e) {
+            // 途中で 止まった save / 透明度 / 切り抜きを 消す (次の フレームは PixelHD.begin から 描き直す)
+            if (ctx.reset) ctx.reset(); else ctx.setTransform(1, 0, 0, 1, 0, 0);
+            if (!loop.warned) { loop.warned = true; console.error(e); }
+        }
     }
 
     function isWalking() {
@@ -238,7 +246,10 @@ const Lcd = (() => {
             if (treasure || tokka) return { kind: 'calm' };
             const g = Backgrounds.get(logoSuper && !naiteiZone ? 'goldHall' : 'castleHall').groundY;
             const enemy = battle.visible && battle.enemyId ? { x: valueAt(battle.x, time), y: g - Characters.size(battle.enemyId).h } : null;
-            return { kind: 'rash', ground: g, hero: { x: valueAt(koori.x, time) + 24, y: g - 24 }, enemy, lock };
+            const focus = enemyTalk && time < enemyTalk.until && enemy && !cutIn ? 'enemy' : null;   // 敵が しゃべる ときは 敵に 寄る
+            // 顔の あたり (敵は 2 倍で 描く。上から 4 分の 1 くらい)
+            const face = enemy ? { x: enemy.x, y: g - Characters.size(battle.enemyId).h * 2 * 0.75 } : null;
+            return { kind: 'rash', ground: g, hero: { x: valueAt(koori.x, time) + 24, y: g - 24 }, enemy, face, lock, focus };
         }
         if (miniView || dance) return { kind: 'calm' };
         const g = Backgrounds.get(displayMap).groundY;
@@ -331,6 +342,7 @@ const Lcd = (() => {
         FurukawaView.draw(time);
         drawLetterbox();
         drawCutIn(time);
+        drawRanyuOverlay(time);   // おにおに乱入: カットインの 粉砕・赤い フラッシュ
         drawKillSplash(time);
         drawRoulette(time);
         drawBigLogo(time);
@@ -1115,7 +1127,7 @@ const Lcd = (() => {
                 alpha: Math.max(0, valueAt(battle.alpha, time))
             });
         }
-        if (battle.ranyuFx) drawRanyuFx(time, hall.groundY);   // おにおに乱入: 敵が 塗り替えられる
+        drawRanyuField(time, hall.groundY);   // おにおに乱入: 走って きて 敵を 吹っ飛ばす
 
         drawSpecialFx(time, hall.groundY);
         ctx.restore();
@@ -1146,32 +1158,35 @@ const Lcd = (() => {
             text(`確率UP ×${battle.probUpMultiplier} 残り${battle.probUpGames}G`, 8, 36, { color: blink ? '#7fffd4' : '#40e0b0', size: 10 });
         }
 
-        // 残りゲーム数
+        // 残りゲーム数 (2026-11-14 ユーザー指定: 右上だと 敵の 顔に かぶるので 左下へ)
+        let gamesRight = 0;
         if (battle.games !== null) {
             const question = battle.games === '？？';
             const label = question ? '？？' : `残り${battle.games}G`;
             const bw = textWidth(label, 12) + 14;
-            box(W - bw - 4, 4, bw, 17, 'rgba(0,0,0,0.75)', question ? '#ffe45a' : '#fff');
+            box(4, H - 21, bw, 17, 'rgba(0,0,0,0.75)', question ? '#ffe45a' : '#fff');
             const color = question ? (Math.floor(time / 200) % 2 ? '#ffe45a' : '#ff8a30') : '#fff';
-            text(label, W - bw + 3, 6, { color, outline: null });
+            text(label, 11, H - 19, { color, outline: null });
+            gamesRight = 4 + bw;
         }
 
-        // 「？？」の間: 敵がこうげきしそうだ…！
+        // 「？？」の間: 敵がこうげきしそうだ…！ (左下の 残りゲーム数に かからない ように その 右の まんなか)
         if (battle.games === '？？' && battle.visible) {
             const msg = config.specials.questionWarning;
             const blink = Math.floor(time / 300) % 2;
             const bw = textWidth(msg, 12) + 16;
-            box(Math.round((W - bw) / 2), H - 24, bw, 18, 'rgba(60,0,0,0.85)', blink ? '#ff4040' : '#802020');
-            text(msg, W / 2, H - 21, { color: blink ? '#ffffff' : '#ffb0b0', size: 12, align: 'center', outline: null });
+            const cx = Math.max(W / 2, gamesRight + 4 + bw / 2);
+            box(Math.round(cx - bw / 2), H - 24, bw, 18, 'rgba(60,0,0,0.85)', blink ? '#ff4040' : '#802020');
+            text(msg, cx, H - 21, { color: blink ? '#ffffff' : '#ffb0b0', size: 12, align: 'center', outline: null });
         }
 
-        // 敵の名前と HP (左上の撃破数・確率UPなどと重ならないよう、右側の残りゲーム数の下に置く)
+        // 敵の名前と HP (左上の撃破数・確率UPなどと重ならないよう 右上。2026-11-14 残りゲーム数を 左下に 移したので いちばん 上に)
         // アルアルが出ている間は、王冠と顔が隠れないよう出さない
         if (battle.visible && battle.enemyId && !aruaruAlly) {
             const enemy = Battle.findEnemy(config, battle.enemyId);
             const enemyName = battle.kai ? config.ranyu.name : enemy.name;   // おにおに乱入は「おにおに・怪」
             const bw = Math.max(108, textWidth(enemyName, 10) + textWidth('HP 000', 10) + 18);
-            const bx = W - bw - 4, by = 24;
+            const bx = W - bw - 4, by = 4;
             box(bx, by, bw, 22, 'rgba(0,0,0,0.7)', battle.breakActive ? '#c080ff' : '#a0a0a0');
             // 撃破率 (2026-10-27 ユーザー指定): HP の 枠の 下。数字の 色は 白 < 青 < 緑 < 紫 < 赤 < 虹 (確定)。勝利確定の BATTLE は 100%
             if (!naiteiZone) {
@@ -1918,7 +1933,7 @@ const Lcd = (() => {
     let bigKokuchi = null;     // { label, start }
     const KOKUCHI_LABELS = {
         castleSure: '城突入 確定!!', castleEntry: '城突入!!', rashStart: 'RASH 確定!!', superStart: 'SUPER 確定!!', revival: '復活!!',
-        zoneHit: 'ZONE 突入!!', ranyu: 'おにおに 乱入!!', tokkaStart: '上乗せ特化!!', companionSave: '仲間が 救った!!', revengeSuccess: 'リベンジ 成功!!', ceiling: '天井 到達!!'
+        zoneHit: 'ZONE 突入!!', tokkaStart: '上乗せ特化!!', companionSave: '仲間が 救った!!', revengeSuccess: 'リベンジ 成功!!', ceiling: '天井 到達!!'
     };
     function kokuchiLabel(e) {
         if (e.type === 'naiteiResult') return e.win ? '突破!!' : null;
@@ -3209,13 +3224,39 @@ const Lcd = (() => {
 
     // 対戦相手のルーレット → 敵の登場
     // ----- おにおに乱入 (2026-11-14 ユーザー指定) -----
-    // 赤黒い 墨が 敵を 塗りつぶし → おにおに・怪 (紫の もや・赤く 光る 目) に なって 登場 → 撃破率 70% オーバー
+    // 2026-11-14 作り直し (ユーザー指定):
+    //   敵の 決定 (when: 'start'): その 敵の カットインが 出た ところを おにおにが 金棒で 粉砕して 出てくる
+    //   バトル中 (when: 'attack'): おにおにが 走って きて 敵を 金棒で 吹っ飛ばす
+    //   どちらも 最後に 赤い フラッシュの 中に おにおにが 浮かび、赤い 文字で「おにおに 乱入!!」→ 撃破率 70% オーバー
+    const RANYU = {
+        smash: { swing: 650, impact: 900, flash: 1700, end: 3100 },
+        blow: { swing: 620, impact: 740, flash: 1550, end: 2950 }
+    };
+    let ranyuShow = null;   // { kind: 'smash' | 'blow', start, oldId, fromX, shards }
     async function ranyuIn(event) {
         const intensity = config.effects.intensity;
-        Sound.special('club');
-        battle.ranyuFx = { start: performance.now() };
-        startShake(intensity.shakeLarge, 900);
-        await sleep(520);
+        const kind = event.when === 'start' ? 'smash' : 'blow';
+        const T = RANYU[kind];
+        const oldId = battle.enemyId;
+        Bgm.climax();   // 曲を 止めて 目立たせる (おわったら 同じ 曲を サビから)
+        ranyuShow = { kind, start: performance.now(), oldId, fromX: valueAt(battle.x, performance.now()), shards: null };
+        if (kind === 'smash') {
+            Sound.premiumCrack();
+            await sleep(T.impact);
+            Sound.premiumSmash();
+            startShake(intensity.shakeLarge, 700);
+            startFlash('#ffffff', 220);
+            ranyuShow.shards = makeShards();
+        } else {
+            Sound.leverBuru();
+            await sleep(T.impact);
+            Sound.special('club');
+            startShake(intensity.shakeLarge, 700);
+            startFlash('#ffffff', 160);
+            LcdCamera.punch(valueAt(battle.x, performance.now()), 80, 1.3, 500);
+            battle.visible = false;   // 吹っ飛んだ 敵は ranyuShow が 描く
+        }
+        // 敵を おにおに・怪に 入れかえる (場の 絵は 粉砕・吹っ飛ばしの うしろで 入れかわる)
         battle.enemyId = event.enemyId;
         battle.kai = true;
         battle.maxHp = event.hp;
@@ -3223,39 +3264,191 @@ const Lcd = (() => {
         battle.nameColor = 'white';
         battle.breakActive = false;
         battle.hurtUntil = 0;
-        await sleep(480);
-        battle.ranyuFx = null;
-        startFlash('#ff1030', 500);
-        Sound.bigHit();
-        LcdCamera.punch(ENEMY_X, 70, 1.4, 700);
-        await playCutIn('onioni', 'おれが 相手だ…こおり!!', '#2a0018', 1400, 'おにおに 乱入!!');
+        await sleep(T.flash - T.impact);
+        battle.visible = true;
+        setNow(battle.x, ENEMY_X);
+        // 赤い フラッシュと「おにおに 乱入!!」
+        Sound.kokuchi();
+        Sound.premiumRoar();
+        Sound.juteion();
+        if (typeof Lights !== 'undefined') Lights.set('strobe', 1400);
+        await sleep(T.end - T.flash);
+        ranyuShow = null;
+        Bgm.endClimax();
+        await playCutIn('onioni', 'おれが 相手だ…こおり!!', '#2a0018', 1200, 'おにおに 乱入!!');
         const from = valueAt(battle.killRate);
         setNow(battle.killRate, Math.max(from, event.baseRate));
         await playKillSplash(event.baseRate, '撃破で おにおにの 報酬!!', from);
     }
 
-    function drawRanyuFx(time, groundY) {
-        const t = (time - battle.ranyuFx.start) / 1000;
-        const cx = valueAt(battle.x, time), cy = groundY - 46;
-        // 墨が 広がって 敵を 塗りつぶし (0〜0.5 秒)、そのあと 紫の 火花と ともに 引いていく
-        const grow = Math.min(1, t / 0.5), fade = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45);
-        for (let i = 0; i < 9; i++) {
-            const a = i * 2.4 + 0.6, d = 10 + (i % 3) * 9;
-            const r = (14 + (i % 4) * 6) * grow;
-            ctx.fillStyle = i % 3 === 0 ? `rgba(120,0,24,${0.92 * fade})` : `rgba(18,0,12,${0.95 * fade})`;
-            ctx.beginPath();
-            ctx.arc(cx + Math.cos(a) * d * grow, cy + Math.sin(a) * d * grow * 0.9, r, 0, Math.PI * 2);
-            ctx.fill();
+    // 粉砕の かけら: カットインの 帯を こまかく 割って、とびちらせる
+    const RANYU_BAND = { y: 34, h: 76 };
+    function makeShards() {
+        const list = [], cols = 10, rows = 4;
+        const cw = W / cols, rh = RANYU_BAND.h / rows;
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+            const cx = c * cw + cw / 2, cy = RANYU_BAND.y + r * rh + rh / 2;
+            const dx = cx - W * 0.42, dy = cy - (RANYU_BAND.y + RANYU_BAND.h / 2);
+            const d = Math.hypot(dx, dy) || 1;
+            const sp = 0.12 + Math.random() * 0.16;
+            list.push({ sx: c * cw, sy: r * rh, w: cw, h: rh, x: cx, y: cy, vx: dx / d * sp + (Math.random() - 0.5) * 0.06,
+                vy: dy / d * sp - 0.08 - Math.random() * 0.08, spin: (Math.random() - 0.5) * 0.02 });
         }
-        ctx.fillStyle = `rgba(10,0,8,${0.9 * fade})`;
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, 44 * grow, 52 * grow, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // 紫の 火花
-        for (let i = 0; i < 18; i++) {
-            const a = i / 18 * Math.PI * 2 + t * 3, d = 30 + t * 70 + (i % 5) * 4;
-            ctx.fillStyle = i % 2 ? `rgba(200,90,255,${fade})` : `rgba(255,40,80,${fade})`;
-            ctx.fillRect(Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d * 0.7), 2, 2);
+        return list;
+    }
+    // カットインの 帯 (乱入される 敵) を 裏の 絵に 描いて おく
+    let ranyuBand = null;
+    function ranyuBandCanvas(oldId) {
+        if (ranyuBand && ranyuBand.id === oldId) return ranyuBand.canvas;
+        const { canvas, ctx: g } = PixelHD.offscreen(W, RANYU_BAND.h);
+        g.fillStyle = '#5a0a14';
+        g.fillRect(0, 0, W, RANYU_BAND.h);
+        g.fillStyle = 'rgba(255,255,255,0.3)';
+        for (let i = 0; i < 14; i++) g.fillRect(0, (i * 23) % RANYU_BAND.h, W, 1);
+        const enemy = oldId && Battle.findEnemy(config, oldId);
+        if (oldId) {
+            const { w, h } = Characters.size(oldId);
+            const scale = Math.min(3, 72 / h, 110 / w);
+            Characters.drawEnemy(g, oldId, 60, RANYU_BAND.h - 2, { scale });
+        }
+        // 敵の 名前と 出てきた ときの セリフ (いつもの カットインと 同じ 置き方)
+        const line = enemy && enemy.lines && enemy.lines.intro ? enemy.lines.intro : '';
+        g.textAlign = 'right';
+        g.textBaseline = 'top';
+        g.lineJoin = 'round';
+        [[enemy ? enemy.name : '', 12, 6, '#ffe45a'], [line, 20, RANYU_BAND.h / 2 - 6, '#ffffff']].forEach(([str, size, y, color]) => {
+            if (!str) return;
+            g.font = `${size}px "DotGothic16", "MS Gothic", monospace`;
+            g.lineWidth = 3;
+            g.strokeStyle = '#000';
+            g.strokeText(str, W - 12, y);
+            g.fillStyle = color;
+            g.fillText(str, W - 12, y);
+        });
+        ranyuBand = { id: oldId, canvas };
+        return canvas;
+    }
+
+    // 場の 中 (カメラの 内側): バトル中の 乱入で おにおにが 走って きて 敵を 吹っ飛ばす
+    function drawRanyuField(time, groundY) {
+        const r = ranyuShow;
+        if (!r || r.kind !== 'blow') return;
+        const T = RANYU.blow, t = time - r.start;
+        if (t >= T.flash) return;
+        const ex = r.fromX;
+        // おにおに: 右から 走って きて (金棒を ふり上げた まま)、ふり下ろす
+        const run = Math.min(1, t / T.swing);
+        const ox = W + 40 - (W + 40 - (ex + 30)) * (1 - Math.pow(1 - run, 2));
+        const sw = Math.max(0, Math.min(1, (t - T.swing) / (T.impact - T.swing)));
+        const step = Math.sin(t / 55);
+        const pose = t < T.swing
+            ? { armR: 150, armL: 30, legL: Math.max(0, step) * 3, legR: Math.max(0, -step) * 3 }
+            : { armR: 150 - 190 * sw, armL: 20, legL: 0, legR: 0 };
+        // 吹っ飛ぶ 敵 (左上へ くるくる 回りながら 遠ざかる)
+        if (t < T.impact) {
+            Characters.drawEnemy(ctx, r.oldId, ex, groundY, { scale: 2, frame: Math.floor(time / 450) % 2 });
+        } else {
+            const k = (t - T.impact) / (T.flash - T.impact);
+            const fx = ex - k * 260, fy = groundY - 40 - k * 120 + k * k * 30;
+            const { h } = Characters.size(r.oldId);
+            ctx.save();
+            ctx.translate(fx, fy);
+            ctx.rotate(-k * 9);
+            ctx.globalAlpha = Math.max(0, 1 - k * 0.6);
+            Characters.drawEnemy(ctx, r.oldId, 0, h * (2 - k * 1.4) / 2, { scale: Math.max(0.4, 2 - k * 1.6), hurt: Math.floor(time / 50) % 2 === 0 });
+            ctx.restore();
+            if (k < 0.25) {   // 当たった ところの 火花
+                ctx.fillStyle = '#ffe45a';
+                for (let i = 0; i < 12; i++) {
+                    const a = i / 12 * Math.PI * 2, d = 8 + k * 120;
+                    ctx.fillRect(Math.round(ex + Math.cos(a) * d), Math.round(groundY - 40 + Math.sin(a) * d * 0.7), 3, 3);
+                }
+            }
+        }
+        SmoothPose.drawEnemy(ctx, 'onioni', ox, groundY, { scale: 2, flip: true, pose });
+    }
+
+    // 画面の いちばん 上: 粉砕 (カットインの 帯) と 赤い フラッシュ・「おにおに 乱入!!」
+    function drawRanyuOverlay(time) {
+        const r = ranyuShow;
+        if (!r) return;
+        const T = RANYU[r.kind], t = time - r.start;
+        const { y: by, h: bh } = RANYU_BAND;
+        if (r.kind === 'smash' && t < T.flash) {
+            const band = ranyuBandCanvas(r.oldId);
+            if (t < T.impact) {
+                // 帯が すべりこむ → 金棒を ふり上げた おにおにが 右から 飛びこむ → ひびが 入る
+                const slide = Math.round(Math.max(0, 1 - t / 150) * W);
+                ctx.drawImage(band, slide, by, W, bh);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, by - 1, W, 1);
+                ctx.fillRect(0, by + bh, W, 1);
+                if (t > T.swing - 250) {
+                    const k = Math.min(1, (t - (T.swing - 250)) / 250);
+                    const sw = Math.max(0, Math.min(1, (t - T.swing) / (T.impact - T.swing)));
+                    const ox = W + 50 - k * 120;
+                    SmoothPose.drawEnemy(ctx, 'onioni', ox, by + bh + 14, { scale: 2.2, flip: true, pose: { armR: 160 - 200 * sw, armL: 30 } });
+                }
+                if (t > T.impact - 120) {   // ひび
+                    const k = (t - (T.impact - 120)) / 120;
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    for (let i = 0; i < 7; i++) {
+                        const a = i * 0.9 + 0.3;
+                        ctx.beginPath();
+                        ctx.moveTo(W * 0.42, by + bh / 2);
+                        ctx.lineTo(W * 0.42 + Math.cos(a) * 140 * k, by + bh / 2 + Math.sin(a) * 60 * k);
+                        ctx.stroke();
+                    }
+                }
+            } else {
+                // 粉砕: かけらが とびちって 落ちる。まんなかに おにおにが 立つ
+                const dt = t - T.impact;
+                const scale = PixelHD.ratio || 1;
+                (r.shards || []).forEach(sh => {
+                    const x = sh.x + sh.vx * dt, y = sh.y + sh.vy * dt + 0.0005 * dt * dt;
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(sh.spin * dt);
+                    ctx.globalAlpha = Math.max(0, 1 - dt / (T.flash - T.impact));
+                    ctx.drawImage(band, sh.sx * scale, sh.sy * scale, sh.w * scale, sh.h * scale, -sh.w / 2, -sh.h / 2, sh.w, sh.h);
+                    ctx.restore();
+                });
+                const rise = Math.min(1, dt / 200);
+                ctx.save();
+                ctx.globalAlpha = 0.35 + 0.2 * Math.sin(time / 60);
+                ctx.fillStyle = '#ff1030';
+                ctx.beginPath();
+                ctx.ellipse(W * 0.42, by + bh / 2 + 10, 60, 56, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                SmoothPose.drawEnemy(ctx, 'onioni', W * 0.42, by + bh + 20 + (1 - rise) * 30, { scale: 2.3, flip: true, pose: { armR: 150 + 10 * Math.sin(time / 120), armL: 40 } });
+            }
+        }
+        if (t >= T.flash) {
+            // 赤い フラッシュ: 赤と 黒が 点滅し、黒い おにおにの 影と 赤く 光る 目、赤い 文字
+            const k = (t - T.flash) / (T.end - T.flash);
+            const blink = Math.floor((t - T.flash) / 70) % 2;
+            ctx.fillStyle = blink ? '#ff0018' : '#3a0008';
+            ctx.globalAlpha = k > 0.85 ? (1 - k) / 0.15 : 1;
+            ctx.fillRect(0, 0, W, H);
+            // 集中線
+            ctx.fillStyle = blink ? 'rgba(0,0,0,0.35)' : 'rgba(255,40,60,0.35)';
+            for (let i = 0; i < 20; i++) {
+                const a = i / 20 * Math.PI * 2 + t / 900;
+                ctx.beginPath();
+                ctx.moveTo(W / 2, H / 2);
+                ctx.lineTo(W / 2 + Math.cos(a) * 300, H / 2 + Math.sin(a) * 300);
+                ctx.lineTo(W / 2 + Math.cos(a + 0.08) * 300, H / 2 + Math.sin(a + 0.08) * 300);
+                ctx.fill();
+            }
+            const zoom = 2.6 + Math.min(1, k * 3) * 0.6;
+            Characters.drawEnemy(ctx, 'onioni', W / 2, H + 6, { scale: zoom, silhouette: true, kai: true, frame: 1 });
+            const shake = (Math.random() - 0.5) * 4 * (1 - k);
+            let size = Math.round(28 + Math.max(0, 0.3 - k) * 20);   // 出た 瞬間は 大きく、画面の 幅に 収める
+            while (size > 12 && textWidth('おにおに 乱入!!', size) > W - 12) size -= 2;
+            text('おにおに 乱入!!', W / 2 + shake, 22 + shake, { color: blink ? '#ff2a2a' : '#ffffff', size, align: 'center', outline: '#200000' });
+            ctx.globalAlpha = 1;
         }
     }
 

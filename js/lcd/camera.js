@@ -85,7 +85,20 @@ const LcdCamera = (() => {
             reset();
             shot = { name: 'wide', start: time, until: time + rnd(3500, 5000), drift: 0, base: targetOf('wide', view) };
         }
-        if (view.lock || view.kind === 'calm') {
+        // 敵が しゃべって いる あいだは 敵の 顔に ぐっと 寄る (2026-11-14 ユーザー指定)。ほかの 演出より 先
+        if (view.focus === 'enemy' && view.enemy) {
+            if (!shot || shot.name !== 'talk') {
+                shot = { name: 'talk', start: time, until: time + 60000, drift: 0, base: null };
+                from = { ...cur };
+                const f = view.face || view.enemy;
+                to = { x: f.x - 10, y: f.y + 4, zoom: 2.1, rot: 0, flip: 1, sy: 1 };   // 顔が まんなか・吹き出しが 左に 入る くらい
+                moveMs = from.flip !== 1 ? 0 : 420;
+                moveStart = time;
+                if (!moveMs) Object.assign(cur, to);
+            }
+        } else if (shot && shot.name === 'talk') {
+            startShot('wide', view, time, false);   // しゃべり おわったら ゆっくり 引く
+        } else if (view.lock || view.kind === 'calm') {
             if (shot && shot.name !== 'wide') startShot('wide', view, time, false);
         } else if (!shot || time > shot.until) {
             startShot(pickShot(view.kind, shot && shot.name), view, time, Math.random() < 0.45);
@@ -94,10 +107,10 @@ const LcdCamera = (() => {
         const k = moveMs ? Math.min(1, (time - moveStart) / moveMs) : 1;
         const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
         const p = shot ? Math.min(1, (time - shot.start) / Math.max(1, shot.until - shot.start)) : 0;
-        const drift = shot ? shot.drift * (p - 0.5) * 2 : 0;
+        const drift = shot && shot.name !== 'talk' ? shot.drift * (p - 0.5) * 2 : 0;
         cur.x = from.x + (to.x - from.x) * e + drift;
         cur.y = from.y + (to.y - from.y) * e;
-        cur.zoom = from.zoom + (to.zoom - from.zoom) * e + (shot && shot.name !== 'wide' ? 0.03 * p : 0);   // じわっと 寄る
+        cur.zoom = from.zoom + (to.zoom - from.zoom) * e + (shot && shot.name !== 'wide' && shot.name !== 'talk' ? 0.03 * p : 0);   // じわっと 寄る
         cur.rot = from.rot + (to.rot - from.rot) * e;
         cur.sy = from.sy + (to.sy - from.sy) * e;
         cur.flip = to.flip;

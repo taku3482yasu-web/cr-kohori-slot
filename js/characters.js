@@ -681,7 +681,7 @@ const Characters = (() => {
         ctx.globalAlpha = alpha;
         if (HD) {
             PixelHD.draw(ctx, bakedOf('e', id, enemy, frame, silhouette ? 'silhouette' : hurt ? 'hurt' : ''), left, top, scale, flip);
-            if (kai && KAI_EYES[id] && !silhouette) drawKai(ctx, KAI_EYES[id], enemy, left, top, scale, flip, alpha, hurt);
+            if (kai && KAI_EYES[id]) drawKai(ctx, KAI_EYES[id], enemy, left, top, scale, flip, alpha, hurt);
             ctx.globalAlpha = 1;
             return;
         }
