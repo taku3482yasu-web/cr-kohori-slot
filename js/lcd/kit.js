@@ -23,6 +23,18 @@ const LcdKit = (() => {
     }
 
     function text(str, x, y, { color = '#fff', size = 12, align = 'left', outline = '#000' } = {}) {
+        // カメラが 反対側から 映して いる (左右反転) ときも 文字は 裏返さない (js/lcd/camera.js)
+        if (typeof LcdCamera !== 'undefined' && LcdCamera.mirrored) {
+            ctx.save();
+            ctx.translate(x * 2, 0);
+            ctx.scale(-1, 1);
+            drawText(str, x, y, color, size, align, outline);
+            ctx.restore();
+            return;
+        }
+        drawText(str, x, y, color, size, align, outline);
+    }
+    function drawText(str, x, y, color, size, align, outline) {
         ctx.font = `${size}px ${FONT}`;
         ctx.textAlign = align;
         ctx.textBaseline = 'top';

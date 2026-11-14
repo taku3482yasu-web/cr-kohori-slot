@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
     <link rel="stylesheet" href="css/style.css?v=6b328649">
-    <link rel="stylesheet" href="css/cabinet.css?v=a8bd4660">
+    <link rel="stylesheet" href="css/cabinet.css?v=870eea64">
 </head>
 <body>
     <div class="game-container">
@@ -150,6 +150,8 @@
                 <button id="spin-button" aria-label="LEVER ON"><span class="cab-lever" aria-hidden="true"><span class="cab-lever-base"></span><span class="cab-kanabo"><span class="cab-lever-ball"></span></span></span><span class="cab-lever-text">LEVER</span><span class="key-hint" data-action="lever"></span></button>
                 <!-- PUSH ボタン (2026-10-23 A3。js/push.js)。色: 白 < 青 < 赤 < 金 < 虹、激熱は 飛び出す -->
                 <button id="push-button" class="cab-push" type="button" aria-label="PUSH"><span class="cab-push-face">PUSH</span><span class="key-hint" data-action="push"></span></button>
+                <!-- 曲送り (2026-11-14 ユーザー指定: 曲を 切り替えられる ように)。今の 場面の 別の 曲へ。選んだ 曲は 覚えておく -->
+                <button id="song-button" class="cab-song" type="button" aria-label="曲送り" title="曲送り (今の 場面の 別の 曲に する)"><span class="cab-song-icon" aria-hidden="true">♪</span><span class="cab-song-text">曲送り</span></button>
             </div>
         </div>
 
@@ -208,6 +210,7 @@
                 <button data-debug="aruaru">次:内定の時でアルアル復活</button>
                 <button data-debug="revenge">リベンジチャンスへ</button>
                 <button data-debug="setBreak">ブレイク状態に</button>
+                <button data-debug="ranyu">次:おにおに乱入</button>
                 <button data-debug="finalBlow">次:とどめの一撃</button>
                 <button data-debug="forceOni">次の相手:おにおに</button>
                 <button data-debug="forceGold">次の相手:金面犬</button>
@@ -276,6 +279,12 @@
                         <option value="new">今の曲 (Suno)</option>
                         <option value="old">前の曲 (チップチューン)</option>
                     </select>
+                </label>
+            </section>
+            <section class="modal-section">
+                <h3>演出</h3>
+                <label class="sound-row">
+                    <input id="camera-enabled" type="checkbox" checked> 液晶の カメラを 動かす (寄る・傾く・反対側から 映す)
                 </label>
             </section>
             <section class="modal-section">
@@ -423,14 +432,15 @@
     </div>
 
     <!-- 読み込み順: 設定 → データ → 各機能 → 起動 -->
-    <script src="js/config.js?v=2d0311cb"></script>
-    <script src="js/sprites.js?v=f247a6da"></script>
-    <script src="js/backgrounds.js?v=2231081c"></script>
-    <script src="js/characters.js?v=be4806e5"></script>
+    <script src="js/config.js?v=a1fec0be"></script>
+    <script src="js/pixel-hd.js?v=9beba57e"></script>
+    <script src="js/sprites.js?v=085c1388"></script>
+    <script src="js/backgrounds.js?v=5413cc5c"></script>
+    <script src="js/characters.js?v=7d282b09"></script>
     <script src="js/audio.js?v=9b3fcfdc"></script>
-    <script src="js/state.js?v=0e654ab0"></script>
+    <script src="js/state.js?v=4de8620e"></script>
     <script src="js/lottery.js?v=33ee41c6"></script>
-    <script src="js/battle.js?v=3554d466"></script>
+    <script src="js/battle.js?v=50daff6e"></script>
     <script src="js/notice.js?v=42133bef"></script>
     <script src="js/hype.js?v=ebd6393d"></script>
     <script src="js/lever.js?v=f7405b6e"></script>
@@ -439,9 +449,10 @@
     <script src="js/save.js?v=37b5b32f"></script>
     <script src="js/bgm.js?v=f9a8e48b"></script>
     <script src="js/reels.js?v=7e60869f"></script>
-    <script src="js/lcd/kit.js?v=ebcea5dc"></script>
+    <script src="js/lcd/camera.js?v=3a1d8df8"></script>
+    <script src="js/lcd/kit.js?v=55c9624f"></script>
     <script src="js/lcd/beat-fx.js?v=52ca32b4"></script>
-    <script src="js/lcd/special-fx.js?v=6f17b764"></script>
+    <script src="js/lcd/special-fx.js?v=30a93c56"></script>
     <script src="js/lcd/chance-fx.js?v=8691e65a"></script>
     <script src="js/lcd/trophy-view.js?v=d13af67f"></script>
     <script src="js/lcd/end-card-view.js?v=ba79dd8d"></script>
@@ -453,12 +464,12 @@
     <script src="js/lcd/okalamp-view.js?v=5f601ee3"></script>
     <script src="js/lcd/ikemen-view.js?v=8ccc29c9"></script>
     <script src="js/lcd/notice-view.js?v=cab2ebe5"></script>
-    <script src="js/lcd.js?v=c77925ee"></script>
+    <script src="js/lcd.js?v=711eaee6"></script>
     <script src="js/profiles.js?v=9335b576"></script>
-    <script src="js/updates.js?v=b75cc6a1"></script>
+    <script src="js/updates.js?v=5f44ff4a"></script>
     <script src="js/push.js?v=3dd6d8b0"></script>
-    <script src="js/ui.js?v=d35d67d1"></script>
+    <script src="js/ui.js?v=f25a79d1"></script>
     <script src="js/layout.js?v=e9ad7278"></script>
-    <script src="js/main.js?v=3e74e6f6"></script>
+    <script src="js/main.js?v=3733ecc7"></script>
 </body>
 </html>

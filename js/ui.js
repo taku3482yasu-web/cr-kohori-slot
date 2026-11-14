@@ -6,6 +6,7 @@
 const UI = (() => {
     const KEY_STORAGE_KEY = 'koori-key-bindings';
     const AUDIO_STORAGE_KEY = 'koori-audio';
+    const CAMERA_STORAGE_KEY = 'koori-camera';
     const KEY_ACTION_LABELS = {
         lever: 'レバー（回転開始）',
         stop1: '左リール STOP',
@@ -51,6 +52,7 @@ const UI = (() => {
             bgmEnabled: $('bgm-enabled'),
             bgmVolume: $('bgm-volume'),
             bgmStyle: $('bgm-style'),
+            cameraEnabled: $('camera-enabled'),
             saveInfo: $('save-info'),
             resetData: $('reset-data-button'),
             resetButton: $('reset-button'),
@@ -459,6 +461,16 @@ const UI = (() => {
         els.bgmVolume.addEventListener('input', () => {
             Bgm.setVolume(Number(els.bgmVolume.value) / 100);
             store();
+        });
+
+        // 液晶の カメラ (2026-11-14。js/lcd/camera.js)。酔う 人の ために 切れる
+        let camera = true;
+        try { camera = localStorage.getItem(CAMERA_STORAGE_KEY) !== 'off'; } catch (e) { /* 読めない 環境 */ }
+        LcdCamera.setEnabled(camera);
+        els.cameraEnabled.checked = camera;
+        els.cameraEnabled.addEventListener('change', () => {
+            LcdCamera.setEnabled(els.cameraEnabled.checked);
+            try { localStorage.setItem(CAMERA_STORAGE_KEY, els.cameraEnabled.checked ? 'on' : 'off'); } catch (e) { /* 保存 できない */ }
         });
     }
 

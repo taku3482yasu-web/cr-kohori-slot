@@ -66,7 +66,46 @@
         if (!Object.values(TOKKA_TRACKS).includes(track)) return null;
         return s.mode === MODES.SUPER_RASH ? 'super' : 'battle';
     }
+    // ----- 曲送り (2026-11-14 ユーザー指定: 曲の 切り替えを できる ように) -----
+    // 台の「♪ 曲送り」ボタンで、今の 場面の 別の 曲へ (フェードで 切り替わり、曲名が 出る)。選んだ 曲は 場面ごとに 覚えておく。
+    //   RASH は 5 曲・SUPER は 2 曲・通常時は ステージの 3 曲から。1 曲しか ない 場面 (SE城前・ダンス・特化ゾーン) は 全部の 曲から
+    const SONG_PREF_KEY = 'koori-song-pref';
+    const ALL_SONGS = ['tsugakuro', 'ongagawa', 'ebisucho', 'castle', 'battle', 'battle2', 'rash2', 'rash3', 'rash4', 'super', 'super2', 'dance', 'okapipo', 'tokkaFire', 'tokkaIkkeki', 'tokkaAsahara'];
+    let songPref = {};
+    try { songPref = JSON.parse(localStorage.getItem(SONG_PREF_KEY)) || {}; } catch (e) { songPref = {}; }
+    function songScene(s) {
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return null;   // 復活待ちは 変えない
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA) return `tokka-${s.rash.tokka.kind}`;
+        if (s.mode === MODES.SUPER_RASH) return 'super';
+        if (s.mode === MODES.RASH) return 'rash';
+        if (s.mode === MODES.CASTLE_CHALLENGE || s.normal.map === config.map.castle) return 'castle';
+        if (s.normal.dance) return 'dance';
+        return 'stage';
+    }
+    const songPool = scene => (scene === 'rash' ? RASH_SONGS : scene === 'super' ? SUPER_SONGS : scene === 'stage' ? STAGE_SONGS : ALL_SONGS);
+    const prefFor = scene => (scene && songPref[scene] && Bgm.fileState(songPref[scene]) !== false ? songPref[scene] : null);
+    function nextSong() {
+        const scene = songScene(state);
+        if (!scene) return;
+        const pool = songPool(scene).filter(n => Bgm.fileState(n) !== false);
+        if (!pool.length) return;
+        const now = Bgm.track;
+        const next = pool[(pool.indexOf(now) + 1) % pool.length];
+        songPref[scene] = next;
+        try { localStorage.setItem(SONG_PREF_KEY, JSON.stringify(songPref)); } catch (e) { /* 保存 できない */ }
+        if (scene === 'rash') rashSong = next;
+        if (scene === 'super') superSong = next;
+        startAudio();
+        refresh();
+    }
+
     function bgmTrack(s) {
+        const chosen = prefFor(songScene(s));
+        if (chosen) {   // 曲送りで 選んだ 曲
+            if (s.mode === MODES.RASH && !(s.rash.phase === RASH_PHASES.TOKKA)) rashSong = chosen;
+            if (s.mode === MODES.SUPER_RASH && !(s.rash.phase === RASH_PHASES.TOKKA)) superSong = chosen;
+            return chosen;
+        }
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return 'defeat';   // 復活待ちは負けたように見せる
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA) {
             // 上乗せ特化ゾーンは 見せ方ごとの 曲 (2026-11-13 ユーザー指定。Suno の 曲を 置く。sound/SUNO.md)
@@ -439,6 +478,8 @@
     Layout.init();   // パソコンでの表示 (一覧 / 全画面)
 
     spinButton.addEventListener('click', playGame);
+    const songButton = document.getElementById('song-button');
+    if (songButton) songButton.addEventListener('click', nextSong);   // 曲送り (2026-11-14)
     buyCoinsButton.addEventListener('click', buyCoins);
     fsBuyButton.addEventListener('click', buyCoins);   // 全画面のときの BUY
     // STOP は指・マウスが触れた瞬間に止める (離したときの click を待たない)。
@@ -540,6 +581,7 @@
         superRash: debugAction(() => DebugState.toSuperRash(state)),
         lastGame: debugAction(() => DebugState.lastGame(state)),
         setBreak: debugAction(() => DebugState.setBreak(state, config)),
+        ranyu: debugAction(() => { state.rash.debugForceRanyu = true; }),   // 次の 敵の 決定・攻撃で おにおに乱入 (2026-11-14)
         forceOni: debugAction(() => DebugState.forceEnemy(state, 'onioni')),
         pointChance: debugAction(() => DebugState.forcePointChance(state, config)),
         companion: debugAction(() => DebugState.forceCompanion(state)),

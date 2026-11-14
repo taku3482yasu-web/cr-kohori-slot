@@ -592,6 +592,42 @@ test('ミニゲーム (2026-10-27): 100G から 抽選・150G で 確定・チ�
     console.log(`  ミニゲーム: ${order.map(id => `${cfg.mini.kinds[id].short} ${pct(rate(id))} (${kinds[id][0]} 回)`).join('・')}・虹 ${rainbow} 回`);
 });
 
+test('セットの 勝ち負けは 1 ゲーム目の 出目で 決まり、おにおに乱入は 70% 以上で 勝って おにおにの 報酬 (2026-11-14)', () => {
+    const g = loadGame(123);
+    const { config: cfg, Lottery: L, GameFlow: GF } = g;
+    const state = g.createInitialState(cfg);
+    let pendingAtStart = 0, starts = 0, decidedFirst = 0, firstGames = 0;
+    let ranyu = 0, ranyuStart = 0, ranyuAttack = 0, ranyuWin = 0, ranyuLose = 0, ranyuRate = 0, wrongReward = 0, active = false, activeMode = null;
+    for (let i = 0; i < 400000; i++) {
+        state.coins = 1e6;
+        const pendingBefore = state.rash.setPending && state.rash.phase === 'BATTLE';
+        const ev = GF.playWithCharge(state, L.draw(state, cfg), cfg);
+        if (pendingBefore && !ev.some(e => e.type === 'freezeBonus')) { firstGames++;   // ロングフリーズは 抽選の 前に 撃破
+            if (ev.some(e => e.type === 'killRate' && e.decided)) decidedFirst++; }
+        ev.forEach((e, k) => {
+            if (e.type === 'battleStart') { starts++; if (state.rash.setPending || ev.some(x => x.type === 'ranyu') || e.winGuaranteed) pendingAtStart++; }
+            if (e.type === 'ranyu') {
+                ranyu++; if (e.when === 'start') ranyuStart++; else ranyuAttack++;
+                ranyuRate += e.killRate; active = true; activeMode = state.mode;
+                if (e.enemyId !== 'onioni' || e.baseRate < 0.7 || e.killRate < 0.7) wrongReward++;
+            }
+            if (active && e.type === 'defeat') {
+                active = false; ranyuWin++;
+                if (e.enemyId !== 'onioni') wrongReward++;
+                if (activeMode === 'RASH' && !ev.slice(k).some(x => x.type === 'superStart')) wrongReward++;
+            }
+            if (active && (e.type === 'rashEnd' || (e.type === 'questionResult' && !e.continued) || e.type === 'companionSave')) { active = false; ranyuLose++; }
+        });
+    }
+    assertEqual(pendingAtStart, starts, 'セットの はじめは 勝ち負けが 決まって いない (勝利確定・乱入は のぞく)');
+    assert(firstGames > 1000 && decidedFirst === firstGames, `1 ゲーム目で 勝ち負けを 決める (${decidedFirst} / ${firstGames})`);
+    assert(ranyu > 30 && ranyuStart > 0 && ranyuAttack > 0, `おにおに乱入が 起きる (${ranyu} 回。敵の 決定 ${ranyuStart}・攻撃 ${ranyuAttack})`);
+    assertEqual(wrongReward, 0, '乱入の 相手・撃破率・報酬 (SUPER) が ちがう 回数');
+    const win = ranyuWin / Math.max(1, ranyuWin + ranyuLose);
+    assert(win >= 0.7, `乱入の 勝率は 70% 以上 (${(win * 100).toFixed(1)}%・${ranyuWin} 勝 ${ranyuLose} 敗)`);
+    console.log(`  おにおに乱入: ${ranyu} 回 (敵の 決定 ${ranyuStart}・攻撃 ${ranyuAttack})・平均の 撃破率 ${(ranyuRate / ranyu * 100).toFixed(1)}%・勝率 ${(win * 100).toFixed(1)}%`);
+});
+
 test('撃破率は 同じ 敵の あいだ 減らない・100% は 必ず 撃破・ブレイク中は ガードしない (2026-11-14)', () => {
     const g = loadGame(91);
     const { config: cfg, Lottery: L, GameFlow: GF } = g;

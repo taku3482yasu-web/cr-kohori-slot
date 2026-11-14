@@ -199,6 +199,8 @@ function createRashState() {
         nextForcedEnemy: null,   // 次の対戦相手の確定 (ゴールド金面犬撃破後など)
         goldDogFlag: false,      // ゴールド金面犬と対戦中か
         breakActive: false,      // ブレイク状態 (敵がガードできない)
+        setPending: false,       // セットの 勝ち負けが まだ 決まって いない (1 ゲーム目の 出目で 決める。2026-11-14)
+        ranyu: false,            // おにおに乱入で おにおに・怪と 戦って いる (2026-11-14)
         battleIntro: false,      // 敵と戦いはじめて1ゲーム目か (ふるカワがその敵の話をする)
         probUpGames: 0,          // 柄揃い確率アップの残りゲーム数
         probUpMultiplier: 1,
@@ -1104,7 +1106,7 @@ const GameFlow = {
         switch (state.rash.phase) {
             case RASH_PHASES.SELECT:
                 if (Battle.isNaiteiTrigger(state, outcome, config)) return Battle.startNaitei(state, config, rng);
-                return Battle.startBattle(state, config, rng);
+                return Battle.startBattle(state, config, rng, outcome);
             case RASH_PHASES.BATTLE:
                 return [...Battle.battleGame(state, outcome, config, rng), ...Battle.maybeStartTreasure(state, config, rng)];
             case RASH_PHASES.QUESTION:

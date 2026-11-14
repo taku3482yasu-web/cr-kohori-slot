@@ -542,12 +542,24 @@ const Characters = (() => {
     };
 
     // 仲間を描く。(x, groundY) は足元の中央。silhouette で黒い影、alpha で透明度
+    // 2026-11-14 (ユーザー指定: ドット絵を 緻密に): js/pixel-hd.js で 4 倍の 細かさに 作り直した 絵を のせる
+    const HD = typeof PixelHD !== 'undefined' && typeof document !== 'undefined';
+    function bakedOf(kind, id, c, frame, variant) {
+        return PixelHD.cached(`${kind}:${id}:${frame}:${variant}`, () =>
+            PixelHD.bake(PixelHD.fromRects(c.w, c.h, r => c.draw(r, frame)), variant === 'hurt' ? { tint: '#ffffff' } : variant === 'silhouette' ? { tint: '#101018' } : {}));
+    }
+
     function drawCompanion(ctx, id, x, groundY, { scale = 2, frame = 0, silhouette = false, alpha = 1 } = {}) {
         const c = COMPANIONS[id];
         if (!c) return;
         const left = Math.round(x - (c.w * scale) / 2);
         const top = Math.round(groundY - c.h * scale);
         ctx.globalAlpha = alpha;
+        if (HD) {
+            PixelHD.draw(ctx, bakedOf('c', id, c, frame, silhouette ? 'silhouette' : ''), left, top, scale);
+            ctx.globalAlpha = 1;
+            return;
+        }
         c.draw((rx, ry, rw, rh, color) => {
             const x0 = Math.round(left + rx * scale), x1 = Math.round(left + (rx + rw) * scale);
             const y0 = Math.round(top + ry * scale), y1 = Math.round(top + (ry + rh) * scale);
@@ -557,14 +569,51 @@ const Characters = (() => {
         ctx.globalAlpha = 1;
     }
 
+    // 怪の 状態 (2026-11-14 おにおに乱入の おにおに・怪。前作 koori-pachinko の 絵を 写した): 目の まわりの 靄と 赤く 光る 目
+    const KAI_EYES = {
+        onioni: { band: [12, 9, 16, 5], eyes: [[15.5, 12], [24.5, 12]] }
+    };
+    function drawKai(ctx, k, enemy, left, top, scale, flip, alpha, hurt) {
+        const px = (sx, sw = 0) => left + (flip ? enemy.w - sx - sw : sx) * scale;
+        const t = (typeof performance !== 'undefined' ? performance.now() : 0) / 1000;
+        const [bx, by, bw, bh] = k.band;
+        ctx.globalAlpha = alpha * (hurt ? 0.4 : 0.82);
+        ctx.fillStyle = '#2a0a3a';
+        ctx.fillRect(Math.round(px(bx, bw)), Math.round(top + by * scale), Math.round(bw * scale), Math.round(bh * scale));
+        ctx.globalAlpha = alpha * 0.45;
+        const wobble = Math.sin(t * 3) * 0.5;
+        ctx.fillRect(Math.round(px(bx + 1 + wobble, bw - 2)), Math.round(top + (by - 1) * scale), Math.round((bw - 2) * scale), Math.round(scale));
+        ctx.fillRect(Math.round(px(bx + 1 - wobble, bw - 2)), Math.round(top + (by + bh) * scale), Math.round((bw - 2) * scale), Math.round(scale));
+        const glow = 0.8 + Math.sin(t * 6) * 0.2;
+        k.eyes.forEach(([ex, ey]) => {
+            const cx = px(ex), cy = top + ey * scale;
+            ctx.globalAlpha = alpha * glow * 0.45;
+            ctx.fillStyle = '#ff0018';
+            ctx.fillRect(cx - scale * 2, cy - scale * 1.3, scale * 4, scale * 2.6);
+            ctx.globalAlpha = alpha * glow;
+            ctx.fillRect(cx - scale * 1.2, cy - scale * 0.9, scale * 2.4, scale * 1.8);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#ff3a3a';
+            ctx.fillRect(cx - scale * 0.6, cy - scale * 0.6, scale * 1.2, scale * 1.2);
+            ctx.fillStyle = '#ffe0e0';
+            ctx.fillRect(cx - scale * 0.25, cy - scale * 0.25, scale * 0.5, scale * 0.5);
+        });
+    }
+
     // 敵を描く。(x, groundY) は足元の中央。hurt で白く光る、silhouette で黒い影、alpha で透明度
-    // flip: 左右反転 (右を向く。こおりくんの味方として出すとき)
-    function drawEnemy(ctx, id, x, groundY, { scale = 2, frame = 0, hurt = false, silhouette = false, alpha = 1, flip = false } = {}) {
+    // flip: 左右反転 (右を向く。こおりくんの味方として出すとき) / kai: 怪の 状態 (おにおに乱入)
+    function drawEnemy(ctx, id, x, groundY, { scale = 2, frame = 0, hurt = false, silhouette = false, alpha = 1, flip = false, kai = false } = {}) {
         const enemy = ENEMIES[id];
         if (!enemy) return;
         const left = Math.round(x - (enemy.w * scale) / 2);
         const top = Math.round(groundY - enemy.h * scale);
         ctx.globalAlpha = alpha;
+        if (HD) {
+            PixelHD.draw(ctx, bakedOf('e', id, enemy, frame, silhouette ? 'silhouette' : hurt ? 'hurt' : ''), left, top, scale, flip);
+            if (kai && KAI_EYES[id] && !silhouette) drawKai(ctx, KAI_EYES[id], enemy, left, top, scale, flip, alpha, hurt);
+            ctx.globalAlpha = 1;
+            return;
+        }
         enemy.draw((rx, ry, rw, rh, color) => {
             const fx = flip ? enemy.w - rx - rw : rx;
             const x0 = Math.round(left + fx * scale), x1 = Math.round(left + (fx + rw) * scale);

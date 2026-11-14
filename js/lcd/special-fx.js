@@ -142,7 +142,8 @@ const SpecialFx = (() => {
             for (let r = 0; r < 6; r++) {
                 for (let c = 0; c < 2; c++) ctx.fillRect(-6 + c * 8 + (r % 2) * 2, 24 + r * 13, 3, 3);
             }
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.rotate(-angle);
+            ctx.translate(-px, -py);
             if (t > 0.4) {
                 const p = (t - 0.4) / 0.6;
                 ctx.globalAlpha = 1 - p;

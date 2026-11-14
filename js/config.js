@@ -561,6 +561,9 @@ window.GAME_CONFIG = {
     //   revivalShow: 復活の 撃破で 出す 撃破率 (表示だけ。7.77 = 777%)
     killRate: {
         add: { diamond: 0.02, cherry: 0.05, melon: 0.08, chance: 0.25 },
+        // first: セットの 1 ゲーム目 (勝ち負けを 決める ゲーム) に 出た 役で 上がる 量 (2026-11-14 ユーザー指定: 1 回転目の 出目で 当たりを 決める)。
+        //   'kill' の 役は 100%。ここで 決めた 撃破率で 勝ち負けを 抽選し、残りの ゲームは add・ブレイク・チャージで 上書き 抽選
+        first: { replay: 0, bell: 0.03, diamond: 0.06, cherry: 0.12, melon: 0.18, chance: 0.35 },
         breakAdd: 0.2,
         revivalShow: 7.77,
         // 数字の 色 (2026-10-27 ユーザー指定): 高い ほど 強い 色。白 < 青 < 緑 < 紫 < 赤 < 虹 (虹は 100% = 確定)。min 以上で その 色
@@ -592,6 +595,11 @@ window.GAME_CONFIG = {
         castle: { rate: 0.1, mult: 1.5 },
         battle: { rate: 0.06, add: 0.15 }
     },
+
+    // ----- おにおに乱入 (2026-11-14 ユーザー指定。js/battle.js の tryRanyu) -----
+    // BATTLE で 敵が 決まった とき (atStart)・攻撃した とき (atAttack。1 ゲームごと) に その 確率で おにおにが 乱入。
+    //   敵が 塗り替えられて「おにおに・怪」に なる。撃破率は baseRate から (乱入した ゲームの 役で 上がる)。数字は Claude が 決めた
+    ranyu: { atStart: 0.006, atAttack: 0.0015, baseRate: 0.72, name: 'おにおに・怪' },
 
     // ----- ブレイク -----
     // BATTLE 中に rates の役が出たとき、その確率でブレイク状態に (今の敵を倒すか RASH が終わるまで続く)。

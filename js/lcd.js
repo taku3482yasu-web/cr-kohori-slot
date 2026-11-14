@@ -133,10 +133,9 @@ const Lcd = (() => {
         config = cfg;
         state = gameState;
         ({ width: W, height: H } = cfg.effects.lcd);
-        canvas.width = W;
-        canvas.height = H;
-        ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = false;
+        // 2026-11-14 (ユーザー指定: 鮮明に): 液晶の 画素を 3 倍に (座標は 256x144 の まま。js/pixel-hd.js)
+        ctx = PixelHD.setupCanvas(canvas, W, H, 3);
+        LcdCamera.init(W, H);
         LcdKit.setCanvas(ctx, W, H, config);   // 切り出した描画のファイル (js/lcd/) が使う
         // 特化ゾーンの見せ方を選ぶ画面: 液晶のカードをタップで選び、選んでいるカードをもう一度タップで決定
         canvas.addEventListener('pointerdown', (e) => {
@@ -200,6 +199,7 @@ const Lcd = (() => {
             battle.probUpGames = rash.probUpGames;
             battle.probUpMultiplier = rash.probUpMultiplier;
             battle.breakActive = rash.breakActive;
+            battle.kai = Boolean(rash.ranyu);
             setNow(battle.killRate, rash.shownRate ?? rash.killRate ?? 0);
             battle.nameColor = rash.nameColor || 'white';
             battle.winGuaranteed = Boolean(rash.winGuaranteed && rash.enemyId);
@@ -229,7 +229,25 @@ const Lcd = (() => {
         return scene === 'field' && displayMap !== config.map.castle && !wipe && !bubbles && !dance;
     }
 
+    // カメラの 動き (2026-11-14 ユーザー指定: いろいろな 方向から。js/lcd/camera.js)
+    //   通常時の 道・SE城前・城突入チャレンジと RASH の BATTLE で 動く。ミニゲーム・ダンス・宝物庫・特化ゾーンは 動かさない。
+    //   カットイン・リーチ・吹き出し などの あいだは 引きの 絵に 戻す
+    function cameraView(time) {
+        const lock = Boolean(cutIn || reachView || bubbles || wipe || letterboxTarget > 0 || bigLogo || roulette || titleCard && time < titleCard.until);
+        if (scene === 'rash') {
+            if (treasure || tokka) return { kind: 'calm' };
+            const g = Backgrounds.get(logoSuper && !naiteiZone ? 'goldHall' : 'castleHall').groundY;
+            const enemy = battle.visible && battle.enemyId ? { x: valueAt(battle.x, time), y: g - Characters.size(battle.enemyId).h } : null;
+            return { kind: 'rash', ground: g, hero: { x: valueAt(koori.x, time) + 24, y: g - 24 }, enemy, lock };
+        }
+        if (miniView || dance) return { kind: 'calm' };
+        const g = Backgrounds.get(displayMap).groundY;
+        return { kind: 'field', ground: g, hero: { x: valueAt(koori.x, time) + 24, y: g - 24 }, enemy: null, lock };
+    }
+
     function draw(time) {
+        PixelHD.begin(ctx);
+        LcdCamera.clear();
         BeatFx.tick(time);   // 曲名の 切り替わり・筐体を 拍で 光らせる (js/lcd/beat-fx.js)
         if (tokkaSelect) {
             drawTokkaSelect(time);
@@ -269,6 +287,7 @@ const Lcd = (() => {
             const amp = shake.amp;
             ctx.translate(Math.round((Math.random() * 2 - 1) * amp), Math.round((Math.random() * 2 - 1) * amp));
         }
+        LcdCamera.update(time, cameraView(time));
         if (scene === 'rash') {
             drawRash(time);
         } else if (scene === 'field' && miniView) {
@@ -277,6 +296,8 @@ const Lcd = (() => {
         } else if (scene === 'field' && dance) {
             drawDance(time);
         } else {
+            ctx.save();
+            LcdCamera.apply(ctx, time);
             Backgrounds.draw(ctx, displayMap, scroll);
             if (displayMap === config.map.castle) {
                 drawTorches(time);
@@ -287,6 +308,8 @@ const Lcd = (() => {
             if (chanceTimeView && scene === 'field') drawChanceTimeFurukawa(time, groundY);
             drawKoori(time);
             drawVisitor(time, groundY);
+            ctx.restore();
+            LcdCamera.done();
             drawBubbles(time);
             if (scene === 'field') drawNormalHud(time);
             if (scene === 'field' && chanceTimeView) NoticeView.drawChanceTime(ctx, time, chanceTimeView, config.chanceTime.multiplier);
@@ -1031,6 +1054,8 @@ const Lcd = (() => {
         }
         const hallId = logoSuper && !naiteiZone ? 'goldHall' : 'castleHall';
         const hall = Backgrounds.get(hallId);
+        ctx.save();
+        LcdCamera.apply(ctx, time);   // カメラ (HUD は 動かさない)
         Backgrounds.draw(ctx, hallId, 0);
         drawFlames(hall.braziers, time);
         if (!naiteiZone) BeatFx.drawBackdrop(ctx, W, H, time, hall.groundY);   // 曲ごとの 広間の 絵 (2026-11-14)
@@ -1073,15 +1098,20 @@ const Lcd = (() => {
         // 敵
         if (battle.visible && battle.enemyId) {
             const hurt = time < battle.hurtUntil && Math.floor(time / 60) % 2 === 0;
+            if (battle.kai) drawKaiAura(time, valueAt(battle.x, time), hall.groundY);   // おにおに・怪の 紫の もや
             Characters.drawEnemy(ctx, battle.enemyId, valueAt(battle.x, time), hall.groundY + valueAt(battle.drop, time), {
                 scale: 2,
                 frame: Math.floor(time / 450) % 2,
                 hurt,
+                kai: battle.kai,
                 alpha: Math.max(0, valueAt(battle.alpha, time))
             });
         }
+        if (battle.ranyuFx) drawRanyuFx(time, hall.groundY);   // おにおに乱入: 敵が 塗り替えられる
 
         drawSpecialFx(time, hall.groundY);
+        ctx.restore();
+        LcdCamera.done();
         drawRashHud(time);
         drawEnemyTalk(time, hall.groundY);
         drawDamageNumbers(time);
@@ -1131,7 +1161,8 @@ const Lcd = (() => {
         // アルアルが出ている間は、王冠と顔が隠れないよう出さない
         if (battle.visible && battle.enemyId && !aruaruAlly) {
             const enemy = Battle.findEnemy(config, battle.enemyId);
-            const bw = Math.max(108, textWidth(enemy.name, 10) + textWidth('HP 000', 10) + 18);
+            const enemyName = battle.kai ? config.ranyu.name : enemy.name;   // おにおに乱入は「おにおに・怪」
+            const bw = Math.max(108, textWidth(enemyName, 10) + textWidth('HP 000', 10) + 18);
             const bx = W - bw - 4, by = 24;
             box(bx, by, bw, 22, 'rgba(0,0,0,0.7)', battle.breakActive ? '#c080ff' : '#a0a0a0');
             // 撃破率 (2026-10-27 ユーザー指定): HP の 枠の 下。数字の 色は 白 < 青 < 緑 < 紫 < 赤 < 虹 (確定)。勝利確定の BATTLE は 100%
@@ -1149,7 +1180,7 @@ const Lcd = (() => {
                 text('BREAK', bx + bw - 17, by + 41, { color: blink ? '#ffffff' : '#e0b0ff', size: 10, align: 'center', outline: null });
             }
             const nameColor = { red: '#ff3a3a', gold: SUPER_COLOR }[battle.nameColor] || '#ffffff';   // 赤字・金字は 撃破 確定
-            text(enemy.name, bx + 5, by + 2, { size: 10, outline: null, color: nameColor });
+            text(enemyName, bx + 5, by + 2, { size: 10, outline: null, color: battle.kai && battle.nameColor === 'white' ? '#e0a0ff' : nameColor });
             const hp = Math.max(0, valueAt(battle.hp, time));
             const ratio = battle.maxHp ? hp / battle.maxHp : 0;
             ctx.fillStyle = '#3a0a0a';
@@ -1219,6 +1250,11 @@ const Lcd = (() => {
     // 撃破率が 上がった (役・ブレイク・長押しの チャージ・撃破役)。100% に なったら 全画面で 確定
     async function killRateUp(event) {
         battle.nameColor = event.nameColor || battle.nameColor;
+        // セットの 1 ゲーム目の 抽選で 上がらなかった ときは 数字は そのまま (名前の 色・違和感演出だけ 合わせる)
+        if (event.decided && event.to <= event.from) {
+            if (event.shown != null) setNow(battle.killRate, event.shown);
+            return;
+        }
         // 違和感演出 (7% / 77%) の あいだは 数字を 動かさない (100% に なったら 出す)
         if (event.shown != null && event.to < 1) {
             setNow(battle.killRate, event.shown);
@@ -1228,7 +1264,7 @@ const Lcd = (() => {
         battle.killUp = performance.now();
         const shownFrom = Math.max(event.from, valueAt(battle.killRate));   // 違和感演出の 77% から 100% に なる ときも 正しい 差を 出す
         animateTo(battle.killRate, event.to, 400);
-        const word = event.reason === 'charge' ? 'チャージ!! ' : event.reason === 'break' ? 'BREAK!! ' : '';
+        const word = event.reason === 'charge' ? 'チャージ!! ' : event.reason === 'break' ? 'BREAK!! ' : event.reason === 'first' ? '1G目 抽選!! ' : event.reason === 'ranyu' ? '乱入 抽選!! ' : '';
         damageNumbers.push({ text: `${word}撃破率 +${Math.max(0, killRatePct(event.to) - killRatePct(shownFrom))}%`, color: killRateColor(event.to, performance.now()), size: 12, born: performance.now() });
         if (event.to >= 1 && event.from < 1) {
             await playKillSplash(1, '撃破確定!!', event.from, 1400);
@@ -1251,7 +1287,10 @@ const Lcd = (() => {
         damageNumbers.forEach(d => {
             const age = (time - d.born) / 900;
             const y = 56 - Math.sin(Math.min(1, age * 2) * Math.PI / 2) * 14;
-            text(d.text, treasure ? CHEST.x + CHEST.w / 2 : tokka ? W / 2 : ENEMY_X, y + (tokka ? 20 : 0), { color: d.color, size: d.size, align: 'center' });
+            const p = treasure || tokka ? { x: treasure ? CHEST.x + CHEST.w / 2 : W / 2, y: y + (tokka ? 20 : 0) }
+                : LcdCamera.project(ENEMY_X, 56);   // カメラに ついて いく
+            const px = Math.max(30, Math.min(W - 30, p.x)), py = Math.max(14, Math.min(H - 20, treasure || tokka ? p.y : p.y + y - 56));
+            text(d.text, px, py, { color: d.color, size: d.size, align: 'center' });
         });
     }
 
@@ -1702,7 +1741,8 @@ const Lcd = (() => {
         const { w, h } = Characters.size(battle.enemyId);
         const left = valueAt(battle.x, time) - w;   // 敵は2倍で描いている
         const top = groundY + valueAt(battle.drop, time) - h * 2;
-        StoryView.bubble(enemyTalk.text, Math.round(left + 6), Math.round(top + 18));
+        const p = LcdCamera.project(left + 6, top + 18);   // カメラに ついて いく
+        StoryView.bubble(enemyTalk.text, Math.round(Math.max(2, Math.min(W - 90, p.x))), Math.round(Math.max(2, Math.min(H - 30, p.y))));
     }
 
     // 敵の必殺技 (「？？」で継続できなかったとき・内定の時ゾーンの失敗): セリフ → カットイン → 技ごとのエフェクト
@@ -1870,7 +1910,7 @@ const Lcd = (() => {
     let bigKokuchi = null;     // { label, start }
     const KOKUCHI_LABELS = {
         castleSure: '城突入 確定!!', castleEntry: '城突入!!', rashStart: 'RASH 確定!!', superStart: 'SUPER 確定!!', revival: '復活!!',
-        zoneHit: 'ZONE 突入!!', tokkaStart: '上乗せ特化!!', companionSave: '仲間が 救った!!', revengeSuccess: 'リベンジ 成功!!', ceiling: '天井 到達!!'
+        zoneHit: 'ZONE 突入!!', ranyu: 'おにおに 乱入!!', tokkaStart: '上乗せ特化!!', companionSave: '仲間が 救った!!', revengeSuccess: 'リベンジ 成功!!', ceiling: '天井 到達!!'
     };
     function kokuchiLabel(e) {
         if (e.type === 'naiteiResult') return e.win ? '突破!!' : null;
@@ -2102,7 +2142,7 @@ const Lcd = (() => {
         const snapshot = document.createElement('canvas');
         snapshot.width = W;
         snapshot.height = H;
-        snapshot.getContext('2d').drawImage(canvas, 0, 0);
+        snapshot.getContext('2d').drawImage(canvas, 0, 0, W, H);
         clearMessage();
         reachView = null;
         preview = 0;
@@ -3141,6 +3181,71 @@ const Lcd = (() => {
     }
 
     // 対戦相手のルーレット → 敵の登場
+    // ----- おにおに乱入 (2026-11-14 ユーザー指定) -----
+    // 赤黒い 墨が 敵を 塗りつぶし → おにおに・怪 (紫の もや・赤く 光る 目) に なって 登場 → 撃破率 70% オーバー
+    async function ranyuIn(event) {
+        const intensity = config.effects.intensity;
+        Sound.special('club');
+        battle.ranyuFx = { start: performance.now() };
+        startShake(intensity.shakeLarge, 900);
+        await sleep(520);
+        battle.enemyId = event.enemyId;
+        battle.kai = true;
+        battle.maxHp = event.hp;
+        setNow(battle.hp, event.hp);
+        battle.nameColor = 'white';
+        battle.breakActive = false;
+        battle.hurtUntil = 0;
+        await sleep(480);
+        battle.ranyuFx = null;
+        startFlash('#ff1030', 500);
+        Sound.bigHit();
+        LcdCamera.punch(ENEMY_X, 70, 1.4, 700);
+        await playCutIn('onioni', 'おれが 相手だ…こおり!!', '#2a0018', 1400, 'おにおに 乱入!!');
+        const from = valueAt(battle.killRate);
+        setNow(battle.killRate, Math.max(from, event.baseRate));
+        await playKillSplash(event.baseRate, '撃破で おにおにの 報酬!!', from);
+    }
+
+    function drawRanyuFx(time, groundY) {
+        const t = (time - battle.ranyuFx.start) / 1000;
+        const cx = valueAt(battle.x, time), cy = groundY - 46;
+        // 墨が 広がって 敵を 塗りつぶし (0〜0.5 秒)、そのあと 紫の 火花と ともに 引いていく
+        const grow = Math.min(1, t / 0.5), fade = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45);
+        for (let i = 0; i < 9; i++) {
+            const a = i * 2.4 + 0.6, d = 10 + (i % 3) * 9;
+            const r = (14 + (i % 4) * 6) * grow;
+            ctx.fillStyle = i % 3 === 0 ? `rgba(120,0,24,${0.92 * fade})` : `rgba(18,0,12,${0.95 * fade})`;
+            ctx.beginPath();
+            ctx.arc(cx + Math.cos(a) * d * grow, cy + Math.sin(a) * d * grow * 0.9, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.fillStyle = `rgba(10,0,8,${0.9 * fade})`;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 44 * grow, 52 * grow, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // 紫の 火花
+        for (let i = 0; i < 18; i++) {
+            const a = i / 18 * Math.PI * 2 + t * 3, d = 30 + t * 70 + (i % 5) * 4;
+            ctx.fillStyle = i % 2 ? `rgba(200,90,255,${fade})` : `rgba(255,40,80,${fade})`;
+            ctx.fillRect(Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d * 0.7), 2, 2);
+        }
+    }
+
+    // おにおに・怪の まわりの 紫の もや (ゆらぐ)
+    function drawKaiAura(time, x, groundY) {
+        const pulse = 0.22 + 0.1 * Math.sin(time / 180);
+        ctx.fillStyle = `rgba(110,20,160,${pulse})`;
+        ctx.beginPath();
+        ctx.ellipse(x, groundY - 46, 50 + Math.sin(time / 230) * 3, 56, 0, 0, Math.PI * 2);
+        ctx.fill();
+        for (let i = 0; i < 6; i++) {
+            const p = ((time / 900 + i / 6) % 1);
+            ctx.fillStyle = `rgba(170,60,255,${0.5 * (1 - p)})`;
+            ctx.fillRect(Math.round(x - 36 + i * 13 + Math.sin(time / 300 + i) * 4), Math.round(groundY - 6 - p * 90), 3, 3);
+        }
+    }
+
     async function battleStart(event) {
         const timing = config.effects.timing;
         const names = config.enemies.map(e => e.name);
@@ -3155,6 +3260,7 @@ const Lcd = (() => {
         roulette = null;
 
         nextBonusGames = 0;
+        battle.kai = false;
         battle.enemyId = event.enemyId;
         battle.maxHp = event.hp;
         battle.games = event.games;
@@ -3224,6 +3330,7 @@ const Lcd = (() => {
         koori.moving = true;
         await animateTo(koori.x, ENEMY_X - 56, 150);
         battle.hurtUntil = performance.now() + 300;
+        LcdCamera.punch(ENEMY_X, 80, event.big ? 1.35 : 1.15, event.big ? 520 : 320);   // 当たった 瞬間 ぐっと 寄る
         hitFx(kooriFx);
         startShake(event.big ? intensity.shakeLarge : intensity.shakeSmall, event.big ? 400 : 150);
         if (event.big) startFlash('#ffffff', 300);
@@ -3782,6 +3889,9 @@ const Lcd = (() => {
                 case 'killRate':
                     await killRateUp(event);
                     break;
+                case 'ranyu':
+                    await ranyuIn(event);
+                    break;
                 case 'charge':
                     await chargeEffect(event);
                     break;
@@ -3976,7 +4086,7 @@ const Lcd = (() => {
             }
             const g = crackFx.snap.getContext('2d');
             g.clearRect(0, 0, W, H);
-            g.drawImage(canvas, 0, 0);
+            g.drawImage(canvas, 0, 0, W, H);
             return;
         }
         if (e < CRACK_MS.smash) {

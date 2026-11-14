@@ -61,12 +61,60 @@ const Battle = {
     startSet(state, config, rng, carry = false) {
         const rash = state.rash;
         const before = carry ? Math.min(1, Math.max(rash.killRate ?? 0, rash.shownRate ?? 0)) : 0;
-        const base = this.baseKillRate(state, config, this.findEnemy(config, rash.enemyId));
+        const enemyBase = this.baseKillRate(state, config, this.findEnemy(config, rash.enemyId));
+        const base = rash.ranyu ? Math.max(config.ranyu.baseRate, enemyBase) : enemyBase;
         rash.killRate = before > base ? (before >= 1 ? 1 : this.safeRate(before)) : base;
-        rash.setWillWin = rng() < rash.killRate || rash.killRate >= 1;
         rash.shownRate = null;     // 見せて いる 撃破率 (違和感演出の 7% / 77%。null は 本当の 値)
         rash.nameColor = 'white';  // 敵の 名前の 色
+        // 2026-11-14 (ユーザー指定): 勝ち負けは セットの 1 ゲーム目の 出目で 決める (decideSet)。それまでは 決まって いない。
+        //   100% (勝利確定の BATTLE・100% の 引き継ぎ) は すぐ 勝ち
+        rash.setWillWin = rash.killRate >= 1;
+        rash.setPending = !rash.setWillWin;
         if (rash.setWillWin) this.dressWin(state, config, rng);
+    },
+
+    // セットの 1 ゲーム目 (おにおに乱入は 乱入した ゲーム): 出た 役で 撃破率を 上げ (config.killRate.first)、その 確率で 勝ち負けを 決める。
+    //   残りの ゲームは raiseKillRate (役・ブレイク・チャージ) で 負けを 勝ちに 上書き できる (2026-11-14 ユーザー指定)
+    decideSet(state, config, role, rng, reason = 'first') {
+        const rash = state.rash;
+        const from = rash.killRate ?? 0;
+        const add = config.damage[role] === 'kill' ? 1 : (config.killRate.first[role] || 0);
+        const to = this.safeRate(Math.min(1, from + add));
+        rash.killRate = Math.max(from, to);
+        rash.setWillWin = rash.killRate >= 1 || rng() < rash.killRate;
+        rash.setPending = false;
+        if (rash.setWillWin) this.dressWin(state, config, rng);
+        return { type: 'killRate', from, to: rash.killRate, reason, decided: true, shown: rash.shownRate, nameColor: rash.nameColor || 'white' };
+    },
+
+    // ----- おにおに乱入 (2026-11-14 ユーザー指定) -----
+    // 敵が 決まった とき・攻撃した ときに まれに おにおにが 乱入し、敵が 塗り替えられて おにおに・怪との 戦いに なる。
+    //   撃破率は baseRate (70% オーバー) から。乱入した ゲームの 出目で 勝ち負けを 決め、残りの ゲームで 上書き 抽選。
+    //   勝ちの セットは ゲーム数が 尽きる までに かならず 撃破し、おにおにを 倒した ときの 報酬 (SUPER・エンディング・上乗せ特化ゾーン) が もらえる
+    canRanyu(state, config) {
+        const rash = state.rash;
+        return Boolean(rash.enemyId) && !rash.ranyu && rash.enemyId !== 'onioni' && !rash.goldDogFlag && !rash.winGuaranteed
+            && rash.enemyId !== config.naitei.enemy.id;
+    },
+    tryRanyu(state, config, role, rng, when) {
+        const rash = state.rash;
+        if (!this.canRanyu(state, config)) return null;
+        const forced = rash.debugForceRanyu;
+        const rate = when === 'start' ? config.ranyu.atStart : config.ranyu.atAttack;
+        if (!forced && !(rng() < rate)) return null;
+        rash.debugForceRanyu = false;
+        const from = rash.enemyId;
+        const oni = this.findEnemy(config, 'onioni');
+        rash.ranyu = true;
+        rash.enemyId = oni.id;
+        rash.enemyHp = oni.hp;
+        rash.enemyMaxHp = oni.hp;
+        rash.killRate = Math.max(rash.killRate ?? 0, config.ranyu.baseRate);
+        rash.shownRate = null;
+        rash.nameColor = 'white';
+        const decided = this.decideSet(state, config, role, rng, 'ranyu');
+        return [{ type: 'ranyu', from, when, enemyId: oni.id, name: config.ranyu.name, hp: oni.hp, baseRate: config.ranyu.baseRate,
+            killRate: rash.killRate, shown: rash.shownRate, nameColor: rash.nameColor }, decided];
     },
 
     // 撃破率を to に上げる (上限 100%)。負けセットなら、上がったぶんの確率で勝ちセットに変える。
@@ -127,7 +175,7 @@ const Battle = {
 
     // ----- 状態更新 -----
     // RASH の1ゲーム目 (撃破後の次のゲームも): 対戦相手と残りゲーム数を決めて BATTLE 開始
-    startBattle(state, config, rng) {
+    startBattle(state, config, rng, outcome = null) {
         const rash = state.rash;
         const enemy = this.pickEnemy(state, config, rng);
         const baseGames = Lottery.weightedPick(config.rash.initialGames, g => g.weight, rng).games;
@@ -140,9 +188,10 @@ const Battle = {
         rash.goldDogFlag = enemy.id === config.goldDog.id;
         rash.breakActive = false;
         rash.battleIntro = true;
+        rash.ranyu = false;
         this.startSet(state, config, rng);
         rash.phase = RASH_PHASES.BATTLE;
-        return [{
+        const start = {
             type: 'battleStart',
             killRate: rash.killRate,
             shown: rash.shownRate,
@@ -155,7 +204,10 @@ const Battle = {
             bonusGames,
             isGoldDog: rash.goldDogFlag,
             isSuper: this.isSuper(state)
-        }];
+        };
+        // 敵が 決まった ときの おにおに乱入 (相手の 表示は 乱入の 前の 敵の まま。乱入は そのあとの 演出)
+        const ranyu = outcome ? this.tryRanyu(state, config, outcome.role, rng, 'start') : null;
+        return [start, ...(ranyu || [])];
     },
 
     pickEnemy(state, config, rng) {
@@ -222,10 +274,15 @@ const Battle = {
 
         const damage = this.damageFor(outcome.role, config);
         const kill = damage === 'kill';
+        // おにおに乱入 (攻撃した とき)・セットの 1 ゲーム目の 抽選 (2026-11-14)。この ゲームの 役は 抽選に 使ったので、上乗せには 使わない
+        let firstGame = false;
+        const ranyu = !kill && damage > 0 ? this.tryRanyu(state, config, outcome.role, rng, 'attack') : null;
+        if (ranyu) { events.push(...ranyu); firstGame = true; }
+        else if (rash.setPending) { events.push(this.decideSet(state, config, outcome.role, rng)); firstGame = true; }
         // 撃破率 (2026-10-27): 役・ブレイクで上げる。撃破役は 100% (長押しのチャージは PUSH のあと。GameFlow.applyBattleCharge)
         const kr = config.killRate;
         const wasWinning = rash.setWillWin;
-        const add = (kr.add[outcome.role] || 0) + (broke ? kr.breakAdd : 0);
+        const add = (firstGame ? 0 : (kr.add[outcome.role] || 0)) + (broke ? kr.breakAdd : 0);
         const reason = kill ? 'kill' : broke ? 'break' : outcome.role;
         const up = this.raiseKillRate(state, kill ? 1 : (rash.killRate ?? 0) + add, reason, rng, config);
         if (up) events.push(up);
@@ -282,6 +339,16 @@ const Battle = {
         }
 
         if (rash.gamesRemaining <= 0) {
+            // おにおに乱入の 勝ちの セット: ゲーム数が 尽きたら とどめ (かならず 撃破して おにおにの 報酬)
+            if (rash.ranyu && rash.setWillWin) {
+                const amount = rash.enemyHp;
+                rash.enemyHp = 0;
+                events.push({ type: 'damage', role: 'ranyuFinish', amount, kill: true, guardBreak: false, killRate: rash.killRate, big: true, guarded: false,
+                    finalBlow: false, companionHits: [], finishBy: 'koori', finishKill: true, breakActive: rash.breakActive, hp: 0, maxHp: rash.enemyMaxHp,
+                    gamesRemaining: 0, probUpGames: rash.probUpGames });
+                events.push(...this.defeatEnemy(state, config, rng));
+                return events;
+            }
             rash.phase = RASH_PHASES.QUESTION;
             events.push({ type: 'question' });
         }
@@ -328,6 +395,8 @@ const Battle = {
         rash.goldDogFlag = false;
         rash.breakActive = false;
         rash.winGuaranteed = false;
+        rash.ranyu = false;
+        rash.setPending = false;
 
         const bonus = this.applyBonus(state, enemy.bonus);
         if (enemy.nextForcedEnemy) rash.nextForcedEnemy = enemy.nextForcedEnemy;

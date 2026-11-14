@@ -820,3 +820,31 @@ body.cab-bar .slot-machine.cabinet {
 .cabinet #spin-button:not(:disabled) .cab-lever-base { box-shadow: 0 3px 0 #000, inset 0 -3px 4px rgba(0, 0, 0, 0.6), 0 0 0 2px #1a1a20, 0 0 14px color-mix(in srgb, var(--cab-glow) 70%, transparent); }
 .cabinet #spin-button .cab-lever-text { color: #ffe680; text-shadow: 0 2px 0 #000; }
 .cabinet #spin-button:disabled .cab-lever-text { color: #8a8270; }
+
+/* ----- 曲送り ボタン (2026-11-14 ユーザー指定: 曲を 切り替えられる ように。js/main.js の nextSong) ----- */
+.cab-song {
+    flex-shrink: 0;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    border: 2px solid #5a4a2a;
+    background: radial-gradient(circle at 50% 30%, #3a3450, #16141f 75%);
+    color: #ffe9a8;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #000, inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.cab-song-icon { font-size: 1.25rem; line-height: 1; text-shadow: 0 0 8px var(--cab-glow, #8fd8ff); }
+.cab-song-text { font-size: 0.62rem; letter-spacing: 0.05em; white-space: nowrap; }
+.cab-song:hover { border-color: #c9a24a; }
+.cab-song:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+    .cab-song { width: 44px; height: 44px; }
+    .cab-song-icon { font-size: 1.05rem; }
+    .cab-song-text { font-size: 0.55rem; }
+}
