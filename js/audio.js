@@ -177,6 +177,27 @@ const Sound = (() => {
         osc.stop(t0 + dur + 0.05);
     }
 
+    // バチッ という 電気の 火花 (高い ところだけ 残した 短い ノイズ)。hp: これより 高い 音だけ
+    function spark(at, dur, vol, hp = 2500) {
+        const b = busOf();
+        const t0 = ctx.currentTime + at;
+        const length = Math.max(1, Math.floor(ctx.sampleRate * dur));
+        const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (Math.random() < 0.3 ? 1 : 0.25) * (1 - i / length);
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        const f = ctx.createBiquadFilter();
+        f.type = 'highpass';
+        f.frequency.value = hp;
+        const gain = ctx.createGain();
+        gain.gain.value = vol;
+        src.connect(f);
+        f.connect(gain);
+        gain.connect(b.comp);
+        src.start(t0);
+    }
+
     // ドスッ という 打撃の ノイズ (低い ところだけ 残す)
     function thump(at, dur, vol, cutoff) {
         const b = busOf();
@@ -199,16 +220,60 @@ const Sound = (() => {
     }
 
     const HIT_SOUNDS = {
-        // 大当たりの 重低音:「ドゥゥゥン…」(腹に 響く 低い うなり + ドスッ。フリーズ・突入の 瞬間)
-        // 2026-11-14 (ユーザー指定: もっと 長く「ブウううううううん」と): 4.5 秒。低い うなりを のばし、
-        //   うねり (ビブラート) を かけて ゆっくり 下がり、最後に すうっと 消える。ひずみの 層で 小さい スピーカーでも 聞こえる
+        // 大当たりの 重低音 → 2026-11-14 作り直し (ユーザー指摘:「ブウううん」が かっこ悪い → 機械が 負荷に 耐えられず 落ちた ような 音):
+        //   1) 過負荷: 高い うなりが ぐんぐん 上がり、ゆれ (不安定さ) が 増えていく (0〜0.7 秒)
+        //   2) 落ちる: うなりが 一気に 下へ 落ちていき (キュウウゥゥン…)、ショートの バチバチ が はじける (0.7〜1.8 秒)
+        //   3) 電源が 切れる: ブツッ と 低い 衝撃 + 一瞬の ノイズで ぷつりと 消える (1.8 秒)
         juteion() {
-            thump(0, 0.6, 1, 180);
-            voice({ type: 'sine', from: 58, to: 41, at: 0, dur: 4.6, glide: 4.2, vol: 0.55, attack: 0.02, hold: 2.6, vib: { rate: 5.5, depth: 2.5 } });
-            voice({ type: 'sawtooth', from: 116, to: 82, at: 0, dur: 4.4, glide: 4, vol: 0.13, attack: 0.04, hold: 2.4, shape: 3,
-                vib: { rate: 5.5, depth: 4 }, lp: { from: 1400, to: 160, q: 5 } });
-            voice({ type: 'square', from: 58.5, to: 41.3, at: 0.02, dur: 4.3, glide: 4, vol: 0.05, attack: 0.05, hold: 2.2, lp: 240, detune: 9 });
-            voice({ type: 'sine', from: 29, to: 24, at: 0, dur: 4.2, glide: 4, vol: 0.35, attack: 0.05, hold: 2.4 });   // 腹に くる いちばん 低い 音
+            const b = busOf();
+            const off = 1.8;
+            // うなり (のこぎり波 2 本を 少し ずらして 厚く)。上がって → 落ちる
+            [0, 7].forEach((det, i) => {
+                const t0 = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.detune.value = det;
+                osc.frequency.setValueAtTime(220, t0);
+                osc.frequency.exponentialRampToValueAtTime(880, t0 + 0.7);
+                osc.frequency.setValueAtTime(880, t0 + 0.72);
+                osc.frequency.exponentialRampToValueAtTime(38, t0 + off);
+                // ゆれ: だんだん 速く 深く (機械が がたつく)
+                const lfo = ctx.createOscillator(), depth = ctx.createGain();
+                lfo.frequency.setValueAtTime(6, t0);
+                lfo.frequency.linearRampToValueAtTime(28, t0 + off);
+                depth.gain.setValueAtTime(4, t0);
+                depth.gain.linearRampToValueAtTime(60, t0 + 0.7);
+                depth.gain.linearRampToValueAtTime(8, t0 + off);
+                lfo.connect(depth);
+                depth.connect(osc.frequency);
+                const lp = ctx.createBiquadFilter();
+                lp.type = 'lowpass';
+                lp.Q.value = 6;
+                lp.frequency.setValueAtTime(1200, t0);
+                lp.frequency.exponentialRampToValueAtTime(5200, t0 + 0.7);
+                lp.frequency.exponentialRampToValueAtTime(140, t0 + off);
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(0.0001, t0);
+                g.gain.exponentialRampToValueAtTime(i ? 0.05 : 0.07, t0 + 0.6);
+                g.gain.setValueAtTime(i ? 0.05 : 0.07, t0 + off - 0.02);
+                g.gain.linearRampToValueAtTime(0, t0 + off);   // ぷつりと 切れる
+                osc.connect(lp);
+                lp.connect(g);
+                g.connect(b.comp);
+                osc.start(t0); lfo.start(t0);
+                osc.stop(t0 + off + 0.05); lfo.stop(t0 + off + 0.05);
+            });
+            // 下で 鳴り続ける 電源の ハム (落ちる ときに いっしょに 下がって 切れる)
+            voice({ type: 'square', from: 60, to: 30, at: 0, dur: off, glide: off, vol: 0.05, attack: 0.05, hold: off - 0.1, lp: 300 });
+            // ショートの バチバチ (落ちて いく あいだ だんだん 多く)
+            for (let i = 0; i < 16; i++) {
+                const at = 0.6 + Math.pow(Math.random(), 0.7) * (off - 0.65);
+                spark(at, 0.012 + Math.random() * 0.03, 0.25 + Math.random() * 0.35);
+            }
+            // 電源が 切れる: ブツッ (低い 衝撃) + 一瞬の 白い ノイズ
+            thump(off, 0.45, 1, 160);
+            spark(off, 0.06, 0.8, 600);
+            voice({ type: 'sine', from: 70, to: 32, at: off, dur: 0.5, glide: 0.4, vol: 0.45, attack: 0.003 });
         },
         // 一発告知 (2026-11-14 ユーザー指定: 当たり・復活 など 盛り上がる ところで 曲を 止めて 鳴らす)
         //   2026-11-14 作り直し (ユーザー指摘: 前より 劣化・情けない → パチンコの 先バレ音を 参考に):
@@ -280,7 +345,7 @@ const Sound = (() => {
         //   重低音 (ブウううん) と プチュンは そのまま
         sakibare: () => { sweep(900, 1900, 'square', 0.16, 0.06); sweep(900, 1900, 'square', 0.16, 0.06, 170); },
         kakutei: () => [0, 180, 360].forEach(d => sweep(1200, 2600, 'triangle', 0.2, 0.08, d)),
-        // 重低音は 長いので、続けて 呼ばれても 2.5 秒は 重ねない (一発告知と 演出の 両方から 呼ばれる ため)
+        // 重低音 (機械が 落ちる 音) は 続けて 呼ばれても 2.5 秒は 重ねない (一発告知と 演出の 両方から 呼ばれる ため)
         juteion: () => {
             if (!canPlay()) return;
             const now = performance.now();
@@ -306,7 +371,7 @@ const Sound = (() => {
             : sweep(500, 1400, 'square', 0.18, 0.07))
     };
     // BGM を 下げる 効果音 (ミリ秒は 鳴って いる 長さの めやす)
-    const DUCK = { sakibare: 900, kakutei: 1600, juteion: 4200, bonusIn: 1900, kokuchi: 2200, rainbow: 1100, fanfare: 800, win: 600,
+    const DUCK = { sakibare: 900, kakutei: 1600, juteion: 2300, bonusIn: 1900, kokuchi: 2200, rainbow: 1100, fanfare: 800, win: 600,
         chance: 600, defeat: 800, miss: 600, special: 1200, bigHit: 500, talk: 300, pushReady: 400, leverCall: 600, zencho: 1400,
         premiumCrack: 600, premiumSmash: 1200, premiumRoar: 1600, gyaku: 1000 };
     for (const [name, ms] of Object.entries(DUCK)) if (api[name]) api[name] = ducked(api[name], ms);
