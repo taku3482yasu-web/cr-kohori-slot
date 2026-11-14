@@ -3451,7 +3451,7 @@ const Lcd = (() => {
         startShake(config.effects.intensity.shakeLarge, 400);
         Sound.bigHit();
         damageNumbers.push({ text: 'BREAK!!', color: '#e0b0ff', size: 16, born: performance.now() });
-        showTitle('BREAK!!', 'ガード不能&撃破率UP!!', '#c080ff', 1500);
+        showTitle('BREAK!!', 'ガード不能!! 撃破率UP!!', '#c080ff', 1500);
         await sleep(1500);
     }
 
