@@ -1315,9 +1315,9 @@ const Lcd = (() => {
             }
             if (battle.breakActive) {
                 const blink = Math.floor(time / 250) % 2;
-                // チャンスタイム (2026-11-17 ユーザー指定: 前の「BREAK」・「結合崩壊」)
-                box(bx + bw - 62, by + 40, 62, 12, 'rgba(90,10,0,0.9)', '#ff7a3a');
-                text('チャンスタイム', bx + bw - 31, by + 42, { color: blink ? '#ffffff' : '#ffb08a', size: 8, align: 'center', outline: null });
+                // アタックチャンス (2026-11-17 ユーザー指定: 前の「BREAK」・「結合崩壊」・「チャンスタイム」。通常時の こおりチャンスタイムと まぎらわしい ので)
+                box(bx + bw - 70, by + 40, 70, 12, 'rgba(90,10,0,0.9)', '#ff7a3a');
+                text('アタックチャンス', bx + bw - 35, by + 42, { color: blink ? '#ffffff' : '#ffb08a', size: 8, align: 'center', outline: null });
             }
             const nameColor = { red: '#ff3a3a', gold: SUPER_COLOR }[battle.nameColor] || '#ffffff';   // 赤字・金字は 撃破 確定
             text(enemyName, bx + 5, by + 2, { size: 10, outline: null, color: battle.kai && battle.nameColor === 'white' ? '#e0a0ff' : nameColor });
@@ -1405,7 +1405,7 @@ const Lcd = (() => {
         battle.killUp = performance.now();
         const shownFrom = Math.max(event.from, valueAt(battle.killRate));   // 違和感演出の 77% から 100% に なる ときも 正しい 差を 出す
         animateTo(battle.killRate, event.to, 400);
-        const word = event.reason === 'charge' ? 'チャージ!! ' : event.reason === 'break' ? 'チャンスタイム!! ' : event.reason === 'first' ? '1G目 抽選!! ' : event.reason === 'ranyu' ? '乱入 抽選!! ' : '';
+        const word = event.reason === 'charge' ? 'チャージ!! ' : event.reason === 'break' ? 'アタックチャンス!! ' : event.reason === 'first' ? '1G目 抽選!! ' : event.reason === 'ranyu' ? '乱入 抽選!! ' : '';
         damageNumbers.push({ text: `${word}撃破率 +${Math.max(0, killRatePct(event.to) - killRatePct(shownFrom))}%`, color: killRateColor(event.to, performance.now()), size: 12, born: performance.now() });
         if (event.to >= 1 && event.from < 1) {
             await playKillSplash(1, '撃破確定!!', event.from, 1400);
@@ -1425,7 +1425,7 @@ const Lcd = (() => {
 
     function drawDamageNumbers(time) {
         damageNumbers = damageNumbers.filter(d => time - d.born < 900);
-        // 同じ ころに 出た 文字は 段を ずらして 重ならない ように する (2026-11-17: 「16G目 抽選!!」と「チャンスタイム!!」が 重なって いた)
+        // 同じ ころに 出た 文字は 段を ずらして 重ならない ように する (2026-11-17: 「16G目 抽選!!」と「アタックチャンス!!」が 重なって いた)
         damageNumbers.forEach(d => {
             if (d.lane != null) return;
             const used = damageNumbers.filter(o => o !== d && o.lane != null && d.born - o.born < 600).map(o => o.lane);
@@ -3851,12 +3851,12 @@ const Lcd = (() => {
             showTitle(`VS ${event.name}`, typeLine ? `${typeLine}　${sub}` : sub, logoColor(), timing.battleIntro);
             await sleep(timing.battleIntro);
         }
-        // 報酬ルーレットの「次の BATTLE チャンスタイムから」(2026-11-16・2026-11-17 名前を 変えた)
+        // 報酬ルーレットの「次の BATTLE アタックチャンスから」(2026-11-16・2026-11-17 名前を 変えた)
         if (event.breakStart) {
             battle.breakActive = true;
             Sound.ketsugo();
             startFlash('#ff7a3a', 300);
-            showTitle('チャンスタイムから スタート!!', '連撃・一撃で たたみかけろ!!', '#ff7a3a', 1300);
+            showTitle('アタックチャンスから スタート!!', '連撃・一撃で たたみかけろ!!', '#ff7a3a', 1300);
             await sleep(1300);
         }
         // 内定の時ゾーン突破の特典
@@ -3913,7 +3913,7 @@ const Lcd = (() => {
         // とどめの一撃は、まずガードで HP1 残す
         const hpAfterKoori = event.finalBlow ? 1 : hits.length ? event.hp + extraSum : event.hp;
         if (battle.breakActive && !event.guarded && !event.finalBlow && event.amount - extraSum > 0) {
-            await chanceTimeAttack(event, event.amount - extraSum, hpAfterKoori, kooriFx);   // チャンスタイム: 連撃 か 一撃 (2026-11-17)
+            await chanceTimeAttack(event, event.amount - extraSum, hpAfterKoori, kooriFx);   // アタックチャンス: 連撃 か 一撃 (2026-11-17)
         } else {
             koori.moving = true;
             await animateTo(koori.x, ENEMY_X - 56, 150);
@@ -4269,7 +4269,7 @@ const Lcd = (() => {
         }
     }
 
-    // 技の ティア (2026-11-16 ユーザー指定 2-2): そのゲームの 役・追撃・チャンスタイム突入・撃破で 決める (技で 勝ち負けは 決めない)
+    // 技の ティア (2026-11-16 ユーザー指定 2-2): そのゲームの 役・追撃・アタックチャンス突入・撃破で 決める (技で 勝ち負けは 決めない)
     function techTier(event) {
         if (event.hp <= 0) return 5;
         if (event.broke || event.role === 'chance') return 4;
@@ -4294,8 +4294,8 @@ const Lcd = (() => {
         }
     }
 
-    // チャンスタイム (2026-11-17 ユーザー指定: 部位破壊 (結合崩壊) を やめて「チャンスタイム」に。前の ブレイク):
-    //   突入の 演出 → 敵の ひとこと。チャンスタイム中の 攻撃は 連撃 (何回にも 分けて 当てる) か 一撃 (大きく 1 回) で 見せる (chanceTimeAttack)。
+    // アタックチャンス (2026-11-17 ユーザー指定: 部位破壊 (結合崩壊) を やめて「アタックチャンス」に。前の ブレイク):
+    //   突入の 演出 → 敵の ひとこと。アタックチャンス中の 攻撃は 連撃 (何回にも 分けて 当てる) か 一撃 (大きく 1 回) で 見せる (chanceTimeAttack)。
     //   恩恵は 今の ブレイクと 同じ (ガード不能・撃破率 +20%)。ダメージの 合計は 変えない (見せ方 だけ)
     async function breakStart(event = {}) {
         const enemyId = event.enemyId || battle.enemyId;
@@ -4303,7 +4303,7 @@ const Lcd = (() => {
         Bgm.duck(2600, 0.3);
         Sound.ketsugo();
         startFlash('#ff2a2a', 250);
-        showTitle('CHANCE!!', 'チャンスタイム 突入!!', '#ff3a3a', 800);
+        showTitle('ATTACK CHANCE!!', 'アタックチャンス 突入!!', '#ff3a3a', 800);
         await sleep(300);
         startFlash('#ffd700', 250);
         await sleep(500);
@@ -4312,12 +4312,12 @@ const Lcd = (() => {
         startFlash('#ffffff', 300);
         startShake(config.effects.intensity.shakeLarge, 500);
         LcdCamera.punch(ENEMY_X, 70, 1.3, 500);
-        showTitle('チャンスタイム!!', `連撃・一撃で たたみかけろ!!　ガード不能・撃破率 +${add}%`, '#ff7a3a', 1600);
+        showTitle('アタックチャンス!!', `連撃・一撃で たたみかけろ!!　ガード不能・撃破率 +${add}%`, '#ff7a3a', 1600);
         await sleep(1600);
         await enemySay(battle.kai ? 'onioni' : enemyId, 'broken');
     }
 
-    // チャンスタイム中の こおりくんの 攻撃 (2026-11-17): 連撃 = ダメージを 何回にも 分けて ダダダッと 当てる・一撃 = 大きく 1 回。
+    // アタックチャンス中の こおりくんの 攻撃 (2026-11-17): 連撃 = ダメージを 何回にも 分けて ダダダッと 当てる・一撃 = 大きく 1 回。
     //   大きい ダメージ (チャンス目・撃破役) は 一撃に なりやすい。合計の ダメージ・HP は 同じ (見せ方 だけ)
     async function chanceTimeAttack(event, amount, hpAfter, kooriFx) {
         const ct = config.battleFx.chanceTime;
@@ -4404,7 +4404,7 @@ const Lcd = (() => {
 
     // ----- 報酬ルーレット (2026-11-16 ユーザー決定: claude_code_3_adjusted.md 2-3) -----
     //   結果は もう 決まって いる (r)。基本の 報酬が 光って 確定 → PUSH で 回る → 止まる → 凍りつく「バキバキッ！」で 昇格 →
-    //   ともいし乱入 (いちばん 上へ) → チャンスタイムボーナス (もう 1 段) → まとめ
+    //   ともいし乱入 (いちばん 上へ) → アタックチャンスボーナス (もう 1 段) → まとめ
     let rouletteView = null;   // { labels, base, cursor, lit (確定した マス), msg, start }
     async function playRewardRoulette(r) {
         const baseText = r.base.type === 'tokka' ? '上乗せ特化ゾーン 確定' : bonusText(r.base).replace(' GET!!', '');
@@ -4458,9 +4458,9 @@ const Lcd = (() => {
         if (r.breakBonus) {
             if (r.breakCoins) {
                 Sound.ketsugo();
-                rouletteView.msg = `チャンスタイムボーナス！ +${r.breakCoins}枚!!`;
+                rouletteView.msg = `アタックチャンスボーナス！ +${r.breakCoins}枚!!`;
                 await sleep(1100);
-            } else await up('チャンスタイムボーナス！もう1段昇格！！');
+            } else await up('アタックチャンスボーナス！もう1段昇格！！');
         }
         rouletteView.msg = null;
         if (r.reward && r.reward.memberId && !party.includes(r.reward.memberId)) {   // 仲間が 1 人 加わる

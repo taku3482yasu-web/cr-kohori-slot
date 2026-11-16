@@ -204,7 +204,7 @@ const Battle = {
         rash.enemyMaxHp = enemy.hp;
         rash.gamesRemaining = baseGames + bonusGames;
         rash.goldDogFlag = enemy.id === config.goldDog.id;
-        rash.breakActive = Boolean(rash.nextBreakStart);   // 報酬ルーレットの「次の BATTLE チャンスタイムから」(2026-11-16)
+        rash.breakActive = Boolean(rash.nextBreakStart);   // 報酬ルーレットの「次の BATTLE アタックチャンスから」(2026-11-16)
         const breakStart = rash.breakActive;
         rash.nextBreakStart = false;
         rash.battleIntro = true;
@@ -287,12 +287,12 @@ const Battle = {
 
         // チェリー・チャンス目などで一定確率でブレイク状態に (撃破率 UP と、2026-11-14 から また 敵が ガードできない)
         const breakRate = config.breakState.rates[outcome.role] || 0;
-        const forceBreak = Boolean(rash.debugForceBreak);   // デバッグ「次:チャンスタイム」(2026-11-16。ふだんは 乱数の 使い方は 前と 同じ)
+        const forceBreak = Boolean(rash.debugForceBreak);   // デバッグ「次:アタックチャンス」(2026-11-16。ふだんは 乱数の 使い方は 前と 同じ)
         rash.debugForceBreak = false;
         const broke = !rash.breakActive && (forceBreak || (breakRate > 0 && rng() < breakRate));
         if (broke) {
             rash.breakActive = true;
-            events.push({ type: 'break', enemyId: rash.enemyId });   // チャンスタイム (前の ブレイク・結合崩壊。2026-11-17)
+            events.push({ type: 'break', enemyId: rash.enemyId });   // アタックチャンス (前の ブレイク・結合崩壊。2026-11-17)
         }
 
         const damage = this.damageFor(outcome.role, config);
@@ -350,7 +350,7 @@ const Battle = {
             finishBy: rash.enemyHp <= 0 ? this.finisherOf(kill || finalBlow, damage, companionHits, hpBefore) : null,
             finishKill: kill && rash.enemyHp <= 0,
             breakActive: rash.breakActive,
-            broke,                    // この ゲームで チャンスタイム (ブレイク) に なった (技の ティアの 見せ方。2026-11-16)
+            broke,                    // この ゲームで アタックチャンス (ブレイク) に なった (技の ティアの 見せ方。2026-11-16)
             win: rash.setWillWin,     // 勝ちの セットか (演出の ため だけ: 敵の 強攻撃を 仲間が ガード・連撃。2026-11-16)
             hp: rash.enemyHp,
             maxHp: rash.enemyMaxHp,
@@ -414,7 +414,7 @@ const Battle = {
     defeatEnemy(state, config, rng = Math.random, opts = {}) {
         const rash = state.rash;
         const enemy = this.findEnemy(config, rash.enemyId);
-        const broke = rash.breakActive;   // チャンスタイム (ブレイク) 中の 敵 (報酬ルーレットの チャンスタイムボーナス。2026-11-16)
+        const broke = rash.breakActive;   // アタックチャンス (ブレイク) 中の 敵 (報酬ルーレットの アタックチャンスボーナス。2026-11-16)
         rash.defeatCount++;
         rash.phase = RASH_PHASES.SELECT;
         rash.enemyId = null;
@@ -457,7 +457,7 @@ const Battle = {
     },
 
     // ----- 報酬ルーレット (2026-11-16 ユーザー決定: claude_code_3_adjusted.md 2-3) -----
-    //   基本の 報酬 (base) を 払い、マスを 抽選 → 昇格 → ともいし → チャンスタイムボーナス の 順で 決めて、止まった マスの 報酬を 払う。
+    //   基本の 報酬 (base) を 払い、マスを 抽選 → 昇格 → ともいし → アタックチャンスボーナス の 順で 決めて、止まった マスの 報酬を 払う。
     //   液晶は 結果 (defeat の roulette) を 見せる だけ
     spinRoulette(state, config, enemy, rng, opts = {}) {
         const rr = config.rewardRoulette;

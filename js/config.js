@@ -692,10 +692,10 @@ window.GAME_CONFIG = {
     // ----- 撃破の あとの 報酬ルーレット (2026-11-16 ユーザー決定: claude_code_3_adjusted.md 2-3。出玉が 変わる 仕組み) -----
     //   撃破する たびに 1 回。base (基本の 報酬・最低保証) は かならず もらえ、slots (追加の 報酬。下ほど 出にくい) から 1 マス。
     //   止まった あと upgradeRate の 率で 1 段 上へ (何段も 続く ことが ある)。とどめが 一撃必殺の 役 (BAR揃い・7揃い・7・7・BAR) なら 率 × killFinishMult。
-    //   チャンスタイム (ブレイク) 中の 敵を 倒すと「チャンスタイムボーナス」で かならず もう 1 段 (いちばん 上なら breakTopCoins 枚)。
+    //   アタックチャンス (ブレイク) 中の 敵を 倒すと「アタックチャンスボーナス」で かならず もう 1 段 (いちばん 上なら breakTopCoins 枚)。
     //   tomoishiRate: 母・ともいしが 画面を 叩いて いちばん 上の マスへ。SUPER 中は superWeights (良い マスが 出やすい)
     //   数字は 出玉シミュレーターで 前の 撃破ボーナスと 出玉率が だいたい 同じに なる ように 合わせた (README)。
-    //   slot の type: none / coins / games (次の BATTLE +G) / killNext (次の BATTLE の 撃破率 +) / breakStart (次の BATTLE を チャンスタイムから) /
+    //   slot の type: none / coins / games (次の BATTLE +G) / killNext (次の BATTLE の 撃破率 +) / breakStart (次の BATTLE を アタックチャンスから) /
     //   winNext (次の BATTLE 勝利確定) / ally (仲間が 1 人 加わる。全員 いたら fallback 枚) / probUpExtend (確率UP +G) / probUpDouble (確率UP の G を 2 倍) /
     //   tokkaCoins (特化ゾーンの 初期 +枚) / tokkaExtend (特化ゾーン +G) / superWin (次の BATTLE (SUPER の 1 体目) 勝利確定)
     rewardRoulette: {
@@ -721,10 +721,10 @@ window.GAME_CONFIG = {
                     { type: 'killNext', value: 0.1, label: '次のBATTLE 撃破率+10%' }, { type: 'games', value: 8, label: '+8G' }],
                 weights: [48, 30, 14, 5, 3], superWeights: [42, 30, 15, 8, 5]
             },
-            shibata: {   // 前: 確率UP ×1.5 10G → 基本 8G + 延長・2倍・チャンスタイムから
+            shibata: {   // 前: 確率UP ×1.5 10G → 基本 8G + 延長・2倍・アタックチャンスから
                 base: { type: 'probUp', value: 1.5, games: 8 },
                 slots: [{ type: 'none', label: 'なし' }, { type: 'probUpExtend', value: 3, label: '確率UP 延長(+3G)' }, { type: 'coins', value: 20, label: '+20枚' },
-                    { type: 'breakStart', label: '次のBATTLE チャンスタイムから' }, { type: 'probUpDouble', label: '確率UP 2倍(G数)' }],
+                    { type: 'breakStart', label: '次のBATTLE アタックチャンスから' }, { type: 'probUpDouble', label: '確率UP 2倍(G数)' }],
                 weights: [48, 30, 12, 6, 4], superWeights: [42, 30, 14, 8, 6]
             },
             sasaki: {   // 前: 120枚 → 基本 80枚 + マスの 期待値 約 16枚 + 仲間 7% (めったに 出ない ので 大当たり +120枚)
@@ -753,8 +753,8 @@ window.GAME_CONFIG = {
     //   (本番の 抽選の 乱数の 並びを ずらさない)。赤・金の 見せ方は 名前の 色と 同じく 勝ちの セット だけ
     battleFx: {
         ranyuType: '乱入ボス',   // おにおに・怪 の タイプ
-        // チャンスタイム (今の ブレイクの 見た目。2026-11-17 ユーザー指定: 部位破壊を やめて チャンスタイムに)。
-        //   チャンスタイム中の こおりくんの 攻撃は 連撃 (minHits〜maxHits 回に 分ける。hitMs ごと) か 一撃 (oneShot の 率。大きい ダメージは oneShotBig)
+        // アタックチャンス (今の ブレイクの 見た目。2026-11-17 ユーザー指定: 部位破壊を やめて アタックチャンスに)。
+        //   アタックチャンス中の こおりくんの 攻撃は 連撃 (minHits〜maxHits 回に 分ける。hitMs ごと) か 一撃 (oneShot の 率。大きい ダメージは oneShotBig)
         chanceTime: { oneShot: 0.35, oneShotBig: 0.7, minHits: 3, maxHits: 6, hitMs: 110 },
         // 開始タイトルの 色 (セットの 1 ゲーム目。2-1 ④): 白 < 青 < 赤 < 金・虎柄。赤・金・虎柄は 勝ちの セット だけ。
         //   金・虎柄は 勝ち＋おにおに・ゴールド金面犬 だけ (ほかの 敵の 勝ちは 金の ぶんも 赤)
@@ -770,7 +770,7 @@ window.GAME_CONFIG = {
         // 勝利確定曲 (BGM 昇格。2-1 ④): 勝ちの セットの 1 ゲーム目に この 率で、台が 自動で 曲を 切り替える (曲が 止まる → 無音 → 頭から)。
         //   負けの セットでは 絶対に 選ばない。曲送りで 選んだ ときは 確定では ない
         victorySong: { track: 'victory', rate: 0.08 },
-        // 技の ティア (2-2): 役ごとの ティア (ここに ない 役は 1)。仲間の 追撃 → 3、チャンス目・チャンスタイム突入 → 4、撃破の とどめ → 5
+        // 技の ティア (2-2): 役ごとの ティア (ここに ない 役は 1)。仲間の 追撃 → 3、チャンス目・アタックチャンス突入 → 4、撃破の とどめ → 5
         tierRoles: { cherry: 2, melon: 2, chance: 4 },
         tierNames: {
             1: ['こおりアタック'],

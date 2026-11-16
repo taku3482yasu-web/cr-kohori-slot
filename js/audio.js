@@ -431,7 +431,7 @@ const Sound = (() => {
             voice({ type: 'square', from: 4600, to: 6200, at: 1.5, dur: 2.3, glide: 0.3, vol: 0.045, attack: 0.01, hold: 1.6, echo: true, lp: 11000 });
             voice({ type: 'triangle', from: 1150, to: 1550, at: 1.5, dur: 2.3, glide: 0.3, vol: 0.05, attack: 0.01, hold: 1.6 });
         },
-        // チャンスタイム突入・一撃 (前の 名前は 結合崩壊): 電子アラート ＋ 金属が 砕ける「ガシャァン！」＋ 重い ブーム
+        // アタックチャンス突入・一撃 (前の 名前は 結合崩壊): 電子アラート ＋ 金属が 砕ける「ガシャァン！」＋ 重い ブーム
         ketsugo: () => {
             if (!canPlay()) return;
             [0, 0.12, 0.24].forEach(at => voice({ type: 'square', from: 1760, to: 1760, at, dur: 0.09, vol: 0.05, attack: 0.002 }));
