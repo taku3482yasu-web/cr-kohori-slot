@@ -64,6 +64,11 @@ const Battle = {
         const enemyBase = this.baseKillRate(state, config, this.findEnemy(config, rash.enemyId));
         const base = rash.ranyu ? Math.max(config.ranyu.baseRate, enemyBase) : enemyBase;
         rash.killRate = before > base ? (before >= 1 ? 1 : this.safeRate(before)) : base;
+        // 報酬ルーレットの「次の BATTLE 撃破率 +」(2026-11-16): 新しい 敵との 最初の セットに 足す
+        if (!carry && rash.nextKillBoost > 0) {
+            rash.killRate = rash.killRate >= 1 ? 1 : this.safeRate(Math.min(1, rash.killRate + rash.nextKillBoost));
+            rash.nextKillBoost = 0;
+        }
         rash.shownRate = null;     // 見せて いる 撃破率 (違和感演出の 7% / 77%。null は 本当の 値)
         rash.nameColor = 'white';  // 敵の 名前の 色
         // 2026-11-14 (ユーザー指定): 勝ち負けは セットの 1 ゲーム目の 出目で 決める (decideSet)。それまでは 決まって いない。
@@ -84,7 +89,9 @@ const Battle = {
         rash.setWillWin = rash.killRate >= 1 || rng() < rash.killRate;
         rash.setPending = false;
         if (rash.setWillWin) this.dressWin(state, config, rng);
-        return { type: 'killRate', from, to: rash.killRate, reason, decided: true, shown: rash.shownRate, nameColor: rash.nameColor || 'white' };
+        // win・enemyId は 演出の ため だけ (2026-11-16: タイトルの 色・仲間の 参戦・先制・勝利確定曲。液晶が 見せ方を 選ぶ)
+        return { type: 'killRate', from, to: rash.killRate, reason, decided: true, shown: rash.shownRate, nameColor: rash.nameColor || 'white',
+            win: rash.setWillWin, enemyId: rash.enemyId };
     },
 
     // ----- おにおに乱入 (2026-11-14 ユーザー指定) -----
@@ -186,7 +193,9 @@ const Battle = {
         rash.enemyMaxHp = enemy.hp;
         rash.gamesRemaining = baseGames + bonusGames;
         rash.goldDogFlag = enemy.id === config.goldDog.id;
-        rash.breakActive = false;
+        rash.breakActive = Boolean(rash.nextBreakStart);   // 報酬ルーレットの「次の BATTLE 結合崩壊から」(2026-11-16)
+        const breakStart = rash.breakActive;
+        rash.nextBreakStart = false;
         rash.battleIntro = true;
         rash.ranyu = false;
         this.startSet(state, config, rng);
@@ -203,7 +212,8 @@ const Battle = {
             games: rash.gamesRemaining,
             bonusGames,
             isGoldDog: rash.goldDogFlag,
-            isSuper: this.isSuper(state)
+            isSuper: this.isSuper(state),
+            breakStart
         };
         // 敵が 決まった ときの おにおに乱入 (相手の 表示は 乱入の 前の 敵の まま。乱入は そのあとの 演出)
         const ranyu = outcome ? this.tryRanyu(state, config, outcome.role, rng, 'start') : null;
@@ -266,10 +276,12 @@ const Battle = {
 
         // チェリー・チャンス目などで一定確率でブレイク状態に (撃破率 UP と、2026-11-14 から また 敵が ガードできない)
         const breakRate = config.breakState.rates[outcome.role] || 0;
-        const broke = !rash.breakActive && breakRate > 0 && rng() < breakRate;
+        const forceBreak = Boolean(rash.debugForceBreak);   // デバッグ「次:結合崩壊」(2026-11-16。ふだんは 乱数の 使い方は 前と 同じ)
+        rash.debugForceBreak = false;
+        const broke = !rash.breakActive && (forceBreak || (breakRate > 0 && rng() < breakRate));
         if (broke) {
             rash.breakActive = true;
-            events.push({ type: 'break' });
+            events.push({ type: 'break', enemyId: rash.enemyId });   // 結合崩壊 (部位破壊) の 見せ方は 敵ごと (2026-11-16)
         }
 
         const damage = this.damageFor(outcome.role, config);
@@ -327,6 +339,8 @@ const Battle = {
             finishBy: rash.enemyHp <= 0 ? this.finisherOf(kill || finalBlow, damage, companionHits, hpBefore) : null,
             finishKill: kill && rash.enemyHp <= 0,
             breakActive: rash.breakActive,
+            broke,                    // この ゲームで 結合崩壊 (ブレイク) した (技の ティアの 見せ方。2026-11-16)
+            win: rash.setWillWin,     // 勝ちの セットか (演出の ため だけ: 敵の 強攻撃を 仲間が ガード・連撃。2026-11-16)
             hp: rash.enemyHp,
             maxHp: rash.enemyMaxHp,
             gamesRemaining: rash.gamesRemaining,
@@ -334,7 +348,7 @@ const Battle = {
         });
 
         if (rash.enemyHp <= 0) {
-            events.push(...this.defeatEnemy(state, config, rng));
+            events.push(...this.defeatEnemy(state, config, rng, { killFinish: kill }));
             return events;
         }
 
@@ -386,9 +400,10 @@ const Battle = {
 
     // 撃破: ボーナス → 連数 (おにおに出現・10連のおにおに確定) → SUPER 移行 → 上乗せ特化ゾーン
     // ゴールド金面犬撃破後はおにおに確定
-    defeatEnemy(state, config, rng = Math.random) {
+    defeatEnemy(state, config, rng = Math.random, opts = {}) {
         const rash = state.rash;
         const enemy = this.findEnemy(config, rash.enemyId);
+        const broke = rash.breakActive;   // 結合崩壊 (ブレイク) して いた 敵 (報酬ルーレットの 部位破壊ボーナス。2026-11-16)
         rash.defeatCount++;
         rash.phase = RASH_PHASES.SELECT;
         rash.enemyId = null;
@@ -398,7 +413,9 @@ const Battle = {
         rash.ranyu = false;
         rash.setPending = false;
 
-        const bonus = this.applyBonus(state, enemy.bonus);
+        // 報酬ルーレット (2026-11-16 ユーザー決定)。表に ない 敵は 今までの 撃破ボーナス
+        const roulette = this.spinRoulette(state, config, enemy, rng, { broke, killFinish: opts.killFinish });
+        const bonus = roulette ? roulette.base : this.applyBonus(state, enemy.bonus);
         if (enemy.nextForcedEnemy) rash.nextForcedEnemy = enemy.nextForcedEnemy;
         const forced = rash.nextForcedEnemy ? this.findEnemy(config, rash.nextForcedEnemy) : null;
         const events = [{
@@ -406,6 +423,7 @@ const Battle = {
             enemyId: enemy.id,
             name: enemy.name,
             bonus,
+            roulette,
             defeatCount: rash.defeatCount,
             nextForcedName: forced ? forced.name : null
         }];
@@ -425,6 +443,70 @@ const Battle = {
         }
         events.push(...this.maybeStartTokka(state, config, enemy.id, rng));
         return events;
+    },
+
+    // ----- 報酬ルーレット (2026-11-16 ユーザー決定: claude_code_3_adjusted.md 2-3) -----
+    //   基本の 報酬 (base) を 払い、マスを 抽選 → 昇格 → ともいし → 部位破壊ボーナス の 順で 決めて、止まった マスの 報酬を 払う。
+    //   液晶は 結果 (defeat の roulette) を 見せる だけ
+    spinRoulette(state, config, enemy, rng, opts = {}) {
+        const rr = config.rewardRoulette;
+        const table = rr && rr.enabled && enemy ? rr.enemies[enemy.id] : null;
+        if (!table) return null;
+        const rash = state.rash;
+        const forceTomoishi = Boolean(rash.debugRouletteTomoishi);
+        const forceBreak = Boolean(rash.debugRouletteBreak);
+        rash.debugRouletteTomoishi = false;
+        rash.debugRouletteBreak = false;
+        const weights = this.isSuper(state) && table.superWeights ? table.superWeights : table.weights;
+        const last = table.slots.length - 1;
+        let index = Lottery.weightedPick(table.slots.map((_, i) => i), i => weights[i], rng);
+        const start = index;
+        let upgrades = 0;
+        const upRate = rr.upgradeRate * (opts.killFinish ? rr.killFinishMult : 1);
+        while (index < last && rng() < upRate) { index++; upgrades++; }
+        let tomoishi = false;
+        if (index < last && (forceTomoishi || rng() < rr.tomoishiRate)) { tomoishi = true; index = last; }
+        const breakBonus = Boolean(opts.broke || forceBreak);
+        let breakCoins = 0;
+        if (breakBonus) {
+            if (index < last) index++;
+            else breakCoins = rr.breakTopCoins;
+        }
+        const base = this.applyBonus(state, table.base);
+        const reward = this.applyReward(state, config, table.slots[index], rng);
+        if (breakCoins) this.applyBonus(state, { type: 'coins', value: breakCoins });
+        return { base, labels: table.slots.map(s => s.label), start, index, upgrades, tomoishi, breakBonus, breakCoins, reward, killFinish: Boolean(opts.killFinish) };
+    },
+
+    // ルーレットの マスの 報酬を 反映し、内容を 返す
+    applyReward(state, config, slot, rng) {
+        const rash = state.rash;
+        const r = { ...slot };
+        switch (slot.type) {
+            case 'coins': this.applyBonus(state, { type: 'coins', value: slot.value }); break;
+            case 'games': rash.bonusGames += slot.value; break;
+            case 'killNext': rash.nextKillBoost = (rash.nextKillBoost || 0) + slot.value; break;
+            case 'breakStart': rash.nextBreakStart = true; break;
+            case 'winNext': case 'superWin': rash.winGuaranteed = true; break;
+            case 'probUpExtend': rash.probUpGames += slot.value; break;
+            case 'probUpDouble': rash.probUpGames *= 2; break;
+            case 'tokkaCoins': rash.tokkaBonus = (rash.tokkaBonus || 0) + slot.value; break;
+            case 'tokkaExtend': rash.tokkaExtra = (rash.tokkaExtra || 0) + slot.value; break;
+            case 'ally': {
+                const missing = config.companions.members.filter(m => !state.companions.includes(m.id));
+                if (missing.length) {
+                    const m = missing[Math.floor(rng() * missing.length)];
+                    state.companions.push(m.id);
+                    r.memberId = m.id;
+                    r.name = m.name;
+                } else {
+                    this.applyBonus(state, { type: 'coins', value: slot.fallback });
+                    r.fallbackCoins = slot.fallback;
+                }
+                break;
+            }
+        }
+        return r;
     },
 
     // 撃破ボーナスを反映し、内容を返す
@@ -566,6 +648,7 @@ const Battle = {
             big: kill || outcome.isChance,
             guarded,
             finisher,
+            naitei: true,   // 内定の時ゾーンの ゲーム (門番の セリフ・持ち物の 演出。2026-11-16)
             finishBy: finisher ? 'koori' : null,
             finishKill: finisher && damage === 'kill',
             companionHits,
@@ -769,8 +852,13 @@ const Battle = {
         rash.phase = RASH_PHASES.TOKKA;
         // ASAHARA CHANCE で集まる順 (先に来るのは SASAKI か KOTANI のどちらか)
         const members = rng() < 0.5 ? ['sasaki', 'kotani'] : ['kotani', 'sasaki'];
-        rash.tokka = { kind, games: cfg.games, remaining: cfg.games, total: 0, tier: 0, members };
-        return [{ type: 'tokkaStart', kind, choose, source, games: cfg.games, min: cfg.min, max: cfg.max, members }];
+        // 報酬ルーレットの「特化ゾーン 初期 +枚」「延長」(2026-11-16)
+        const games = cfg.games + (rash.tokkaExtra || 0);
+        const initial = Math.min(cfg.max, rash.tokkaBonus || 0);
+        rash.tokkaExtra = 0;
+        rash.tokkaBonus = 0;
+        rash.tokka = { kind, games, remaining: games, total: initial, tier: cfg.tiers.filter(v => initial >= v).length, members };
+        return [{ type: 'tokkaStart', kind, choose, source, games, min: cfg.min, max: cfg.max, members, initial }];
     },
 
     // プレイヤーが選んだ見せ方にする (まだ1ゲームも回していないときだけ)。上乗せの確率はどれも同じ

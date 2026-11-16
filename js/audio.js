@@ -420,6 +420,74 @@ const Sound = (() => {
             voice({ type: 'sine', from: 90, to: 32, at: 0, dur: 0.9, glide: 0.7, vol: 0.5, attack: 0.003 });
             voice({ type: 'square', from: 110, to: 40, at: 0, dur: 0.5, glide: 0.4, vol: 0.06, attack: 0.003, lp: 400 });
         },
+        // ===== 2026-11-16 (ユーザー指定: claude_code_3_adjusted.md 2-5) 足した 音。どれも 合成 (ファイルは いらない) =====
+        // 長い キュイン: 35Hz の ドロップ (うなり・ゆれ なし) ＋ 4600Hz → 6200Hz の 2 段の キュイン (約 3.8 秒)。
+        //   レバー ON の 確定 (金・虹) の とき だけ。ふだんの 先バレには 足さない
+        longKyuin: () => {
+            if (!canPlay()) return;
+            voice({ type: 'sine', from: 70, to: 35, at: 0, dur: 1.6, glide: 0.5, vol: 0.5, attack: 0.004, hold: 0.8 });
+            thump(0, 0.5, 0.9, 140);
+            voice({ type: 'square', from: 2300, to: 4600, at: 0.05, dur: 1.5, glide: 0.25, vol: 0.05, attack: 0.01, hold: 1.0, echo: true, lp: 9000 });
+            voice({ type: 'square', from: 4600, to: 6200, at: 1.5, dur: 2.3, glide: 0.3, vol: 0.045, attack: 0.01, hold: 1.6, echo: true, lp: 11000 });
+            voice({ type: 'triangle', from: 1150, to: 1550, at: 1.5, dur: 2.3, glide: 0.3, vol: 0.05, attack: 0.01, hold: 1.6 });
+        },
+        // 結合崩壊: 金属が 砕ける「ガシャァン！」＋ 重い ブーム ＋ 短い 電子アラート (前の ブレイクの 音と 差しかえ)
+        ketsugo: () => {
+            if (!canPlay()) return;
+            [0, 0.12, 0.24].forEach(at => voice({ type: 'square', from: 1760, to: 1760, at, dur: 0.09, vol: 0.05, attack: 0.002 }));
+            spark(0.36, 0.5, 0.9, 1800);
+            spark(0.4, 0.3, 0.6, 3500);
+            [3100, 4400, 5900].forEach((f, i) => voice({ type: 'triangle', from: f, to: f * 0.92, at: 0.36 + i * 0.03, dur: 0.7, vol: 0.03, attack: 0.002, echo: true }));
+            thump(0.36, 0.7, 1, 150);
+            voice({ type: 'sine', from: 80, to: 35, at: 0.36, dur: 1.2, glide: 0.8, vol: 0.5, attack: 0.003, shape: 2 });
+        },
+        // 報酬の 凍りつく 音「バキバキッ！」(氷が 割れて 広がる)
+        freezeJudge: () => {
+            if (!canPlay()) return;
+            for (let i = 0; i < 9; i++) spark(i * 0.05 + Math.random() * 0.02, 0.03 + Math.random() * 0.03, 0.5 + Math.random() * 0.4, 3000 + Math.random() * 3000);
+            voice({ type: 'triangle', from: 2600, to: 1300, at: 0, dur: 0.5, vol: 0.05, attack: 0.002, echo: true });
+            thump(0.4, 0.4, 0.8, 200);
+        },
+        // 1 段 上がる ごとに 高く なる ブラス (step: 0, 1, 2 …)
+        brassStep: (step = 0) => {
+            if (!canPlay()) return;
+            const base = 392 * Math.pow(2, Math.min(step, 8) * 2 / 12);
+            [1, 1.25, 1.5].forEach((m, i) => voice({ type: 'sawtooth', from: base * m, to: base * m, at: i * 0.01, dur: 0.6, vol: 0.035, attack: 0.03, hold: 0.3, lp: { from: 900, to: 3200 } }));
+            thump(0, 0.2, 0.4, 300);
+        },
+        // 特化ゾーンの 大きな 上乗せ (おかランプ = DJ の スクラッチ＋レーザー / こおりファイアー = 氷が 割れて 炎 /
+        //   一撃入魂 = 太鼓の 連打から ドカン / ASAHARA CHANCE = 金の ファンファーレ＋コイン)
+        tokkaBig: (kind) => {
+            if (!canPlay()) return;
+            if (kind === 'okaLamp') {
+                [0, 0.12].forEach(at => voice({ type: 'sawtooth', from: 300, to: 1400, at, dur: 0.1, glide: 0.1, vol: 0.06, lp: 2500 }));
+                [0.3, 0.42, 0.54].forEach(at => voice({ type: 'square', from: 2200, to: 5200, at, dur: 0.14, glide: 0.12, vol: 0.04, echo: true }));
+            } else if (kind === 'fire') {
+                spark(0, 0.3, 0.7, 3000);
+                noise(0.9, 0.12);
+                voice({ type: 'sawtooth', from: 90, to: 260, at: 0.2, dur: 0.9, glide: 0.8, vol: 0.06, lp: { from: 300, to: 2400 } });
+                [0.9, 1.05, 1.2].forEach((at, i) => voice({ type: 'triangle', from: 1046.5 * [1, 1.26, 1.5][i], to: 1046.5 * [1, 1.26, 1.5][i], at, dur: 0.3, vol: 0.06, echo: true }));
+            } else if (kind === 'ikkeki') {
+                for (let i = 0; i < 8; i++) thump(i * (0.16 - i * 0.012), 0.12, 0.6, 180);
+                thump(1.2, 0.8, 1, 130);
+                voice({ type: 'sine', from: 90, to: 35, at: 1.2, dur: 1.1, glide: 0.8, vol: 0.55, attack: 0.003, shape: 2 });
+                spark(1.2, 0.25, 0.7, 1500);
+            } else {
+                [0, 0.15, 0.3, 0.6].forEach((at, i) => [1, 1.25, 1.5].forEach(m => voice({ type: 'sawtooth', from: [523.25, 659.25, 783.99, 1046.5][i] * m, to: [523.25, 659.25, 783.99, 1046.5][i] * m, at, dur: i === 3 ? 0.9 : 0.16, vol: 0.025, attack: 0.02, lp: 3500 })));
+                for (let i = 0; i < 14; i++) voice({ type: 'triangle', from: 2600 + Math.random() * 1600, to: 2600 + Math.random() * 1600, at: 0.5 + i * 0.06, dur: 0.12, vol: 0.03, echo: true });
+            }
+        },
+        // ともいしの 暗転: プチュン (消灯) → 重低音の 衝撃 3 連 (重低音の うなりは なし)
+        tomoishiDark: () => {
+            if (!canPlay()) return;
+            HIT_SOUNDS.puchun();
+            [0.5, 1.1, 1.7].forEach((at, i) => {
+                thump(at, 0.5, 1, 150);
+                voice({ type: 'sine', from: 90 - i * 10, to: 34, at, dur: 0.8, glide: 0.6, vol: 0.5, attack: 0.003 });
+            });
+        },
+        // 復活待ちの ヒントの 冷気の ノイズ (小さく サーッ)
+        coldNoise: (level = 1) => { if (canPlay()) spark(0, 0.4 + level * 0.2, 0.08 + level * 0.06, 4000 - level * 800); },
         // プレミア: 液晶が ひび割れて おにおに (2026-10-24): ピキッ / バリィン / 咆哮
         premiumCrack: () => { tone(2400, 'square', 0.05, 0.08); setTimeout(() => tone(1800, 'square', 0.05, 0.07), 70); sweep(3000, 900, 'square', 0.08, 0.08, 160); },
         premiumSmash: () => { noise(0.5, 0.15); sweep(80, 40, 'sawtooth', 0.5, 0.14); if (canPlay()) HIT_SOUNDS.juteion(); },
@@ -437,7 +505,8 @@ const Sound = (() => {
     // BGM を 下げる 効果音 (ミリ秒は 鳴って いる 長さの めやす)
     const DUCK = { sakibare: 900, kakutei: 3600, juteion: 2300, bonusIn: 1900, kokuchi: 2200, rainbow: 1100, fanfare: 800, win: 600,
         chance: 600, defeat: 800, miss: 600, special: 1200, bigHit: 500, talk: 300, pushReady: 400, leverCall: 600, zencho: 1400,
-        premiumCrack: 600, premiumSmash: 1200, premiumRoar: 1600, gyaku: 1000 };
+        premiumCrack: 600, premiumSmash: 1200, premiumRoar: 1600, gyaku: 1000,
+        longKyuin: 3800, ketsugo: 1600, freezeJudge: 800, brassStep: 600, tokkaBig: 2200, tomoishiDark: 2500 };   // 2026-11-16
     for (const [name, ms] of Object.entries(DUCK)) if (api[name]) api[name] = ducked(api[name], ms);
     api.kokuchi = ducked(() => canPlay() && HIT_SOUNDS.kokuchi(), 3600, 0.2);
     return api;

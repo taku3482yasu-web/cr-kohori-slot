@@ -171,7 +171,8 @@ function createInitialState(config, rng = Math.random) {
         challenge: {
             gamesRemaining: 0,
             chanceBoost: false,    // SE城前でチャンス目を引いた (このあとのチャレンジの突入率UP)
-            guaranteed: false      // 天井: このあとの チャレンジは 突入 確定 (A5)
+            guaranteed: false,     // 天井: このあとの チャレンジは 突入 確定 (A5)
+            revivalPending: false  // 城突入チャレンジの 復活待ち (2026-11-16。次の レバー ON で 突入)
         },
 
         // RASH / SUPER_RASH
@@ -209,6 +210,11 @@ function createRashState() {
         treasureTotal: 0,        // 宝物庫ゾーンで上乗せしたゲーム数の合計
         treasureReturnPhase: null, // 宝物庫ゾーンが終わったら戻るフェーズ
         endingShown: false,      // このRASHでエンディングを流したか (SUPER 中におにおにを撃破すると流れる)
+        // 報酬ルーレットの バフ (2026-11-16。次の BATTLE / 次の 特化ゾーンで 使う)
+        nextKillBoost: 0,        // 次の BATTLE の 撃破率に 足す
+        nextBreakStart: false,   // 次の BATTLE を 結合崩壊 (ブレイク) から 始める
+        tokkaBonus: 0,           // 次の 特化ゾーンの 初期の 上乗せ (枚)
+        tokkaExtra: 0,           // 次の 特化ゾーンの 延長 (G)
         coinsWon: 0              // このRASHでの獲得枚数
     };
 }
@@ -296,7 +302,9 @@ const SettingEstimate = {
         const table = Lottery.tableFor({ mode: MODES.CASTLE_CHALLENGE, setting }, config);
         // 長押しの チャージ (2026-10-27) の ゲームは 突入率が charge.castle.mult 倍
         const ch = config.charge.castle;
-        const at = (role, k) => Math.min(1, (config.castle.entryRate[role] || 0) * mult.castleEntry * boost * k);
+        // 確定で ない 役は 復活の ぶん 下げて いる (castle.entryScale。2026-11-16。GameFlow.castleRate と 同じ)
+        const baseOf = role => { const b = config.castle.entryRate[role] || 0; return b < 1 ? b * (config.castle.entryScale ?? 1) : b; };
+        const at = (role, k) => Math.min(1, baseOf(role) * mult.castleEntry * boost * k);
         const entry = role => (1 - ch.rate) * at(role, 1) + ch.rate * at(role, ch.mult);
         let perGame = 0;
         let rest = 1;
@@ -365,7 +373,12 @@ const Collection = {
                     break;
                 case 'revival': r.revival = (r.revival || 0) + 1; break;
                 case 'ending': r.ending = (r.ending || 0) + 1; break;
-                case 'defeat': add(c.defeats, e.enemyId); break;
+                case 'defeat':
+                    add(c.defeats, e.enemyId);
+                    // 報酬ルーレットで いちばん 上の マス (2026-11-16)
+                    if (e.roulette && e.roulette.index === e.roulette.labels.length - 1) r.rouletteTop = (r.rouletteTop || 0) + 1;
+                    break;
+                case 'challengeRevival': r.castleRevival = (r.castleRevival || 0) + 1; break;   // 城門の 復活 (2026-11-16)
                 case 'damage':
                     if (e.finalBlow) r.finalBlow = (r.finalBlow || 0) + 1;
                     // とどめの必殺技 (液晶でカットインが出るのと同じ条件)
@@ -580,6 +593,12 @@ const GameFlow = {
     //   gunRate の 確率で 出す。レバー ON で 引いて outcome.gun に 入れる (main.js。表示 だけに 使う)
     //   (2026-11-03〜11-12 は 「群予告が 出たら SE城前へ 直行」 だったが、出玉が 変わるので 演出 だけに 戻した)
     rollGun(state, outcome, verdict, config, rng = Math.random) {
+        // 城突入チャレンジ (2026-11-16 ユーザー指定): 突入が 決まった ゲーム だけ「ひびきまくり群」(gunRate.challenge)。復活の ゲームは 出さない
+        if (state.mode === MODES.CASTLE_CHALLENGE) {
+            if (state.challenge.revivalPending) return false;
+            if (outcome.isFreeze || !verdict || !verdict.reliable || !verdict.win) return false;
+            return rng() < config.notice.gunRate.challenge;
+        }
         if (state.mode !== MODES.NORMAL || state.normal.dance || state.normal.mini || state.normal.revengeGames > 0 || outcome.isFreeze) return false;
         if (!verdict || !verdict.reliable || !verdict.win) return false;
         const cls = config.notice.classes[outcome.role] || 'cold';
@@ -994,7 +1013,8 @@ const GameFlow = {
             type: 'challengeStart',
             games: config.castle.challengeGames,
             companionBoost: Companions.castleEntryMultiplier(state, config),
-            chanceBoost: state.challenge.chanceBoost
+            chanceBoost: state.challenge.chanceBoost,
+            sure: Boolean(state.challenge.guaranteed)   // 突入 確定 (城門の 色・門番の 見せ方。2026-11-16)
         });
         return events;
     },
@@ -1002,7 +1022,9 @@ const GameFlow = {
     // その ゲームの 城突入率 (charged: 長押しの チャージを ためきった)
     castleRate(state, outcome, config, charged) {
         if (state.challenge.guaranteed) return 1;
-        return Math.min(1, (config.castle.entryRate[outcome.role] || 0)
+        // 確定で ない 役は 復活の ぶん 下げる (castle.entryScale。2026-11-16)
+        const base = config.castle.entryRate[outcome.role] || 0;
+        return Math.min(1, (base < 1 ? base * (config.castle.entryScale ?? 1) : base)
             * MachineSetting.multipliers(state, config).castleEntry
             * this.castleEntryBoost(state, config) * (charged ? config.charge.castle.mult : 1));
     },
@@ -1060,6 +1082,17 @@ const GameFlow = {
     // 城突入チャレンジ: 出目ごとの突入率で毎ゲーム判定。成功でRASHへ、規定ゲーム数で失敗なら通常時へ
     handleCastleChallenge(state, outcome, config, rng) {
         const challenge = state.challenge;
+        // 復活待ちの レバー ON (2026-11-16): 7揃い (払い出しなし) で 門を ぶち破って 突入
+        if (challenge.revivalPending) {
+            challenge.revivalPending = false;
+            const events = [{ type: 'challengeRevival', text: config.revival.text }, { type: 'castleEntry', oni: false, revival: true }];
+            events.push(StateMachine.transition(state, MODES.RASH));
+            state.rash = createRashState();
+            this.recordHit(state, config, 'castle');
+            state.normal.chancePoint = 0;
+            events.push({ type: 'rashStart' });
+            return events;
+        }
         challenge.gamesRemaining--;
         // 長押しの チャージ (2026-10-27 ユーザー指定): ためきれたら その ゲームの 突入率が charge.castle.mult 倍 (GameFlow.drawCharge)
         const charge = Boolean(outcome.charged && outcome.chargeScene === 'castle');
@@ -1091,6 +1124,14 @@ const GameFlow = {
         }
 
         if (challenge.gamesRemaining <= 0) {
+            // 城突入チャレンジの 復活 (2026-11-16 ユーザー決定): 門の 前で 暗いまま 止まる (CP の 持ち越しは 復活 しなかった ときだけ)
+            const forced = Boolean(challenge.debugForceRevival);
+            challenge.debugForceRevival = false;
+            if (forced || rng() < (config.castle.revivalRate || 0)) {
+                challenge.revivalPending = true;
+                events.push({ type: 'challengeFail', revival: true, keptCp: null });
+                return events;
+            }
             const kept = Math.floor(state.normal.chancePoint * config.castle.failKeepRate);
             state.normal.chancePoint = kept;
             state.normal.castleWaitRemaining = 0;
@@ -1325,6 +1366,28 @@ const DebugState = {
         return events;
     },
     // 次の BATTLE でリプレイ・ダイヤ・スイカが出たら、ガード → とどめの一撃 (RASH 中でなければ RASH へ)
+    // 次の 城突入チャレンジで 失敗 したら 復活 (2026-11-16)
+    castleRevival(state) {
+        state.challenge.debugForceRevival = true;
+        return [{ type: 'debug', label: '次の城突入チャレンジで復活' }];
+    },
+    // 次の 報酬ルーレットで ともいし / 部位破壊ボーナス (2026-11-16)
+    rouletteTomoishi(state) {
+        const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
+        state.rash.debugRouletteTomoishi = true;
+        return events;
+    },
+    rouletteBreak(state) {
+        const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
+        state.rash.debugRouletteBreak = true;
+        return events;
+    },
+    // 次の BATTLE の ゲームで 結合崩壊 (ブレイク) させる (2026-11-16)
+    forceBreak(state) {
+        const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
+        state.rash.debugForceBreak = true;
+        return events;
+    },
     forceFinalBlow(state) {
         const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
         state.rash.debugForceFinalBlow = true;

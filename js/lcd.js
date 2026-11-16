@@ -50,6 +50,7 @@ const Lcd = (() => {
     let freeze = null;         // ロングフリーズ { phase: 'still' | 'noise' | 'black' | 'rainbow', snapshot, start }
     let party = [];            // 表示中の仲間 (加わった順の id)
     const partyJump = {};      // 仲間ごとのジャンプ (アニメーション値)
+    const partyDx = {};        // 仲間ごとの 横の ずれ (参戦で 画面の 外から 飛びこむ。2026-11-16)
     let visitor = null;        // お仲間チャレンジで現れた仲間候補 { id, x, silhouette, alpha }
     let treasure = null;       // 宝物庫ゾーン { remaining, games, total, chestOpenUntil, coins: [...] }
     let nextBonusGames = 0;    // 次の BATTLE に上乗せされるゲーム数 (表示用)
@@ -69,6 +70,8 @@ const Lcd = (() => {
     // 時間で値が変わるアニメーション値 (描画時に時刻から計算するので、フレームの抜けに強い)
     const koori = { x: animated(KOORI_HOME_X), jump: animated(0), moving: false, visible: true, hurtUntil: 0 };
     const gate = animated(0);  // 城門の開き具合 (0〜1)
+    let gateStyle = null;      // 城門の 色 (2026-11-16): null = 木 / 'iron' / 'red' / 'gold' (突入 確定)
+    let gateKeeper = null;     // 門番 (2026-11-16): null / 'hibikimakuri' / 'sasaki'
     // BATTLE の表示 (state とは別に、演出の進行に合わせて更新する)
     const battle = {
         enemyId: null,
@@ -369,6 +372,7 @@ const Lcd = (() => {
         drawZencho(time);
         drawNoise(time);
         drawRevival(time);
+        drawRewardRoulette(time);   // 報酬ルーレット (2026-11-16)
         drawPopups(time);
         drawMessage(time);
         drawHanase(time);
@@ -438,6 +442,10 @@ const Lcd = (() => {
         if (!partyJump[id]) partyJump[id] = animated(0);
         return partyJump[id];
     }
+    function dxOf(id) {
+        if (!partyDx[id]) partyDx[id] = animated(0);
+        return partyDx[id];
+    }
 
     // 仲間をこおりくんの後ろに並べて描く (近い順に後ろへ)
     // smooth: 特化ゾーンでは 腕と 足を なめらかに 動かして 踊る (js/lcd/smooth-pose.js。2026-11-14 ユーザー指定)
@@ -448,7 +456,7 @@ const Lcd = (() => {
             // 止まって いる ときも ゆっくり 腕と 足を 動かす (2026-11-14 ユーザー指定)
             const frame = Math.floor(time / (moving ? 140 : 420) + k) % 2;
             const bob = moving && frame ? -1 : 0;
-            const x = kooriX + 8 - COMPANION_GAP * (k + 1);
+            const x = kooriX + 8 - COMPANION_GAP * (k + 1) + valueAt(dxOf(id), time);
             ctx.fillStyle = 'rgba(0,0,0,0.25)';
             ctx.fillRect(x - 8, groundY - 2, 16, 3);
             if (down && scene === 'rash') {
@@ -581,10 +589,15 @@ const Lcd = (() => {
         }
         const doorW = Math.round((w / 2) * (1 - open));
         if (doorW <= 0) return;
-        ctx.fillStyle = '#5a3a1a';
+        const gold = gateStyle === 'gold';
+        ctx.fillStyle = gold ? `hsl(45, 90%, ${48 + 8 * Math.sin(time / 180)}%)` : { iron: '#4a4a56', red: '#8a1a1a' }[gateStyle] || '#5a3a1a';
         ctx.fillRect(x, y, doorW, h);
         ctx.fillRect(x + w - doorW, y, doorW, h);
-        ctx.fillStyle = '#c8a040';
+        if (gold && Math.floor(time / 120) % 3 === 0) {   // 金の 門の きらめき
+            ctx.fillStyle = '#fff8c0';
+            ctx.fillRect(x + ((time / 6) % w), y + 4, 2, 2);
+        }
+        ctx.fillStyle = gateStyle === 'iron' ? '#9a9aa8' : gold ? '#fff4b0' : '#c8a040';
         for (let sy = y + 2; sy < y + h; sy += 4) {
             if (doorW > 2) ctx.fillRect(x + doorW - 3, sy, 1, 1);
             if (doorW > 2) ctx.fillRect(x + w - doorW + 2, sy, 1, 1);
@@ -641,6 +654,28 @@ const Lcd = (() => {
     //   ふるカワジャッジ: まん中の ふるカワが 虹色に フラッシュ すれば 成功 / 何も 起きず 暗く なったら 失敗 (暗く なった あとの フラッシュも 成功)
     const MINI_GROUND = 120;
     const RES_MS = { toilet: 2600, training: 2800, hibiki: 3000, judge: 3000 };
+
+    // ミニゲームの 背景の オーラ (2026-11-16 ユーザー指定 2-4 ①): ピンク < 赤 < 虹の リボン (成功 確定)。金は 実家が太い オーラ (プレミア)
+    function drawMiniAura(time) {
+        const aura = miniView && miniView.aura;
+        if (!aura) return;
+        ctx.save();
+        if (aura === 'rainbow' || aura === 'gold') {
+            for (let i = 0; i < 7; i++) {
+                const y = (H / 8) * (i + 0.5) + Math.sin(time / 300 + i) * 6;
+                ctx.fillStyle = aura === 'gold' ? `rgba(255,215,0,${0.12 + 0.06 * Math.sin(time / 200 + i)})` : `hsla(${(i * 50 + time / 4) % 360}, 95%, 60%, 0.22)`;
+                ctx.fillRect(0, Math.round(y), W, 5);
+            }
+        } else {
+            const g = ctx.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, W / 1.6);
+            const c = aura === 'red' ? '255,40,40' : '255,120,200';
+            g.addColorStop(0, `rgba(${c},0)`);
+            g.addColorStop(1, `rgba(${c},${0.35 + 0.1 * Math.sin(time / 150)})`);
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, W, H);
+        }
+        ctx.restore();
+    }
 
     // 右上に 名前と 残りゲームの ランプ、下に ひとこと
     function drawMiniHud(time) {
@@ -830,8 +865,9 @@ const Lcd = (() => {
 
     // ふるカワジャッジ: まん中に ふるカワ。成功は 虹色の フラッシュ (暗く なって から の ことも)、失敗は 何も 起きず 暗く なる
     function drawJudge(time, t, res) {
-        ctx.fillStyle = '#140a1a';
+        ctx.fillStyle = miniView.aura === 'gold' ? '#3a2a00' : '#140a1a';   // 実家が太い オーラ (金の 背景。プレミア)
         ctx.fillRect(0, 0, W, H);
+        drawMiniAura(time);
         // スポットライト
         const grad = ctx.createRadialGradient(W / 2, H / 2, 6, W / 2, H / 2, 90);
         grad.addColorStop(0, 'rgba(255,240,200,0.35)');
@@ -893,14 +929,55 @@ const Lcd = (() => {
         if (event.kind === 'judge') FurukawaView.show({ text: 'わたしが ジャッジするよ！', color: 4, heat: 4 });
         await sleep(1800);
     }
+    // ミニゲームの チャンスアップ (2026-11-16 ユーザー指定: claude_code_3_adjusted.md 2-4 ①)。その ゲームで 成功 するか (event.success) で 見せ方を 選ぶ。
+    //   どれも ブラウザの 乱数 (本番の 抽選の 乱数は 使わない)。確定の 見せ方 (虹の リボン・金の 特大 文字・飛び出す PUSH・実家が太い オーラ) は 成功の ゲーム だけ
+    async function miniChanceUp(event) {
+        const c = config.miniFx;
+        const win = Boolean(event.success);
+        const judge = event.kind === 'judge';
+        const pick = table => { let r = Math.random(); for (const [k, p] of Object.entries(table)) { if (r < p) return k; r -= p; } return null; };
+        // 背景の オーラ
+        const aura = win && Math.random() < c.premium ? 'gold' : pick(win ? c.aura.win : c.aura.lose);
+        if (aura) miniView.aura = aura;
+        if (aura === 'gold') {
+            startFlash('#ffd700', 500);
+            Sound.kakutei();
+            showMessage('実家が太い オーラ!!', '#ffd700', 1200);
+            await sleep(1000);
+        } else if (aura === 'rainbow') Sound.rainbow();
+        // ふるカワの 吹き出し (色: 0 白 … 4 赤 / 5 金 / 6 虹)。金の 特大「超・しゃべりまくりモード！」は 成功の ゲーム だけ
+        if (judge) {
+            if (win && Math.random() < c.goldText) {
+                FurukawaView.show({ text: '超・しゃべりまくりモード！', color: 5, heat: 6 });
+                startFlash('#ffd700', 300);
+                Sound.fanfare();
+                await sleep(900);
+            } else {
+                const k = config.mini.kinds.judge;
+                const steps = win ? c.textColor.win : c.textColor.lose;
+                const color = Number(pick(steps) ?? 0);
+                FurukawaView.show({ text: k.miss[Math.floor(Math.random() * k.miss.length)], color, heat: Math.min(4, color) });
+                await sleep(500);
+            }
+        }
+        // ボタン: ふつう < デカ PUSH < 飛び出して 震える PUSH (成功 確定＋キュイン)。押した ときに 結果を 出す
+        const btn = pick(win ? c.button.win : c.button.lose);
+        if (btn === 'pop') {
+            Sound.longKyuin();
+            await PushButton.wait({ tier: 'rainbow', pop: true, mode: 'tap' });
+        } else if (btn === 'big') {
+            await PushButton.wait({ tier: 'red', pop: false, mode: 'tap' });
+        }
+    }
     async function miniGameFx(event) {
         if (!miniView) return;
         miniView.remaining = event.remaining;
         miniView.act = performance.now();
+        if (!miniView.rainbow && (event.success || event.kind !== 'training')) await miniChanceUp(event);   // 特訓は 最後まで 結果を 見せない
         if (event.success || event.remaining <= 0) return;
         const k = config.mini.kinds[event.kind];
         const msg = k.miss[Math.floor(Math.random() * k.miss.length)];
-        if (event.kind === 'judge') FurukawaView.show({ text: msg, color: 4, heat: 3 });
+        if (event.kind === 'judge') { /* ふるカワの 吹き出しは miniChanceUp で 出した */ }
         else {
             miniView.msg = msg;
             miniView.msgAt = performance.now();
@@ -1238,8 +1315,9 @@ const Lcd = (() => {
             }
             if (battle.breakActive) {
                 const blink = Math.floor(time / 250) % 2;
-                box(bx + bw - 34, by + 40, 34, 12, 'rgba(60,0,90,0.9)', '#c080ff');
-                text('BREAK', bx + bw - 17, by + 41, { color: blink ? '#ffffff' : '#e0b0ff', size: 10, align: 'center', outline: null });
+                // 結合崩壊 (2026-11-16 ユーザー指定: 前の「BREAK」)
+                box(bx + bw - 46, by + 40, 46, 12, 'rgba(90,10,0,0.9)', '#ff7a3a');
+                text('結合崩壊', bx + bw - 23, by + 41, { color: blink ? '#ffffff' : '#ffb08a', size: 10, align: 'center', outline: null });
             }
             const nameColor = { red: '#ff3a3a', gold: SUPER_COLOR }[battle.nameColor] || '#ffffff';   // 赤字・金字は 撃破 確定
             text(enemyName, bx + 5, by + 2, { size: 10, outline: null, color: battle.kai && battle.nameColor === 'white' ? '#e0a0ff' : nameColor });
@@ -1311,6 +1389,7 @@ const Lcd = (() => {
 
     // 撃破率が 上がった (役・ブレイク・長押しの チャージ・撃破役)。100% に なったら 全画面で 確定
     async function killRateUp(event) {
+        if (event.decided && event.reason === 'first') await battleOpening(event);   // セットの 1 ゲーム目の 演出 (2026-11-16)
         battle.nameColor = event.nameColor || battle.nameColor;
         // セットの 1 ゲーム目の 抽選で 上がらなかった ときは 数字は そのまま (名前の 色・違和感演出だけ 合わせる)
         if (event.decided && event.to <= event.from) {
@@ -1326,7 +1405,7 @@ const Lcd = (() => {
         battle.killUp = performance.now();
         const shownFrom = Math.max(event.from, valueAt(battle.killRate));   // 違和感演出の 77% から 100% に なる ときも 正しい 差を 出す
         animateTo(battle.killRate, event.to, 400);
-        const word = event.reason === 'charge' ? 'チャージ!! ' : event.reason === 'break' ? 'BREAK!! ' : event.reason === 'first' ? '1G目 抽選!! ' : event.reason === 'ranyu' ? '乱入 抽選!! ' : '';
+        const word = event.reason === 'charge' ? 'チャージ!! ' : event.reason === 'break' ? '結合崩壊!! ' : event.reason === 'first' ? '1G目 抽選!! ' : event.reason === 'ranyu' ? '乱入 抽選!! ' : '';
         damageNumbers.push({ text: `${word}撃破率 +${Math.max(0, killRatePct(event.to) - killRatePct(shownFrom))}%`, color: killRateColor(event.to, performance.now()), size: 12, born: performance.now() });
         if (event.to >= 1 && event.from < 1) {
             await playKillSplash(1, '撃破確定!!', event.from, 1400);
@@ -1415,7 +1494,10 @@ const Lcd = (() => {
             message = null;
             return;
         }
-        text(message.text, W / 2, 52, { color: message.color, size: 16, align: 'center' });
+        // 長い 文字は 画面に 入る 大きさに 小さく する (2026-11-16: 門番の セリフ など)
+        let size = 16;
+        while (size > 9 && textWidth(message.text, size) > W - 8) size--;
+        text(message.text, W / 2, 52, { color: message.color, size, align: 'center' });
     }
 
     function drawLetterbox() {
@@ -1434,8 +1516,31 @@ const Lcd = (() => {
         ctx.fillStyle = titleCard.color;
         ctx.fillRect(0, y, W, 1);
         ctx.fillRect(0, y + 39, W, 1);
-        text(titleCard.text, W / 2, y + 6, { color: titleCard.color, size: 16, align: 'center' });
-        if (titleCard.sub) text(titleCard.sub, W / 2, y + 26, { color: '#fff', size: 10, align: 'center' });
+        // 虎柄 (金と 黒の しま。2026-11-16 開始タイトルの いちばん 強い 色)
+        let color = titleCard.color;
+        if (color === 'tiger') {
+            const tw = textWidth(titleCard.text, 16);
+            const g = ctx.createLinearGradient(W / 2 - tw / 2, 0, W / 2 + tw / 2, 0);
+            const off = (time / 600) % 1;
+            for (let k = 0; k < 8; k++) {
+                const a = Math.min(1, (k + off) / 8), b = Math.min(1, (k + off + 0.5) / 8);
+                g.addColorStop(a, '#ffd700'); g.addColorStop(b, '#ffd700');
+                g.addColorStop(Math.min(1, b + 0.001), '#2a1a00'); g.addColorStop(Math.min(1, (k + off + 0.75) / 8), '#2a1a00');
+                g.addColorStop(Math.min(1, (k + off + 0.751) / 8), '#ffd700');
+            }
+            color = g;
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(0, y, W, 1);
+            ctx.fillRect(0, y + 39, W, 1);
+        }
+        let tsize = 16;
+        while (tsize > 10 && textWidth(titleCard.text, tsize) > W - 6) tsize--;
+        text(titleCard.text, W / 2, y + 6, { color, size: tsize, align: 'center', outline: titleCard.color === 'tiger' ? '#5a2a00' : '#000' });
+        if (titleCard.sub) {   // 長い ときは 小さく (2026-11-16)
+            let size = 10;
+            while (size > 7 && textWidth(titleCard.sub, size) > W - 6) size--;
+            text(titleCard.sub, W / 2, y + 26, { color: '#fff', size, align: 'center' });
+        }
     }
 
     // 左右から黒い幕が閉じる / 開くワイプ
@@ -1609,7 +1714,7 @@ const Lcd = (() => {
             // 「○○の必殺技!!」も幅に収める (名前が長すぎるときは「必殺技!!」だけにする)
             let sub = cutIn.sub, subSize = 12;
             while (subSize > 9 && textWidth(sub, subSize) > W - 124) subSize--;
-            if (textWidth(sub, subSize) > W - 124) {
+            if (textWidth(sub, subSize) > W - 124 && sub.endsWith('必殺技!!')) {
                 sub = '必殺技!!';
                 subSize = 12;
             }
@@ -2805,7 +2910,7 @@ const Lcd = (() => {
         const kind = event.choose ? await selectTokka(event.kind) : event.kind;
         if (handlers.chooseTokka) handlers.chooseTokka(kind);
         letterboxTarget = 1;
-        tokka = makeTokkaView(kind, event.games, event.games, 0, event.members, []);
+        tokka = makeTokkaView(kind, event.games, event.games, event.initial || 0, event.members, []);   // 報酬ルーレットの 初期の 上乗せ (2026-11-16)
         startFlash('#ffffff', 400);
         Sound.chance();
         const subs = {
@@ -2857,9 +2962,11 @@ const Lcd = (() => {
         if (level >= 4) {
             startFlash('#ffffff', 600);
             Sound.rainbow();
+            Sound.tokkaBig(t.kind);   // 特化ゾーンごとの 大きな 上乗せの 音 (2026-11-16 ユーザー指定 2-5)
         } else if (big) {
             startFlash('#ffd23a', 400);
             Sound.fanfare();
+            Sound.tokkaBig(t.kind);
         } else {
             Sound.win();
         }
@@ -3151,6 +3258,13 @@ const Lcd = (() => {
         const timing = config.effects.timing;
         scene = 'challenge';
         letterboxTarget = 1;
+        // 城門の 色と 門番 (2026-11-16 ユーザー指定 2-4 ②)。金の 門・Mr.SASAKI は 突入 確定 (event.sure) の とき だけ
+        const cf = config.challengeFx;
+        const boostMult = event.companionBoost * (event.chanceBoost ? config.castle.chanceBoost : 1);
+        const redRate = cf.gate.red + Math.max(0, boostMult - 1) * cf.gate.redPerBoost;
+        const r = Math.random();
+        gateStyle = event.sure && Math.random() < cf.goldRate ? 'gold' : r < redRate ? 'red' : r < redRate + cf.gate.iron ? 'iron' : null;
+        gateKeeper = event.sure && Math.random() < cf.sasakiRate ? 'sasaki' : Math.random() < cf.hibikiRate ? 'hibikimakuri' : null;
         startFlash('#ff3030', 500);
         startShake(config.effects.intensity.shakeSmall, 400);
         // 仲間とオーラの倍率はまとめて表示 (帯の幅に収まるように)
@@ -3162,6 +3276,23 @@ const Lcd = (() => {
         koori.moving = false;
         await sleep(timing.castleMovie * 0.5);
         letterboxTarget = 0;
+        if (gateStyle === 'gold') {
+            startFlash('#ffd700', 500);
+            Sound.kakutei();
+            showTitle('金の SE城門!!', '城突入 確定!!', '#ffd700', 1600);
+            await sleep(1600);
+        } else if (gateStyle) {
+            showMessage(gateStyle === 'red' ? '赤い 門…!!' : '鉄の 門…', gateStyle === 'red' ? '#ff5a5a' : '#c0c0d0', 900);
+            await sleep(700);
+        }
+        if (gateKeeper === 'sasaki') {
+            Sound.talk();
+            await playCutIn('sasaki', 'すごいです…', '#3a2a5a', 1500, '門を 開けて くれた!!');
+            Sound.fanfare();
+        } else if (gateKeeper === 'hibikimakuri') {
+            Sound.special('soundwave');
+            await playCutIn('hibikimakuri', '響きです。', '#2a3a5a', 1200, '門の 前で 響かせて いる…');
+        }
     }
 
     // SE城前でチャンス目: こおりくんが赤いオーラをまとい、突入率UP
@@ -3205,6 +3336,8 @@ const Lcd = (() => {
 
     async function castleEntry(event) {
         const timing = config.effects.timing;
+        gateKeeper = null;
+        setTimeout(() => { gateStyle = null; }, 8000);   // 門が 開いた あとは 色を 戻す (次の チャレンジまで)
         scene = 'entry';
         letterboxTarget = 1;
         // こおりくんのカットイン「こおりばりきつよい！」→ 門が開く
@@ -3231,9 +3364,42 @@ const Lcd = (() => {
     }
 
     async function challengeFail(event) {
+        gateKeeper = null;
+        // 城突入チャレンジの 復活 (2026-11-16 ユーザー決定): 門の 前で 倒れて 暗いまま 止まる (次の レバー ON で 復活)
+        if (event.revival) {
+            Sound.miss();
+            showTitle('突入失敗…', null, '#9fb8d8', 1600);
+            await sleep(1600);
+            defeatDim = true;
+            revivalHints();
+            return;
+        }
+        gateStyle = null;
         showTitle('突入失敗…', `ゲーム数 ${event.keptCp}G を持ち越し`, '#9fb8d8', 1600);
         await sleep(1600);
         scene = 'field';
+    }
+
+    // 城突入チャレンジの 復活 (2026-11-16): 暗転 → こおりくんが 光り輝いて「こおりまだまえる！」→ このあと 門を ぶち破って 突入 (castleEntry)
+    async function castleRevivalEffect(event) {
+        if (!revival) revivalBlackout();
+        defeatDim = false;
+        await sleep(700);
+        revival = { phase: 'glow', start: performance.now() };
+        down = null;
+        Sound.rainbow();
+        Sound.longKyuin();
+        for (let i = 0; i < 3; i++) {
+            startFlash('#ffffff', 250);
+            await sleep(380);
+        }
+        startFlash('#ffd700', 700);
+        startShake(config.effects.intensity.shakeLarge, 500);
+        Bgm.setPaused(false);
+        Sound.fanfare();
+        showTitle(event.text || config.revival.text, '門を ぶち破れ!!', '#ffd700', 1800);
+        await sleep(1800);
+        revival = null;
     }
 
     // ----- 演出: RASH -----
@@ -3638,6 +3804,9 @@ const Lcd = (() => {
             await sleep(config.furukawa.replyWait);
         }
         const sub = event.bonusGames > 0 ? `BATTLE ${event.games}G（+${event.bonusGames}G）` : `BATTLE ${event.games}G`;
+        // 敵の タイプと 撃破の 報酬 (2026-11-16 ユーザー指定 2-1 ①。演出 だけ)
+        const rrTable = foe && config.rewardRoulette && config.rewardRoulette.enabled ? config.rewardRoulette.enemies[foe.id] : null;
+        const typeLine = foe && foe.type ? `${foe.type}｜撃破で ${rewardShort(rrTable ? rrTable.base : foe.bonus)}${rrTable ? '＋ルーレット' : ''}` : null;
         if (event.isGoldDog) {
             startFlash('#ffd700', 800);
             startShake(config.effects.intensity.shakeLarge, 600);
@@ -3646,8 +3815,16 @@ const Lcd = (() => {
             await sleep(timing.battleIntro * 1.5);
         } else {
             startShake(config.effects.intensity.shakeSmall, 200);
-            showTitle(`VS ${event.name}`, sub, logoColor(), timing.battleIntro);
+            showTitle(`VS ${event.name}`, typeLine ? `${typeLine}　${sub}` : sub, logoColor(), timing.battleIntro);
             await sleep(timing.battleIntro);
+        }
+        // 報酬ルーレットの「次の BATTLE 結合崩壊から」(2026-11-16)
+        if (event.breakStart) {
+            battle.breakActive = true;
+            Sound.ketsugo();
+            startFlash('#ff7a3a', 300);
+            showTitle('結合崩壊から スタート!!', 'ガード不能!!', '#ff7a3a', 1300);
+            await sleep(1300);
         }
         // 内定の時ゾーン突破の特典
         if (event.winGuaranteed) {
@@ -3678,7 +3855,12 @@ const Lcd = (() => {
         const intensity = config.effects.intensity;
         battle.games = event.gamesRemaining;
         battle.probUpGames = event.probUpGames;
-        if (event.amount <= 0 && !event.guarded) return;   // ベル・ハズレは攻撃なし
+        if (event.naitei) await naiteiGameFx(event);   // 内定の時ゾーン: 門番の セリフ・持ち物 (2026-11-16)
+        if (event.amount <= 0 && !event.guarded) {   // ベル・ハズレは攻撃なし (敵が 攻撃して くる ことが ある。2026-11-16)
+            if (event.role !== 'ranyuFinish') await enemyAttack(event);
+            return;
+        }
+        if (!event.freeze && event.role !== 'ranyuFinish') await showTech(event);   // 技の ティア (2026-11-16)
         if (event.kill && battle.enemyId === 'onioni') await maybePremiumChance('onioni');   // おにおにへの とどめ
 
         let kooriFx = null;   // こおりくんがとどめを刺すときの必殺技のエフェクト
@@ -3722,6 +3904,9 @@ const Lcd = (() => {
                 continue;
             }
             animateTo(jumpOf(hit.id), -12, 120).then(() => animateTo(jumpOf(hit.id), 0, 140));
+            // NEXT ATTACK!! の 連撃 (2026-11-16 2-1 ②): 3 連撃まで 行くのは 撃破する ゲーム だけ
+            const chain = hits.indexOf(hit) + 2;
+            if (chain <= 2 || event.hp <= 0) showMessage(chain >= 4 ? `${chain - 1}連撃!!` : 'NEXT ATTACK!!', chain >= 4 ? '#ffd700' : '#7fffd4', 500);
             await sleep(120);
             battle.hurtUntil = performance.now() + 150;
             hitFx(companionFx);
@@ -3915,15 +4100,185 @@ const Lcd = (() => {
     }
 
     // ブレイク状態に (敵がガードできなくなる)
-    async function breakStart() {
+    // ----- セットの 1 ゲーム目の 演出 (2026-11-16 ユーザー指定: claude_code_3_adjusted.md 2-1 ②④) -----
+    //   勝ち負けは もう 決まって いる (event.win)。見せ方だけ ブラウザの 乱数で 選ぶ (本番の 抽選の 乱数は 使わない)
+    //   ① 仲間の 参戦 (歩いて / 走って「行くぞ！」/ 3 人 そろった 勝ちの セットだけ「チームばりきつよめ 4人包囲陣」)
+    //   ② 開始タイトルの 色 (白 < 青 < 赤 < 金・虎柄。赤・金・虎柄は 勝ちの セット だけ)
+    //   ③ 先制 (勝ちで 出やすく、負けでも たまに 出る)
+    //   ④ 勝利確定曲 (勝ちの セットだけ、台が 自動で 切り替える)
+    async function battleOpening(event) {
+        const fx = config.battleFx;
+        const win = Boolean(event.win);
+        const foeId = battle.kai ? 'onioni' : (event.enemyId || battle.enemyId);
+        const foe = foeId && Battle.findEnemy(config, foeId);
+        // ① 仲間の 参戦
+        const members = party.filter(id => config.companions.members.some(m => m.id === id));
+        if (members.length) {
+            const run = Math.random() < (win ? fx.allyRun.win : fx.allyRun.lose);
+            members.forEach(id => setNow(dxOf(id), -140));
+            for (const id of members) {
+                Sound.stop(1);
+                animateTo(dxOf(id), 0, run ? 220 : 520);
+                if (run) animateTo(jumpOf(id), -10, 110).then(() => animateTo(jumpOf(id), 0, 110));
+                await sleep(run ? 160 : 300);
+            }
+            await sleep(run ? 120 : 260);
+            if (run) {
+                showMessage('行くぞ！', '#7fffd4', 700);
+                await sleep(600);
+            }
+            if (win && members.length >= 3 && Math.random() < fx.houiRate) {
+                startFlash('#ffd700', 400);
+                Sound.fanfare();
+                await playCutIn('koori', 'チームばりきつよめ 4人包囲陣', '#8a6a00', 1500, '全員 集合!!');
+            }
+        }
+        // ② 開始タイトルの 色
+        const big = foeId === 'onioni' || foeId === config.goldDog.id;
+        const weights = win ? fx.titleColors.win : fx.titleColors.lose;
+        let r = Math.random(), color = 'white';
+        for (const [c, p] of Object.entries(weights)) { if (r < p) { color = c; break; } r -= p; }
+        if (color === 'tiger' && !big) color = 'red';   // 金・虎柄は おにおに・ゴールド金面犬 だけ
+        const hex = { white: '#ffffff', blue: '#4f9bff', red: '#ff3a3a', tiger: 'tiger' }[color];
+        if (color === 'red' || color === 'tiger') startFlash(color === 'red' ? '#ff3a3a' : '#ffd700', 300);
+        if (color === 'tiger') Sound.kakutei(); else Sound.stop(2);
+        showTitle(`VS ${foe ? foe.name : ''}`, '勝負!!', hex, 900);
+        await sleep(900);
+        // ③ 先制
+        if (Math.random() < (win ? fx.sensei.win : fx.sensei.lose)) {
+            koori.moving = true;
+            await animateTo(koori.x, ENEMY_X - 60, 120);
+            battle.hurtUntil = performance.now() + 250;
+            Sound.hit();
+            startShake(config.effects.intensity.shakeSmall, 150);
+            showMessage('先制攻撃!!', '#ffe45a', 800);
+            await animateTo(koori.x, KOORI_BATTLE_X, 200);
+            koori.moving = false;
+            await sleep(400);
+        }
+        // ④ 勝利確定曲 (曲が 止まる → 一瞬の 無音 → 勝利確定曲の 頭から)。main.js が 撃破まで この 曲に する
+        if (win && Math.random() < fx.victorySong.rate) {
+            Bgm.climax();
+            await sleep(700);
+            document.dispatchEvent(new CustomEvent('koori-victory-song', { detail: fx.victorySong.track }));
+            Bgm.endClimax();
+            await sleep(300);
+        }
+    }
+
+    // 敵の 攻撃 (攻撃が 入らない ゲーム。2026-11-16 ユーザー指定 2-1 ④): 青い 文字の 弱攻撃は 何も 起きない。
+    //   赤い 文字の 強攻撃は、勝ちの セットで 仲間が いれば 割りこんで ガード → カウンター。負けの セットは こおりくんが 耐える
+    async function enemyAttack(event) {
+        const fx = config.battleFx.enemyAttack;
+        if (!battle.visible || !battle.enemyId || Math.random() >= fx.rate) return;
+        const win = Boolean(event.win);
+        const strong = Math.random() < (win ? fx.strong.win : fx.strong.lose);
+        const members = party.filter(id => config.companions.members.some(m => m.id === id));
+        const name = strong ? '強攻撃' : '攻撃';
+        await animateTo(battle.x, ENEMY_X - 20, 120);
+        damageNumbers.push({ text: `敵の ${name}!`, color: strong ? '#ff3a3a' : '#4f9bff', size: strong ? 13 : 11, born: performance.now() });
+        if (strong) { startFlash('#ff2a2a', 200); Sound.bigHit(); } else Sound.hit();
+        await animateTo(battle.x, ENEMY_X, 160);
+        if (strong && win && members.length && Math.random() < fx.guard) {
+            const id = members[Math.floor(Math.random() * members.length)];
+            const m = config.companions.members.find(x => x.id === id);
+            animateTo(jumpOf(id), -12, 120).then(() => animateTo(jumpOf(id), 0, 140));
+            Sound.stop(2);
+            showMessage('ここは俺に任せろ！', '#7fffd4', 900);
+            await sleep(700);
+            battle.hurtUntil = performance.now() + 300;
+            startShake(config.effects.intensity.shakeSmall, 200);
+            Sound.hit();
+            damageNumbers.push({ text: `${m ? m.name : ''} カウンター!!`, color: '#7fffd4', size: 12, born: performance.now() });
+            await sleep(600);
+        } else {
+            startShake(config.effects.intensity.shakeSmall, strong ? 250 : 120);
+            await sleep(strong ? 500 : 250);
+        }
+    }
+
+    // 内定の時ゾーンの 1 ゲーム (2026-11-16 ユーザー指定 2-4 ③): 持ち物 → 門番の セリフ (白 / 赤 / 金 = アルアルが 隣に 立つ)
+    async function naiteiGameFx(event) {
+        const c = config.naiteiFx;
+        const win = Boolean(event.finisher);
+        const sure = win && ['seven', 'sevenBar'].includes(event.role);
+        const item = sure || (win && Math.random() < c.goldItem) ? 'gold'
+            : event.role === 'chance' ? 'red' : ['cherry', 'melon'].includes(event.role) ? 'blue' : null;
+        if (item) {
+            const label = { gold: '金の 紹介状', red: '赤い エントリーシート', blue: '青い 履歴書' }[item];
+            const color = { gold: '#ffd700', red: '#ff4a4a', blue: '#4f9bff' }[item];
+            if (item === 'gold') { startFlash('#ffd700', 300); Sound.kakutei(); } else Sound.stop(1);
+            showMessage(`${label}を 取り出した!`, color, 900);
+            await sleep(800);
+        }
+        const line = sure || (win && Math.random() < c.gold) ? 'gold' : Math.random() < (win ? c.red.win : c.red.lose) ? 'red' : 'white';
+        if (line === 'gold') {
+            const aru = config.naitei.aruaru;
+            startFlash('#ffd700', 400);
+            Sound.kakutei();
+            Sound.longKyuin();
+            showMessage(`${aru.name}が ナイナイの 隣に…!!`, '#ffd700', 1500);
+            await playCutIn(aru.id, '採用の 祝福', '#8a6a00', 1500, '突破 確定!!');
+        } else if (line === 'red') {
+            startFlash('#ff3a3a', 200);
+            Sound.chance();
+            showMessage('ほう…その履歴書、少しは見所があるようだ', '#ff4a4a', 1300);
+            await sleep(1100);
+        } else {
+            Sound.talk();
+            showMessage('内定を持たぬものは通す事は出来ない', '#ffffff', 1000);
+            await sleep(800);
+        }
+    }
+
+    // 技の ティア (2026-11-16 ユーザー指定 2-2): そのゲームの 役・追撃・結合崩壊・撃破で 決める (技で 勝ち負けは 決めない)
+    function techTier(event) {
+        if (event.hp <= 0) return 5;
+        if (event.broke || event.role === 'chance') return 4;
+        if ((event.companionHits || []).some(h => h.amount > 0)) return 3;
+        return config.battleFx.tierRoles[event.role] || 1;
+    }
+    async function showTech(event) {
+        const tier = techTier(event);
+        const names = config.battleFx.tierNames[tier];
+        const name = names[Math.floor(Math.random() * names.length)];
+        if (tier === 5) {   // 確定: 虹の フラッシュ＋長い キュイン
+            startFlash('#ffffff', 400);
+            Sound.kakutei();
+            await playCutIn('koori', name, '#6a1a8a', 1500, '討伐確定!!');
+        } else if (tier === 4) {   // 激熱: 金＋重い クラッシュ音
+            startFlash('#ffd700', 300);
+            Sound.ketsugo();
+            await playCutIn('koori', name, '#8a6a00', 1200, '激熱!!');
+        } else {
+            const color = { 1: '#ffffff', 2: '#4f9bff', 3: '#ff4a4a' }[tier];
+            damageNumbers.push({ text: `『${name}』`, color, size: tier >= 2 ? 11 : 10, born: performance.now() });
+        }
+    }
+
+    // 2026-11-16 (ユーザー指定: claude_code_3_adjusted.md 2-1 ③): 見た目を「結合崩壊」(敵ごとの 部位破壊) に。
+    //   WARNING!! の 赤い 点滅 → 壊れる 部位の 文字 → 敵の ひとこと。恩恵は 今の ブレイクと 同じ (ガード不能・撃破率 +20%)
+    async function breakStart(event = {}) {
+        const enemyId = event.enemyId || battle.enemyId;
+        const parts = config.battleFx.breakParts[battle.kai ? 'onioni' : enemyId] || ['弱点 破壊！'];
+        const part = parts[Math.floor(Math.random() * parts.length)];
+        const add = Math.round(config.killRate.breakAdd * 100);
+        Bgm.duck(2600, 0.3);
+        Sound.ketsugo();
+        startFlash('#ff2a2a', 250);
+        showTitle('WARNING!!', '結合崩壊！！', '#ff3a3a', 800);
+        await sleep(300);
+        startFlash('#ff2a2a', 250);
+        await sleep(500);
         battle.breakActive = true;
-        battle.hurtUntil = performance.now() + 500;
-        startFlash('#c080ff', 500);
-        startShake(config.effects.intensity.shakeLarge, 400);
-        Sound.bigHit();
-        damageNumbers.push({ text: 'BREAK!!', color: '#e0b0ff', size: 16, born: performance.now() });
-        showTitle('BREAK!!', 'ガード不能!! 撃破率UP!!', '#c080ff', 1500);
-        await sleep(1500);
+        battle.hurtUntil = performance.now() + 600;
+        startFlash('#ffffff', 300);
+        startShake(config.effects.intensity.shakeLarge, 500);
+        LcdCamera.punch(ENEMY_X, 70, 1.3, 500);
+        damageNumbers.push({ text: part, color: '#ffb08a', size: 12, born: performance.now() });
+        showTitle('結合崩壊！！', `${part}　ガード不能・撃破率 +${add}%`, '#ff7a3a', 1600);
+        await sleep(1600);
+        await enemySay(battle.kai ? 'onioni' : enemyId, 'broken');
     }
 
     async function defeat(event) {
@@ -3948,14 +4303,131 @@ const Lcd = (() => {
             battle.probUpGames = bonus.games;
             battle.probUpMultiplier = bonus.value;
         }
-        Sound.win();
-        showTitle('撃破ボーナス', bonusText(bonus), '#7fffd4', 1600);
-        await sleep(1600);
+        if (event.roulette) {
+            await playRewardRoulette(event.roulette);   // 報酬ルーレット (2026-11-16 ユーザー決定)
+            if (StateMachine.isRashMode(state)) battle.probUpGames = state.rash.probUpGames;
+        } else {
+            Sound.win();
+            showTitle('撃破ボーナス', bonusText(bonus), '#7fffd4', 1600);
+            await sleep(1600);
+        }
         if (event.nextForcedName) {
             startFlash('#ff3030', 400);
             showTitle(`次の相手は ${event.nextForcedName}`, '確定!!', '#ff6060', 1600);
             await sleep(1600);
         }
+    }
+
+    // ----- 報酬ルーレット (2026-11-16 ユーザー決定: claude_code_3_adjusted.md 2-3) -----
+    //   結果は もう 決まって いる (r)。基本の 報酬が 光って 確定 → PUSH で 回る → 止まる → 凍りつく「バキバキッ！」で 昇格 →
+    //   ともいし乱入 (いちばん 上へ) → 部位破壊ボーナス (もう 1 段) → まとめ
+    let rouletteView = null;   // { labels, base, cursor, lit (確定した マス), msg, start }
+    async function playRewardRoulette(r) {
+        const baseText = r.base.type === 'tokka' ? '上乗せ特化ゾーン 確定' : bonusText(r.base).replace(' GET!!', '');
+        rouletteView = { labels: r.labels, base: baseText, cursor: -1, lit: false, start: performance.now(), baseLit: false };
+        await sleep(300);
+        rouletteView.baseLit = true;
+        startFlash('#7fffd4', 300);
+        Sound.win();
+        await sleep(800);
+        await PushButton.wait({ tier: 'gold', pop: false, mode: 'tap' });   // PUSH で 回す (押さなくても 進む)
+        // 回る: だんだん 遅く なって r.start で 止まる
+        const n = r.labels.length;
+        let wait = 50, pos = 0;
+        const turns = n * 2 + r.start;
+        for (let i = 0; i <= turns; i++) {
+            pos = i % n;
+            rouletteView.cursor = pos;
+            Sound.stop(0);
+            await sleep(wait);
+            if (i > turns - n - 2) wait = Math.min(260, wait * 1.25);
+        }
+        rouletteView.cursor = r.start;
+        rouletteView.lit = true;
+        Sound.chance();
+        await sleep(600);
+        let idx = r.start, step = 0;
+        const up = async (label) => {
+            Sound.freezeJudge();
+            startFlash('#bfefff', 250);
+            startShake(config.effects.intensity.shakeSmall, 200);
+            rouletteView.msg = label;
+            await sleep(450);
+            idx = Math.min(n - 1, idx + 1);
+            rouletteView.cursor = idx;
+            Sound.brassStep(step++);
+            await sleep(500);
+        };
+        for (let i = 0; i < r.upgrades; i++) await up('バキバキッ！ 昇格!!');
+        if (r.tomoishi) {
+            Sound.tomoishiDark();
+            startShake(config.effects.intensity.shakeLarge, 700);
+            startFlash('#ffd700', 400);
+            rouletteView.msg = 'ともいし「内定はまだなの？もっと上を目指しなさい！」';
+            await sleep(1600);
+            idx = n - 1;
+            rouletteView.cursor = idx;
+            Sound.brassStep(6);
+            Sound.kakutei();
+            await sleep(700);
+        }
+        if (r.breakBonus) {
+            if (r.breakCoins) {
+                Sound.ketsugo();
+                rouletteView.msg = `部位破壊ボーナス！ +${r.breakCoins}枚!!`;
+                await sleep(1100);
+            } else await up('部位破壊ボーナス！もう1段昇格！！');
+        }
+        rouletteView.msg = null;
+        if (r.reward && r.reward.memberId && !party.includes(r.reward.memberId)) {   // 仲間が 1 人 加わる
+            party.push(r.reward.memberId);
+            animateTo(jumpOf(r.reward.memberId), -12, 150).then(() => animateTo(jumpOf(r.reward.memberId), 0, 150));
+        }
+        const rewardText = r.reward.type === 'none' ? null
+            : r.reward.memberId ? `${r.reward.name}が 仲間に!!` : r.reward.fallbackCoins ? `+${r.reward.fallbackCoins}枚` : r.reward.label;
+        const sum = [`基本 ${baseText}`, rewardText, r.breakCoins ? `+${r.breakCoins}枚` : null].filter(Boolean).join(' ／ ');
+        const top = idx === n - 1;
+        if (top) { startFlash('#ffffff', 400); Sound.rainbow(); } else if (rewardText) Sound.fanfare(); else Sound.win();
+        rouletteView = null;
+        showTitle(top ? '報酬ルーレット 最高!!' : '報酬ルーレット', sum, top ? '#ffd700' : '#7fffd4', 1900);
+        await sleep(1900);
+    }
+    function drawRewardRoulette(time) {
+        const v = rouletteView;
+        if (!v) return;
+        const n = v.labels.length, rowH = 13;
+        const bw = Math.min(W - 16, 200), bh = 34 + n * rowH, bx = Math.round((W - bw) / 2), by = Math.round((H - bh) / 2) - 4;
+        box(bx, by, bw, bh, 'rgba(0,10,30,0.88)', '#7fd8ff');
+        text('報酬ルーレット', W / 2, by + 3, { color: '#bfefff', size: 10, align: 'center', outline: null });
+        const bc = v.baseLit ? (Math.floor(time / 200) % 2 ? '#ffffff' : '#7fffd4') : '#557';
+        text(`基本の 報酬: ${v.base}`, W / 2, by + 16, { color: bc, size: 9, align: 'center', outline: null });
+        for (let i = 0; i < n; i++) {
+            const y = by + 30 + i * rowH;
+            const on = i === v.cursor;
+            if (on) {
+                ctx.fillStyle = v.lit ? (i === n - 1 ? `hsla(${(time / 3) % 360}, 90%, 55%, 0.6)` : 'rgba(255,215,0,0.45)') : 'rgba(255,255,255,0.3)';
+                ctx.fillRect(bx + 4, y - 1, bw - 8, rowH - 1);
+            }
+            const label = v.labels[i];
+            text(label, W / 2, y, { color: on ? '#ffffff' : i === n - 1 ? '#ffd700' : '#9ab', size: 9, align: 'center', outline: null });
+        }
+        if (v.msg) {
+            let size = 12;
+            while (size > 8 && textWidth(v.msg, size) > W - 8) size--;
+            text(v.msg, W / 2, by + bh + 2, { color: '#ffe45a', size, align: 'center' });
+        }
+    }
+
+    // 撃破の 報酬の 短い 書き方 (敵の タイプの 行。2026-11-16)
+    function rewardShort(bonus) {
+        if (!bonus) return '';
+        switch (bonus.type) {
+            case 'coins': return `+${bonus.value}枚`;
+            case 'games': return `+${bonus.value}G`;
+            case 'probUp': return '確率UP';
+            case 'tokka': return '特化ゾーン→SUPER';
+        }
+        return '';
     }
 
     function bonusText(bonus) {
@@ -4069,6 +4541,63 @@ const Lcd = (() => {
             if (event.revival) defeatDim = true;
         }
         await sleep(1500);
+        if (!event.continued) {
+            if (event.revival) revivalHints();   // 待って いる あいだ 少しずつ (待たない)
+            else if (Math.random() < config.revivalFx.loseHint) await loseHint();
+        }
+    }
+
+    // ----- 復活待ちの ヒント (2026-11-16 ユーザー指定 2-4 ④) -----
+    let coldFx = null;   // 画面の はしの 冷気の ノイズ { level 1〜3, until }
+    function coldNoise(level, ms) {
+        coldFx = { level, until: performance.now() + ms };
+        Sound.coldNoise(level);
+    }
+    // 復活が 決まって いる とき: 次の レバー ON まで、間を あけて 1 つずつ
+    async function revivalHints() {
+        const c = config.revivalFx;
+        const members = party.filter(id => config.companions.members.some(m => m.id === id));
+        const steps = [
+            () => coldNoise(1, 60000),
+            () => showMessage('ふるカワ「こおりくん、立ってー！」', '#ff8ad8', 1800),
+            () => coldNoise(2, 60000),
+            () => { if (members.length) showMessage('やす・たむ・だけ「まだ終わりじゃないぞ！」', '#7fffd4', 1800); },
+            () => coldNoise(3, 60000),
+            () => { if (Math.random() < c.onioni.revival) showMessage('おにおに「おい！3万6千円返すまで勝手に倒れるな！」', '#ff5a5a', 2200); },
+            () => {
+                if (Math.random() >= c.tomoishi) return;
+                Sound.tomoishiDark();
+                startFlash('#ffd700', 400);
+                showMessage('ともいし「お金返しなさい！こおり、がんばって！！」', '#ffd700', 2600);
+            }
+        ];
+        for (const step of steps) {
+            await sleep(c.stepMs);
+            if (!defeatDim || revival) return;   // レバー ON で 復活が 始まった
+            step();
+        }
+    }
+    // 負け (復活なし) の ガセ: 冷気の ノイズ 小と ふるカワ だけ (おにおには とても 低い 率)
+    async function loseHint() {
+        coldNoise(1, 1200);
+        showMessage('ふるカワ「こおりくん、立ってー！」', '#ff8ad8', 1200);
+        await sleep(1200);
+        if (Math.random() < config.revivalFx.onioni.lose) {
+            showMessage('おにおに「おい！3万6千円返すまで勝手に倒れるな！」', '#ff5a5a', 1400);
+            await sleep(1400);
+        }
+    }
+    function drawColdFx(time) {
+        if (!coldFx) return;
+        if (time > coldFx.until || (!defeatDim && coldFx.until - time > 5000)) { coldFx = null; return; }
+        const n = 12 * coldFx.level;
+        for (let i = 0; i < n; i++) {
+            const edge = Math.random() < 0.5;
+            const x = edge ? (Math.random() < 0.5 ? Math.random() * 14 : W - Math.random() * 14) : Math.random() * W;
+            const y = edge ? Math.random() * H : (Math.random() < 0.5 ? Math.random() * 10 : H - Math.random() * 10);
+            ctx.fillStyle = coldFx.level >= 3 && Math.random() < 0.4 ? 'rgba(255,60,60,0.8)' : `rgba(200,240,255,${0.3 + 0.2 * coldFx.level})`;
+            ctx.fillRect(Math.round(x), Math.round(y), 2, 1);
+        }
     }
 
     // ----- 復活演出 -----
@@ -4089,6 +4618,7 @@ const Lcd = (() => {
         revival = { phase: 'glow', start: performance.now() };
         down = null;
         Sound.rainbow();
+        Sound.longKyuin();   // 長い キュイン (2026-11-16 ユーザー指定 2-4 ④)
         for (let i = 0; i < 3; i++) {
             startFlash('#ffffff', 250);
             await sleep(380);
@@ -4119,20 +4649,22 @@ const Lcd = (() => {
     }
 
     function drawRevival(time) {
-        if (scene !== 'rash') return;
+        if (scene !== 'rash' && scene !== 'challenge') return;   // 城突入チャレンジの 復活も (2026-11-16)
         if (!revival) {
             if (defeatDim) {
                 ctx.fillStyle = 'rgba(0,0,12,0.7)';
                 ctx.fillRect(0, 0, W, H);
             }
+            drawColdFx(time);
             return;
         }
+        coldFx = null;
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, W, H);
         if (revival.phase !== 'glow') return;
         // 暗闇の中で、こおりくんだけが光り輝く
         const t = time - revival.start;
-        const hall = Backgrounds.get(logoSuper && !naiteiZone ? 'goldHall' : 'castleHall');
+        const hall = scene === 'challenge' ? Backgrounds.get(displayMap) : Backgrounds.get(logoSuper && !naiteiZone ? 'goldHall' : 'castleHall');
         const size = 16 * KOORI_SCALE;
         const x = valueAt(koori.x, time);
         const cx = x + size / 2, cy = hall.groundY - size / 2;
@@ -4256,6 +4788,9 @@ const Lcd = (() => {
                 case 'challengeStart':
                     await challengeIntro(event);
                     break;
+                case 'challengeRevival':
+                    await castleRevivalEffect(event);
+                    break;
                 case 'challengeGame':
                     if (!event.success) await challengeBounce();
                     break;
@@ -4290,7 +4825,7 @@ const Lcd = (() => {
                     await rashEnd(event);
                     break;
                 case 'break':
-                    await breakStart();
+                    await breakStart(event);
                     break;
                 case 'killRate':
                     await killRateUp(event);
@@ -4596,7 +5131,7 @@ const Lcd = (() => {
 
     return {
         init, showMessage, clearMessage, playEvents, renderFrame, setHotFrame, playCrack, startPreview, stopPreview,
-        reach, push, reachResult, hold, release, setHanase, longFreeze, playChanceEffect, revivalBlackout, chanceCutIn, startFlash, startShake, setCharge, setZencho, noiseFx,
+        reach, push, reachResult, hold, release, setHanase, longFreeze, playChanceEffect, revivalBlackout, castleRevivalBlackout: revivalBlackout, chanceCutIn, startFlash, startShake, setCharge, setZencho, noiseFx,
         tokkaLever, tokkaSelectInput, playNotice, comboStrike, comboFinish,
         tokkaSelecting: () => Boolean(tokkaSelect),
         setHandlers: h => { handlers = h; },

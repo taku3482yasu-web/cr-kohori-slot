@@ -90,6 +90,21 @@
     try { songPref = JSON.parse(localStorage.getItem(SONG_PREF_KEY)) || {}; } catch (e) { songPref = {}; }
     const DANCE_SONGS = ['dance'];
     let revivalSong = null;   // 復活待ちの あいだに 曲送りで 選んだ 曲
+    // 勝利確定曲 (2026-11-16 ユーザー指定: claude_code_3_adjusted.md 2-1 ④)。液晶が 勝ちの セットの 1 ゲーム目に たまに 切り替える。
+    //   その 敵を 倒す まで (defeatCount が 変わる まで) この 曲。撃破の あとは もとの 曲 (覚えた 曲) に 戻す。
+    //   確定の サインは この 自動の 切り替え だけ (曲送りで 選んで 流れて いるのは 確定では ない)
+    let victorySong = null;   // { track, defeats }
+    document.addEventListener('koori-victory-song', e => {
+        victorySong = { track: e.detail, defeats: state.rash.defeatCount };
+        Bgm.play(e.detail, null);
+    });
+    function victoryActive(s) {
+        if (!victorySong) return false;
+        const ok = StateMachine.isRashMode(s) && s.rash.defeatCount === victorySong.defeats
+            && (s.rash.phase === RASH_PHASES.BATTLE || s.rash.phase === RASH_PHASES.QUESTION);
+        if (!ok) victorySong = null;
+        return ok;
+    }
     function songScene(s) {
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return 'stage';   // 復活待ちは 通常時に 見せる
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA) return `tokka-${s.rash.tokka.kind}`;
@@ -100,8 +115,9 @@
         if (s.normal.dance) return 'dance';
         return 'stage';
     }
-    const songPool = scene => (scene === 'rash' ? [...RASH_SONGS, ...DANCE_SONGS, ...TOKKA_SONGS]
-        : scene === 'super' ? [...SUPER_SONGS, ...RASH_SONGS, ...DANCE_SONGS, ...TOKKA_SONGS]
+    const VICTORY_SONGS = ['victory'];   // 勝利確定曲も 好きな 曲として 選べる (曲送りで 選んでも 確定では ない。2026-11-16)
+    const songPool = scene => (scene === 'rash' ? [...RASH_SONGS, ...DANCE_SONGS, ...TOKKA_SONGS, ...VICTORY_SONGS]
+        : scene === 'super' ? [...SUPER_SONGS, ...RASH_SONGS, ...DANCE_SONGS, ...TOKKA_SONGS, ...VICTORY_SONGS]
         : scene === 'stage' ? STAGE_SONGS : ALL_SONGS);
     const prefFor = scene => (scene && songPref[scene] && Bgm.fileState(songPref[scene]) !== false ? songPref[scene] : null);
     function nextSong() {
@@ -117,6 +133,7 @@
         try { localStorage.setItem(SONG_PREF_KEY, JSON.stringify(songPref)); } catch (e) { /* 保存 できない */ }
         if (scene === 'rash') rashSong = next;
         if (scene === 'super') superSong = next;
+        victorySong = null;   // 勝利確定曲の あいだに 押したら ふつうに 次の 曲へ (確定は もう 決まって いる)
         if (StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL) revivalSong = next;
         // 止めて いる 曲を 鳴らし直す (盛り上がる 演出・ロングフリーズ・無音の 違和感 でも、押したら 曲を 流す)
         Bgm.endClimax();
@@ -128,7 +145,9 @@
     function bgmTrack(s) {
         // 復活待ちは 負けた ように 見せる 曲 (defeat)。曲送りを 押した ときだけ その 曲 (2026-11-16)
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return revivalSong || 'defeat';
+        if (s.mode === MODES.CASTLE_CHALLENGE && s.challenge.revivalPending) return revivalSong || 'defeat';   // 城突入チャレンジの 復活待ちも 失敗の 曲 (2026-11-16)
         revivalSong = null;
+        if (victoryActive(s)) return victorySong.track;
         const chosen = prefFor(songScene(s));
         if (chosen) {   // 曲送りで 選んだ 曲
             if (s.mode === MODES.RASH && !(s.rash.phase === RASH_PHASES.TOKKA)) rashSong = chosen;
@@ -169,7 +188,7 @@
         Bgm.init(Sound.context());
         if (audioStarted) return;
         audioStarted = true;
-        Bgm.preload([...RASH_SONGS, ...SUPER_SONGS, ...STAGE_SONGS, ...DANCE_SONGS, ...TOKKA_SONGS]);   // RASH・ステージの 曲が 置いて あるかを 先に 調べる
+        Bgm.preload([...RASH_SONGS, ...SUPER_SONGS, ...STAGE_SONGS, ...DANCE_SONGS, ...TOKKA_SONGS, 'victory']);   // RASH・ステージの 曲が 置いて あるかを 先に 調べる
     }
     document.addEventListener('pointerdown', startAudio, { once: true });
     document.addEventListener('keydown', startAudio, { once: true });
@@ -220,6 +239,11 @@
         // 復活待ちでレバー ON: 画面が暗転し、BGM も止まる (復活演出で鳴り直す)
         if (StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL) {
             Lcd.revivalBlackout();
+            Bgm.setPaused(true);
+        }
+        // 城突入チャレンジの 復活待ちも 同じ (2026-11-16)
+        if (state.mode === MODES.CASTLE_CHALLENGE && state.challenge.revivalPending) {
+            Lcd.castleRevivalBlackout();
             Bgm.setPaused(true);
         }
         refresh();
@@ -458,6 +482,7 @@
         if (sure) {
             Sound.kakutei();
             Sound.juteion();
+            setTimeout(() => Sound.longKyuin(), 500);   // 確定 (金・虹) だけ 長い キュイン (2026-11-16 ユーザー指定 2-5)
         } else if (hype.sakibare) Sound.sakibare();
         if (hype.cutin) Lcd.chanceCutIn(hype.cutin, hype.cutinWho);
         Lights.hype(hype);
@@ -620,6 +645,10 @@
         naitei: debugAction(() => DebugState.forceNaitei(state)),
         aruaru: debugAction(() => DebugState.forceAruaru(state)),
         finalBlow: debugAction(() => DebugState.forceFinalBlow(state)),
+        forceBreak: debugAction(() => DebugState.forceBreak(state)),   // 次:結合崩壊 (2026-11-16)
+        castleRevival: debugAction(() => DebugState.castleRevival(state)),   // 次:城突入チャレンジで復活 (2026-11-16)
+        rouletteTomoishi: debugAction(() => DebugState.rouletteTomoishi(state)),   // 次:報酬ルーレット ともいし (2026-11-16)
+        rouletteBreak: debugAction(() => DebugState.rouletteBreak(state)),   // 次:報酬ルーレット 部位破壊ボーナス (2026-11-16)
         dance: debugAction(() => DebugState.forceDance(state)),
         revenge: debugAction(() => DebugState.startRevenge(state, config)),
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),

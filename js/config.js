@@ -187,6 +187,53 @@ window.GAME_CONFIG = {
         rainbow: { count: 0.015, chance: 0.05, bar: 0.02 }
     },
 
+    // ----- 「？？」の 負け・復活待ちの ヒント (2026-11-16 ユーザー指定: claude_code_3_adjusted.md 2-4 ④。演出 だけ) -----
+    //   復活が 決まって いる とき だけ、暗い 画面で 少しずつ ヒントを 出す (冷気の ノイズ 小 → 中 → 強・仲間の 呼びかけ)。
+    //   onioni: おにおに「3万6千円…」(復活濃厚) の 率 (復活 / 負け)、tomoishi: ともいし (復活 確定。復活の とき だけ)。
+    //   loseHint: 負け (復活なし) でも 少しだけ ガセの ヒント (冷気の ノイズ 小・ふるカワ) を 出す 率
+    //   (ユーザーの「まだ 決める こと」#4 を Claude の おすすめ「少しだけ 出す」で 仮に した)
+    revivalFx: {
+        onioni: { revival: 0.45, lose: 0.03 },
+        tomoishi: 0.25,
+        loseHint: 0.3,
+        stepMs: 1400          // ヒントを 1 つ 出す 間隔
+    },
+
+    // ----- 内定の時ゾーンの チャンスアップ (2026-11-16 ユーザー指定: claude_code_3_adjusted.md 2-4 ③。演出 だけ) -----
+    //   毎ゲーム、レバー ON の あと 門番 (シーシャ・ナイテイ・ナイナイ) の セリフ: 白 (ふつう) < 赤 (チャンス。突破する ゲームで 出やすい・ガセあり)
+    //   < 金 (アルアルが ナイナイの 隣に 立つ = 突破 確定。突破する ゲーム だけ)。7揃い・7・7・BAR の ゲームは いつも 金
+    //   こおりくんの 持ち物は その ゲームの 役で 出す (ユーザーの「まだ 決める こと」#3 を Claude が 調べた 結果: 10G 先の 突破を 先に 決めると
+    //   本番の 抽選の 乱数の 並びが 変わって しまうので、役で 出す ほうに した): 手ぶら < 青い 履歴書 (チェリー・スイカ) < 赤い エントリーシート (チャンス目)
+    //   < 金の 紹介状 (突破 確定。突破する ゲーム だけ)
+    naiteiFx: {
+        red: { win: 0.5, lose: 0.15 },
+        gold: 0.35,          // 突破する ゲームで 金 (アルアル) に なる 率
+        goldItem: 0.3        // 突破する ゲームで 金の 紹介状を 取り出す 率 (7揃い などは いつも)
+    },
+
+    // ----- 城突入チャレンジの チャンスアップ (2026-11-16 ユーザー指定: claude_code_3_adjusted.md 2-4 ②。演出 だけ) -----
+    //   城門の 色 (チャレンジ開始の 1 回): 木 < 鉄 < 赤 < 金の SE城門 (突入 確定の とき だけ)。赤は 突入率が 高い (仲間・オーラ) ほど 出やすい (ガセあり)
+    //   門番 (仮: ユーザーが 決める まで Claude の おすすめ): 門番なし < ひびきまくり < Mr.SASAKI が 疲れきって 門を 開けて くれる (突入 確定の とき だけ)
+    challengeFx: {
+        gate: { iron: 0.3, red: 0.12, redPerBoost: 0.15 },
+        goldRate: 0.6,          // 突入 確定の とき 金の 門に なる 率 (のこりは ふつうに 見せる)
+        hibikiRate: 0.25,
+        sasakiRate: 0.5         // 突入 確定の とき Mr.SASAKI が 門番 (仮)
+    },
+
+    // ----- ミニゲームの チャンスアップ (2026-11-16 ユーザー指定: claude_code_3_adjusted.md 2-4 ①。演出 だけ) -----
+    //   その ゲームで 成功 するか で 見せ方を 選ぶ (win / lose)。確定の 見せ方は win だけ。数字は Claude が 決めた
+    //   aura: 背景の オーラ (pink < red < rainbow = 成功 確定)。premium: 成功の とき 実家が太い オーラ (金の 背景) の 率 (違和感と 同じ 7%)
+    //   textColor: ふるカワの 吹き出しの 色 (0 白・1 青・2 緑・3 紫・4 赤)。goldText: 成功の とき 金の 特大「超・しゃべりまくりモード！」の 率
+    //   button: big = デカ PUSH、pop = 飛び出して 震える PUSH (成功 確定＋キュイン)
+    miniFx: {
+        aura: { win: { pink: 0.25, red: 0.35, rainbow: 0.2 }, lose: { pink: 0.3, red: 0.12 } },
+        premium: 0.07,
+        textColor: { win: { 0: 0.1, 1: 0.15, 2: 0.2, 3: 0.25, 4: 0.3 }, lose: { 0: 0.4, 1: 0.3, 2: 0.17, 3: 0.09, 4: 0.04 } },
+        goldText: 0.3,
+        button: { win: { big: 0.35, pop: 0.25 }, lose: { big: 0.12 } }
+    },
+
     // ----- BAR揃いの 恩恵 (2026-10-27 ユーザー指定。数字は Claude が 決めた) -----
     //   normal: 通常時 (マップ) で BAR揃い → castle の 確率で SE城前へ 直行。そのうち sure の 確率で 城突入 確定。直行しなければ 緑以上の ミニゲーム 確定 (mini.select.bar)
     //   castleWait: SE城前で BAR揃い → sure の 確率で 城突入 確定 (7揃いは いつも 確定)
@@ -269,7 +316,8 @@ window.GAME_CONFIG = {
         rate: { premium: 0.6, hot: 0.35, warm: 0.15, cold: 0.02 },
         // 群予告 (2026-11-13 ユーザー指定: 当たりが 確定した ゲームだけ 出る。あくまで 演出で、出玉は 変わらない)。
         //   当たり 確定の ゲームで 出る 率 (役の 分類ごと。GameFlow.rollGun)。ほかの 予告とは べつに 引く
-        gunRate: { premium: 0.5, hot: 0.35, warm: 0.25, cold: 0.2 },
+        //   challenge: 城突入チャレンジで 突入が 決まった ゲームに「ひびきまくり群」が 出る 率 (2026-11-16 ユーザー指定)
+        gunRate: { premium: 0.5, hot: 0.35, warm: 0.25, cold: 0.2, challenge: 0.3 },
         kinds: {
             premium: { stepUp: 50, gun: 50 },
             hot: { stepUp: 65, gun: 35 },
@@ -355,7 +403,12 @@ window.GAME_CONFIG = {
         chanceBoost: 1.5,     // SE城前 (チャレンジ前の待機中) でチャンス目を引いたときの突入率の倍率 (こおりくんが赤いオーラをまとう)
         // 仲間・オーラの倍率がこれより小さいときは、この倍率にする (ユーザー指定: 仲間なし・オーラなしの成功率を少し上げる)。
         // 仲間なし・オーラなしの設定1で約28% → 約31% (出玉率を戻すために下げた設定1〜5 のチャンス目の倍率込み)。やすさんだけ (×1.15) も同じになる
-        minBoost: 1.3
+        minBoost: 1.3,
+        // 城突入チャレンジの 復活 (2026-11-16 ユーザー決定: claude_code_3_adjusted.md 2-4 ②。出玉が 変わる 仕組み)。
+        //   5G で 突入 できなかった とき revivalRate の 率で 復活 (門の 前で 暗いまま 止まり、次の レバー ON で 7揃い → 門を ぶち破って 突入)。
+        //   復活の ぶん、確定で ない 役の 突入率に entryScale を かけて 下げ、復活込みで 今の 成功率に 合わせた (出玉シミュレーターで 確かめた)
+        revivalRate: 0.1,
+        entryScale: 0.6
     },
 
     // ----- おにおにRASH -----
@@ -614,6 +667,100 @@ window.GAME_CONFIG = {
         }
     },
 
+    // ----- 撃破の あとの 報酬ルーレット (2026-11-16 ユーザー決定: claude_code_3_adjusted.md 2-3。出玉が 変わる 仕組み) -----
+    //   撃破する たびに 1 回。base (基本の 報酬・最低保証) は かならず もらえ、slots (追加の 報酬。下ほど 出にくい) から 1 マス。
+    //   止まった あと upgradeRate の 率で 1 段 上へ (何段も 続く ことが ある)。とどめが 一撃必殺の 役 (BAR揃い・7揃い・7・7・BAR) なら 率 × killFinishMult。
+    //   結合崩壊 (ブレイク) して いた 敵を 倒すと「部位破壊ボーナス」で かならず もう 1 段 (いちばん 上なら breakTopCoins 枚)。
+    //   tomoishiRate: 母・ともいしが 画面を 叩いて いちばん 上の マスへ。SUPER 中は superWeights (良い マスが 出やすい)
+    //   数字は 出玉シミュレーターで 前の 撃破ボーナスと 出玉率が だいたい 同じに なる ように 合わせた (README)。
+    //   slot の type: none / coins / games (次の BATTLE +G) / killNext (次の BATTLE の 撃破率 +) / breakStart (次の BATTLE を 結合崩壊から) /
+    //   winNext (次の BATTLE 勝利確定) / ally (仲間が 1 人 加わる。全員 いたら fallback 枚) / probUpExtend (確率UP +G) / probUpDouble (確率UP の G を 2 倍) /
+    //   tokkaCoins (特化ゾーンの 初期 +枚) / tokkaExtend (特化ゾーン +G) / superWin (次の BATTLE (SUPER の 1 体目) 勝利確定)
+    rewardRoulette: {
+        enabled: true,
+        upgradeRate: 0.05,
+        killFinishMult: 1.5,
+        breakTopCoins: 20,
+        tomoishiRate: 0.005,
+        enemies: {
+            okagappa: {
+                base: { type: 'coins', value: 20 },
+                slots: [{ type: 'none', label: 'なし' }, { type: 'coins', value: 10, label: '+10枚' }, { type: 'coins', value: 20, label: '+20枚' },
+                    { type: 'killNext', value: 0.1, label: '次のBATTLE 撃破率+10%' }, { type: 'coins', value: 50, label: '+50枚' }],
+                weights: [62, 23, 10, 3, 2], superWeights: [56, 24, 12, 5, 3]
+            },
+            hibikimakuri: {
+                base: { type: 'games', value: 3 },
+                slots: [{ type: 'none', label: 'なし' }, { type: 'games', value: 2, label: '+2G' }, { type: 'games', value: 5, label: '+5G' },
+                    { type: 'killNext', value: 0.1, label: '次のBATTLE 撃破率+10%' }, { type: 'games', value: 10, label: '+10G' }],
+                weights: [62, 23, 10, 3, 2], superWeights: [56, 24, 12, 5, 3]
+            },
+            shibata: {
+                base: { type: 'probUp', value: 1.5, games: 8 },
+                slots: [{ type: 'none', label: 'なし' }, { type: 'probUpExtend', value: 5, label: '確率UP 延長(+5G)' }, { type: 'coins', value: 20, label: '+20枚' },
+                    { type: 'breakStart', label: '次のBATTLE 結合崩壊から' }, { type: 'probUpDouble', label: '確率UP 2倍(G数)' }],
+                weights: [62, 23, 10, 3, 2], superWeights: [56, 24, 12, 5, 3]
+            },
+            sasaki: {
+                base: { type: 'coins', value: 75 },
+                slots: [{ type: 'none', label: 'なし' }, { type: 'coins', value: 30, label: '+30枚' }, { type: 'coins', value: 50, label: '+50枚' },
+                    { type: 'ally', fallback: 60, label: '仲間が 1人 加わる' }, { type: 'coins', value: 150, label: '+150枚' }],
+                weights: [62, 23, 10, 3, 2], superWeights: [56, 24, 12, 5, 3]
+            },
+            onioni: {
+                base: { type: 'tokka' },
+                slots: [{ type: 'none', label: 'なし' }, { type: 'tokkaCoins', value: 30, label: '特化ゾーン 初期+30枚' }, { type: 'tokkaCoins', value: 50, label: '特化ゾーン 初期+50枚' },
+                    { type: 'tokkaExtend', value: 3, label: '特化ゾーン 延長(+3G)' }, { type: 'superWin', label: '次のBATTLE 勝利確定' }],
+                weights: [62, 23, 10, 3, 2], superWeights: [56, 24, 12, 5, 3]
+            },
+            goldDog: {
+                base: { type: 'coins', value: 1200 },
+                slots: [{ type: 'none', label: 'なし' }, { type: 'coins', value: 200, label: '+200枚' }, { type: 'coins', value: 500, label: '+500枚' },
+                    { type: 'winNext', label: '次のBATTLE 勝利確定' }, { type: 'coins', value: 1000, label: '+1000枚' }],
+                weights: [62, 23, 10, 3, 2], superWeights: [56, 24, 12, 5, 3]
+            }
+        }
+    },
+
+    // ----- バトルの チャンスアップ (2026-11-16 ユーザー指定: claude_code_3_adjusted.md の 2-1・2-2) -----
+    // どれも 演出 だけ。勝ち負け・撃破率・出玉は 変えない。見せ方は 液晶 (js/lcd.js) が ブラウザの 乱数で 選ぶ
+    //   (本番の 抽選の 乱数の 並びを ずらさない)。赤・金の 見せ方は 名前の 色と 同じく 勝ちの セット だけ
+    battleFx: {
+        ranyuType: '乱入ボス',   // おにおに・怪 の タイプ
+        // 結合崩壊 (今の ブレイクの 見た目。2-1 ③): 敵ごとの 壊れる 部位 (2 つ ある ときは 半分ずつ)
+        breakParts: {
+            onioni: ['金棒クラッシュ！', '角（ツノ）破壊！'],
+            okagappa: ['頭のお皿にヒビ！'],
+            sasaki: ['社員証＆スケジュール帳 粉砕！'],
+            shibata: ['サングラス粉砕！'],
+            hibikimakuri: ['4DXスピーカー破壊！'],
+            goldDog: ['金の首輪 粉砕！']   // 仮 (2026-11-16。ユーザーが 決める まで)
+        },
+        // 開始タイトルの 色 (セットの 1 ゲーム目。2-1 ④): 白 < 青 < 赤 < 金・虎柄。赤・金・虎柄は 勝ちの セット だけ。
+        //   金・虎柄は 勝ち＋おにおに・ゴールド金面犬 だけ (ほかの 敵の 勝ちは 金の ぶんも 赤)
+        titleColors: { win: { white: 0.25, blue: 0.3, red: 0.3, tiger: 0.15 }, lose: { white: 0.65, blue: 0.35 } },
+        // 仲間の 参戦 (2-1 ②): 走って くる 率 (勝ち / 負け)、3 人 そろって いる 勝ちの セットで「4人包囲陣」を 出す 率
+        allyRun: { win: 0.6, lose: 0.25 },
+        houiRate: 0.5,
+        // 先制 (2-1 ④): こおりくんの 先制攻撃が 出る 率 (勝ち / 負け。負けにも 出る = ガセ)
+        sensei: { win: 0.35, lose: 0.08 },
+        // 敵の 攻撃 (2-1 ④): 攻撃が 入らない ゲーム (ベル・ハズレ) で 敵が 攻撃して くる 率と、そのうち 強攻撃 (赤い 文字) の 率。
+        //   強攻撃を 仲間が ガードして カウンターは 勝ちの セット だけ (仲間が いる とき)。負けの セットの 強攻撃は こおりくんが 耐える
+        enemyAttack: { rate: 0.35, strong: { win: 0.45, lose: 0.2 }, guard: 0.7 },
+        // 勝利確定曲 (BGM 昇格。2-1 ④): 勝ちの セットの 1 ゲーム目に この 率で、台が 自動で 曲を 切り替える (曲が 止まる → 無音 → 頭から)。
+        //   負けの セットでは 絶対に 選ばない。曲送りで 選んだ ときは 確定では ない
+        victorySong: { track: 'victory', rate: 0.08 },
+        // 技の ティア (2-2): 役ごとの ティア (ここに ない 役は 1)。仲間の 追撃 → 3、チャンス目・結合崩壊 → 4、撃破の とどめ → 5
+        tierRoles: { cherry: 2, melon: 2, chance: 4 },
+        tierNames: {
+            1: ['こおりアタック'],
+            2: ['コオリソード斬り', 'コオリハンマー粉砕'],
+            3: ['やす・たむ・だけ 三位一体ラッシュ'],
+            4: ['必殺・こおりばりきつよい！！'],
+            5: ['内定捕喰 乱舞']
+        }
+    },
+
     // ----- とどめの一撃 -----
     // BATTLE 中、ガードを崩せない役の攻撃が敵にガードされたとき、rates の確率で「とどめの一撃!」のカットイン。
     // ガードで HP1 残ったところへ、ガード無視の 1 ダメージで撃破する (ユーザー指定。1〜3%)
@@ -633,31 +780,36 @@ window.GAME_CONFIG = {
     enemies: [
         {
             id: 'okagappa', name: 'おかがっぱ', special: 'おかピポっと光線',
-            lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！' },
+            lines: { intro: 'ま～だまだ戦わねば！', special: 'おかピポ！イェア！', broken: 'お皿が…！ イェア…' },
+            type: 'トリッキー型',   // 敵の タイプ (2026-11-16 ユーザー指定。演出だけ。「VS ○○」の 下に 出す)
             weight: 50, superWeight: 40, hp: 60, killRate: 0.28, superKillRate: 0.48,
             bonus: { type: 'coins', value: 35 }   // 2026-10-23 A5 で BIG・REG を足して 35 → 20 にしたが、BIG・REG を消したので 35 に戻した
         },
         {
             id: 'hibikimakuri', name: 'ひびきまくり', special: '大音響4DX',
-            lines: { intro: '響きです。', special: 'これが４DXだ！' },
+            lines: { intro: '響きです。', special: 'これが４DXだ！', broken: '響かない…！' },
+            type: 'バランス型',
             weight: 30, superWeight: 25, hp: 90, killRate: 0.24, superKillRate: 0.43,
             bonus: { type: 'games', value: 5 }
         },
         {
             id: 'shibata', name: 'シバター', special: 'シバタードライバー',
-            lines: { intro: 'ぶんぶん！', special: 'バーイ！' },
+            lines: { intro: 'ぶんぶん！', special: 'バーイ！', broken: '見えねえ！' },
+            type: 'スピード型',
             weight: 15, superWeight: 15, hp: 120, killRate: 0.2, superKillRate: 0.38,
             bonus: { type: 'probUp', value: 1.5, games: 10 }
         },
         {
             id: 'sasaki', name: 'Mr.SASAKI', special: 'ASAスラッシュ',
-            lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。' },
+            lines: { intro: 'どうも、しご出来です。', special: '締め切り厳守です。', broken: 'すごいです…' },
+            type: '鉄壁・シゴデキ型',
             weight: 8, superWeight: 12, hp: 150, killRate: 0.16, superKillRate: 0.33,
             bonus: { type: 'coins', value: 120 }   // 2026-10-23 A5 で 120 → 60 にしたが、BIG・REG を消したので 120 に戻した
         },
         {
             id: 'onioni', name: 'おにおに', special: '鬼鬼の金棒',
-            lines: { special: '金返せ！' },
+            lines: { special: '金返せ！', broken: 'オレの…！' },
+            type: '強敵ボス',
             weight: 16, superWeight: 15, hp: 200, killRate: 0.03, superKillRate: 0.61,   // 2026-11-03 ユーザー指定: SUPER 中は いつでも 候補で、ほかより たおしやすい (ほかの SUPER の 撃破率を 少し 下げて SUPER の 継続率 約85% を 守った)
             bonus: { type: 'tokka' },     // 撃破の報酬は上乗せ特化ゾーン (300枚保障。tokka)
             requiresUnlock: true          // 連数が rash.oni.unlockStreak に達するまで出ない (SUPER 中は常に候補)
@@ -667,7 +819,8 @@ window.GAME_CONFIG = {
     // ----- ゴールド金面犬 (SUPER中のみ) -----
     goldDog: {
         id: 'goldDog', name: 'ゴールド金面犬', special: 'ゴールドかみまっくす',
-        lines: { intro: 'ワン！（自信ありげ）', special: 'ワン！（邪悪な笑み）' },
+        lines: { intro: 'ワン！（自信ありげ）', special: 'ワン！（邪悪な笑み）', broken: 'クゥーン…' },
+        type: '最強ボス',
         prob: 1 / 100,        // SUPER中の対戦相手抽選ごとの出現確率
         hp: 250,
         killRate: 0.3, superKillRate: 0.3,   // 撃破率 (ゴールド金面犬は SUPER 中だけ)

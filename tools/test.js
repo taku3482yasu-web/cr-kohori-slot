@@ -104,7 +104,7 @@ function play(setting, games, seed) {
         finalBlow: { guarded: {}, blows: {}, wrong: 0 },   // とどめの一撃: 役ごとのガードされた数・とどめの一撃の数、決まり方がおかしい数
         guaranteed: { started: 0, won: 0, lost: 0 },
         naiteiWins: 0,
-        afterNaiteiWin: 0,       // 内定の時突破のあと、勝利確定で始まった BATTLE
+        afterNaiteiWin: 0,       // 内定の時突破 (と 報酬ルーレットの 勝利確定) のあと、勝利確定で始まった BATTLE
         defeats: 0,
         finishMissing: 0,        // 撃破したのに finishBy がないダメージ
         finishWrong: 0,          // finishBy が仲間なのに、その仲間の追撃がない
@@ -283,6 +283,8 @@ function play(setting, games, seed) {
                 log.naiteiWins++;
                 pendingGuaranteed = e.winNextBattle;
             }
+            // 報酬ルーレットの「次の BATTLE 勝利確定」(2026-11-16) も 勝利確定の BATTLE に なる
+            if (e.type === 'defeat' && e.roulette && ['winNext', 'superWin'].includes(e.roulette.reward.type)) pendingGuaranteed = true;
             if (e.type === 'battleStart' && e.winGuaranteed) {
                 log.guaranteed.started++;
                 if (pendingGuaranteed) log.afterNaiteiWin++;
@@ -801,12 +803,12 @@ test('config.js: トロフィーの色の重みは、台の設定以下の色だ
     }
 });
 
-test('config.js: 敵のセリフは出てきたとき (intro)・必殺技の前 (special) だけで、文字がある', () => {
+test('config.js: 敵のセリフは出てきたとき (intro)・必殺技の前 (special)・結合崩壊 (broken。2026-11-16) だけで、文字がある', () => {
     const { config } = base;
     for (const enemy of [...config.enemies, config.goldDog, config.naitei.enemy]) {
         if (!enemy.lines) continue;
         for (const [key, line] of Object.entries(enemy.lines)) {
-            assert(key === 'intro' || key === 'special', `${enemy.name} のセリフの種類「${key}」`);
+            assert(key === 'intro' || key === 'special' || key === 'broken', `${enemy.name} のセリフの種類「${key}」`);
             assert(typeof line === 'string' && line.length > 0, `${enemy.name} の ${key} が空`);
         }
     }
@@ -931,7 +933,7 @@ test('デバッグ「次:とどめの一撃」: 次のリプレイ・ダイヤ�
     assertEqual(state.rash.debugForceFinalBlow, false, '1回起きたあともデバッグの印が残っている');
 });
 
-test('内定の時: 突破後の次の BATTLE は勝利確定で、必ず撃破する', () => {
+test('内定の時: 突破後 (と 報酬ルーレットの 勝利確定の あと) の次の BATTLE は勝利確定で、必ず撃破する', () => {
     const naiteiWins = runs.reduce((a, r) => a + r.log.naiteiWins, 0);
     const g = runs.reduce((a, r) => ({
         started: a.started + r.log.guaranteed.started, won: a.won + r.log.guaranteed.won,
@@ -940,7 +942,7 @@ test('内定の時: 突破後の次の BATTLE は勝利確定で、必ず撃破�
     assert(naiteiWins > 0, '内定の時の突破が1回もない (--games を増やす)');
     assert(g.started > 0, '勝利確定の BATTLE が1回もない');
     assertEqual(g.lost, 0, '勝利確定の BATTLE で負けた回数');
-    assertEqual(g.after, g.started, '内定の時突破の直後以外で勝利確定になった (勝利確定の BATTLE の数)');
+    assertEqual(g.after, g.started, '内定の時突破・報酬ルーレットの 直後以外で勝利確定になった (勝利確定の BATTLE の数)');
 });
 
 test('必殺技: 撃破したダメージには、とどめを刺した人 (finishBy) が入る', () => {

@@ -21,6 +21,8 @@ const Notice = {
     // このゲームの予告を選ぶ。出さないときは null
     //   force: デバッグで種類を指定する ('stepUp' | 'gun')
     pick(state, outcome, config, rng = Math.random, force = null) {
+        // 城突入チャレンジの 群予告 (2026-11-16 ユーザー指定): 突入が 決まった ゲーム だけ「ひびきまくり群」
+        if (state.mode === MODES.CASTLE_CHALLENGE && outcome.gun && !outcome.isFreeze) return { kind: 'gun', who: 'hibikimakuri' };
         if (!this.allowed(state) || outcome.isFreeze) return null;
         const cfg = config.notice;
         const cls = this.classOf(outcome.role, config);

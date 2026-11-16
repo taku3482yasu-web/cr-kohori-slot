@@ -24,6 +24,7 @@
 | `tokka-fire.mp3` | 特化ゾーン：こおりファイアー | 新しく作る（今は RASH・SUPER の曲） |
 | `tokka-ikkeki.mp3` | 特化ゾーン：おにおに一撃入魂 | 新しく作る（今は RASH・SUPER の曲） |
 | `tokka-asahara.mp3` | 特化ゾーン：ASAHARA CHANCE | 新しく作る（今は RASH・SUPER の曲） |
+| `victory.mp3` | 勝利確定曲（バトル開始で台が自動でこの曲に切り替えたら勝利確定。2026-11-16） | 新しく作る（今は SUPER のチップチューン） |
 
 ## Suno での入れ方
 
@@ -503,3 +504,19 @@ ASAHARA FLASH！ 光が 走る
 - 歌詞はこのゲーム用に書いたオリジナル。実在の曲や歌手の名前を Style に入れない（Suno でも弾かれる）
 - Suno の無料プランの曲は商用不可。お金をとって配るなら有料プランで作る
 - 音量がばらばらなときは、`js/bgm.js` の `BGM_FILES` の `gain`（0〜1）で曲ごとに合わせる
+
+
+## 11. 勝利確定曲 — `victory.mp3`（歌なし。2026-11-16 ユーザー指定）
+
+バトルの 1 ゲーム目に、台が**自動で**この曲に切り替えたら勝利確定（曲が止まる → 一瞬の無音 → この曲の頭から）。流れた瞬間に「勝った！」と分かる曲にする。曲送りで選んで聞くこともできる（そのときは確定ではない）。
+
+**Title**: 勝利確定!!
+
+**Style of Music**（実在の曲名・作品名は入れない）:
+
+```
+triumphant orchestral rock, 150 BPM, D major, huge brass fanfare intro, choir hits, driving drums, soaring strings, heroic, victory guaranteed, pachislot battle win theme, instrumental, loopable
+```
+
+- はじめの 2 小節で金管のファンファーレがはっきり鳴ること（切り替わった瞬間に分かるように）
+- 歌なし。ループできるように終わりを頭につなげやすく

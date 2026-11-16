@@ -128,6 +128,10 @@ const Lottery = {
         if (StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL) {
             return { ...this.makeOutcome('seven', config, rng), noPayout: true };
         }
+        // 城突入チャレンジの 復活待ちも 同じ (2026-11-16)
+        if (state.mode === MODES.CASTLE_CHALLENGE && state.challenge.revivalPending) {
+            return { ...this.makeOutcome('seven', config, rng), noPayout: true };
+        }
         if (rng() < (config.longFreeze.prob[state.mode] || 0)) return this.makeOutcome('longFreeze', config, rng);
         const role = StateMachine.isRashMode(state)
             ? Battle.drawRole(state, config, rng)

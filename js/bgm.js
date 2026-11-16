@@ -47,6 +47,9 @@ const BGM_FILES = {
     super: { src: 'sound/super.mp3', bpm: 164.17, offset: 0.107, chorus: 105.37, title: 'SUPERおにおにRASH', fallback: 'super', gain: 0.8 },      // SUPERおにおにRASH (歌なし)
     super2: { src: 'sound/super2.mp3', bpm: 170.0, offset: 0.162, chorus: 62.28, title: 'SUPERおにおにRASH (歌あり)', fallback: 'super', gain: 0.78 },    // SUPERおにおにRASH (歌あり)。SUPER に 入る たびに super と ランダム
     defeat: { src: 'sound/defeat.mp3', bpm: 72.07, offset: 0.173, chorus: 0, title: '凍える夜', fallback: 'defeat', gain: 0.78 },    // バトル敗北・復活待ち
+    // 勝利確定曲 (2026-11-16 ユーザー指定: バトル開始で 台が 自動で この 曲に 切り替えたら 勝利確定)。仮: まだ ファイルが ない ので
+    //   チップチューンの SUPER の 曲で 鳴る。Suno で 作って sound/victory.mp3 に 置く (sound/SUNO.md)
+    victory: { src: 'sound/victory.mp3', bpm: 150, offset: 0, chorus: 0, title: '勝利確定!!', fallback: 'super', gain: 0.75 },
     dance: { src: 'sound/dance.mp3', bpm: 133.2, offset: 0.3, chorus: 14.71, title: 'ダンシング おにおに', fallback: 'dance', gain: 0.71 },      // ダンシングステージ
     // 上乗せ特化ゾーン「おかランプ」(オカピポ): Suno で 作った ラップ入りの 曲 (sound/README.md)
     // old: 前の 曲を 選んだ ときの ファイル (ない 曲は チップチューン)。前の おかランプの 曲は「おかピポ・ナイト」

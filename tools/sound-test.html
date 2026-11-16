@@ -50,7 +50,16 @@
         ['bonusIn', '当たり音 (突入)', 'ファンファーレ 2 回 (前の 音)'],
         ['puchun', '消灯音', 'フリーズの 暗転「プチュン」'],
         ['__combo', '金カットイン の 組み合わせ', '確定音 + 重低音'],
-        ['__entry', '城突入 成功 の 組み合わせ', '確定音 → 重低音 + 突入']
+        ['__entry', '城突入 成功 の 組み合わせ', '確定音 → 重低音 + 突入'],
+        ['longKyuin', '長い キュイン (2026-11-16)', 'レバー ON の 確定 (金・虹) だけ: 35Hz の ドロップ + 4600→6200Hz の 2 段'],
+        ['ketsugo', '結合崩壊 (2026-11-16)', '金属が 砕ける + 重い ブーム + 電子アラート'],
+        ['freezeJudge', '報酬の 凍りつく 音 (2026-11-16)', 'バキバキッ!'],
+        ['__brass', '報酬の 昇格 ブラス (2026-11-16)', '1 段 ごとに 高く なる (4 段)'],
+        ['__tokka_okaLamp', '特化: おかランプ (2026-11-16)', 'DJ の スクラッチ + レーザー'],
+        ['__tokka_fire', '特化: こおりファイアー (2026-11-16)', '氷が 割れて 炎 + チャイム'],
+        ['__tokka_ikkeki', '特化: 一撃入魂 (2026-11-16)', '太鼓の 連打 → ドカン'],
+        ['__tokka_asahara', '特化: ASAHARA CHANCE (2026-11-16)', '金の ファンファーレ + コイン'],
+        ['tomoishiDark', 'ともいしの 暗転 (2026-11-16)', 'プチュン → 重低音 3 連']
     ];
     const SE = [
         ['fanfare', 'ファンファーレ'], ['rainbow', '虹'], ['chance', 'チャンス'], ['win', '小役'],
@@ -84,6 +93,8 @@
     }
     HIT.forEach(([key, label, sub]) => button('hit', label, sub, 'new', () => {
         if (key === '__combo') { Sound.kakutei(); Sound.juteion(); return; }
+        if (key === '__brass') { [0, 1, 2, 3].forEach(i => setTimeout(() => Sound.brassStep(i), i * 450)); return; }
+        if (key.startsWith('__tokka_')) { Sound.tokkaBig(key.slice(8)); return; }
         if (key === '__entry') { Sound.kakutei(); setTimeout(() => { Sound.juteion(); Sound.bonusIn(); }, 1400); return; }
         Sound[key]();
     }));
