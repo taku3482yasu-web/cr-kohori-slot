@@ -645,10 +645,10 @@
         naitei: debugAction(() => DebugState.forceNaitei(state)),
         aruaru: debugAction(() => DebugState.forceAruaru(state)),
         finalBlow: debugAction(() => DebugState.forceFinalBlow(state)),
-        forceBreak: debugAction(() => DebugState.forceBreak(state)),   // 次:結合崩壊 (2026-11-16)
+        forceBreak: debugAction(() => DebugState.forceBreak(state)),   // 次:チャンスタイム (2026-11-16)
         castleRevival: debugAction(() => DebugState.castleRevival(state)),   // 次:城突入チャレンジで復活 (2026-11-16)
         rouletteTomoishi: debugAction(() => DebugState.rouletteTomoishi(state)),   // 次:報酬ルーレット ともいし (2026-11-16)
-        rouletteBreak: debugAction(() => DebugState.rouletteBreak(state)),   // 次:報酬ルーレット 部位破壊ボーナス (2026-11-16)
+        rouletteBreak: debugAction(() => DebugState.rouletteBreak(state)),   // 次:報酬ルーレット チャンスタイムボーナス (2026-11-16)
         dance: debugAction(() => DebugState.forceDance(state)),
         revenge: debugAction(() => DebugState.startRevenge(state, config)),
         allCompanions: debugAction(() => DebugState.allCompanions(state, config)),

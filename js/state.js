@@ -212,7 +212,7 @@ function createRashState() {
         endingShown: false,      // このRASHでエンディングを流したか (SUPER 中におにおにを撃破すると流れる)
         // 報酬ルーレットの バフ (2026-11-16。次の BATTLE / 次の 特化ゾーンで 使う)
         nextKillBoost: 0,        // 次の BATTLE の 撃破率に 足す
-        nextBreakStart: false,   // 次の BATTLE を 結合崩壊 (ブレイク) から 始める
+        nextBreakStart: false,   // 次の BATTLE を チャンスタイム (ブレイク) から 始める
         tokkaBonus: 0,           // 次の 特化ゾーンの 初期の 上乗せ (枚)
         tokkaExtra: 0,           // 次の 特化ゾーンの 延長 (G)
         coinsWon: 0              // このRASHでの獲得枚数
@@ -1371,7 +1371,7 @@ const DebugState = {
         state.challenge.debugForceRevival = true;
         return [{ type: 'debug', label: '次の城突入チャレンジで復活' }];
     },
-    // 次の 報酬ルーレットで ともいし / 部位破壊ボーナス (2026-11-16)
+    // 次の 報酬ルーレットで ともいし / チャンスタイムボーナス (2026-11-16)
     rouletteTomoishi(state) {
         const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
         state.rash.debugRouletteTomoishi = true;
@@ -1382,7 +1382,7 @@ const DebugState = {
         state.rash.debugRouletteBreak = true;
         return events;
     },
-    // 次の BATTLE の ゲームで 結合崩壊 (ブレイク) させる (2026-11-16)
+    // 次の BATTLE の ゲームで チャンスタイム (ブレイク) に する (2026-11-16)
     forceBreak(state) {
         const events = StateMachine.isRashMode(state) ? [{ type: 'debugQuiet' }] : this.toRash(state);
         state.rash.debugForceBreak = true;

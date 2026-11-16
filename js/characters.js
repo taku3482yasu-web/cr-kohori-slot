@@ -673,6 +673,30 @@ const Characters = (() => {
 
     // 敵を描く。(x, groundY) は足元の中央。hurt で白く光る、silhouette で黒い影、alpha で透明度
     // flip: 左右反転 (右を向く。こおりくんの味方として出すとき) / kai: 怪の 状態 (おにおに乱入)
+    // 鬼鬼団の ドット絵 (js/oni-art.js。RPG から 写した 1 文字 = 1 ドットの 絵) を 敵の 絵に 足す (2026-11-17)。
+    //   同じ 色が 横に 続く ところは 1 つの 四角に まとめて 描く
+    if (typeof ONI_ART !== 'undefined') {
+        for (const [id, art] of Object.entries(ONI_ART)) {
+            if (ENEMIES[id]) continue;
+            ENEMIES[id] = {
+                w: art.w, h: art.h,
+                draw(r, frame) {
+                    const rows = art.frames[(frame || 0) % art.frames.length];
+                    rows.forEach((row, y) => {
+                        let x = 0;
+                        while (x < row.length) {
+                            const ch = row[x];
+                            let n = 1;
+                            while (x + n < row.length && row[x + n] === ch) n++;
+                            if (ch !== '.' && art.palette[ch]) r(x, y, n, 1, art.palette[ch]);
+                            x += n;
+                        }
+                    });
+                }
+            };
+        }
+    }
+
     function drawEnemy(ctx, id, x, groundY, { scale = 2, frame = 0, hurt = false, silhouette = false, alpha = 1, flip = false, kai = false } = {}) {
         const enemy = ENEMIES[id];
         if (!enemy) return;
