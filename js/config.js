@@ -1207,6 +1207,7 @@ window.GAME_CONFIG = {
         stop1: 'KeyJ',
         stop2: 'KeyK',
         stop3: 'KeyL',
-        push: 'KeyB'   // PUSH ボタン (2026-10-23 A3)
+        push: 'KeyB',   // PUSH ボタン (2026-10-23 A3)
+        buy: 'KeyC'     // コインを 買う (2026-11-16 ユーザー指定: マウスを 動かさず キーで 買える ように)
     }
 };

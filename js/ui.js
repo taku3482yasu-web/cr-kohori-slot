@@ -12,7 +12,8 @@ const UI = (() => {
         stop1: '左リール STOP',
         stop2: '中リール STOP',
         stop3: '右リール STOP',
-        push: 'PUSH ボタン'
+        push: 'PUSH ボタン',
+        buy: 'コインを買う（BUY COINS）'
     };
 
     let config;
@@ -392,7 +393,7 @@ const UI = (() => {
             return;
         }
         // 特化ゾーンの見せ方を選ぶ画面 (左右の STOP で選び、レバーかまんなかの STOP で決定)
-        if (Lcd.tokkaSelecting()) {
+        if (Lcd.tokkaSelecting() && actionId !== 'buy') {   // コインを 買う キーは 選ぶ 画面でも そのまま
             Lcd.tokkaSelectInput(actionId);
             return;
         }

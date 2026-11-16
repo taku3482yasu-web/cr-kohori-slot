@@ -1404,9 +1404,16 @@ button {
     cursor: pointer;
 }
 
+/* BUY ボタンの キー表示は 横に 小さく (2026-11-16) */
+#buy-coins-button .key-hint, #fs-buy-button .key-hint {
+    display: inline;
+    margin: 0 0 0 4px;
+}
+
 /* キーボードがない端末 (スマホ・タブレット) ではキー表示を隠す */
 @media (hover: none) and (pointer: coarse) {
-    .key-hint {
+    .key-hint,
+    #buy-coins-button .key-hint, #fs-buy-button .key-hint {
         display: none;
     }
 }

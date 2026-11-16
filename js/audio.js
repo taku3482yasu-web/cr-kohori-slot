@@ -386,6 +386,7 @@ const Sound = (() => {
         chance: () => sequence([660, 880, 660, 880], 80, 'square', 0.1, 0.08),
         fanfare: () => sequence([440, 540, 640, 740, 840], 100, 'triangle', 0.2, 0.1),
         hit: () => tone(180, 'square', 0.08, 0.12),
+        count: () => tone(1320, 'square', 0.025, 0.035),   // ゲーム数が 1 ずつ 増える ときの 小さな 音 (2026-11-16)
         bigHit: () => sequence([120, 90, 60], 60, 'sawtooth', 0.15, 0.15),
         defeat: () => sequence([523.25, 659.25, 783.99, 1046.5], 120, 'square', 0.25, 0.08),
         miss: () => sequence([220, 160], 200, 'sawtooth', 0.4, 0.06),

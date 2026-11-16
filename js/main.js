@@ -23,9 +23,15 @@
     let debugEndCard = -1;      // デバッグ: 最後に見た RASH 終了画面の絵の番号
 
     // bgm: false なら 曲は 切り替えない (結果の 演出の 前。次の 場面の 曲が 先に 流れて しまうため。2026-11-10)
+    // 2026-11-16 (曲送りの 修正): 曲を 切り替えた ときの 場面を 覚えて おく。結果の 演出中 (refresh(false) から 次の refresh() まで) は
+    //   state が もう 次の 場面に なって いるので、曲送りは この 場面 (いま 鳴って いる 曲の 場面) で 行う
+    let bgmScene = null;
+    let bgmHeld = false;
     function refresh(bgm = true) {
         UI.update(state);
+        bgmHeld = !bgm;
         if (bgm) {
+            bgmScene = songScene(state);
             const track = bgmTrack(state);
             Bgm.play(track, bgmFallback(state, track));
         }
@@ -70,13 +76,22 @@
     // 台の「♪ 曲送り」ボタンで、今の 場面の 別の 曲へ (フェードで 切り替わり、曲名が 出る)。選んだ 曲は 場面ごとに 覚えておく。
     //   RASH は 7 曲・SUPER は 2 曲・通常時は ステージの 3 曲から。1 曲しか ない 場面 (SE城前・ダンス・特化ゾーン・内定の時) は 全部の 曲から
     //   2026-11-14 (ユーザー指定): RASH・SUPER の あいだは 特化ゾーンの 曲 (おかランプ・こおりファイアー・一撃入魂・ASAHARA CHANCE) も 選べる
+    //   2026-11-16 (ユーザー指定): SUPER の あいだも RASH の 7 曲を 選べる。RASH・SUPER の どちらでも ダンシングステージの 曲 (dance) を 選べる
+    //   (自動で 選ぶ 曲は 今までどおり。RASH は RASH の 7 曲・SUPER は super / super2 から ランダム)
+    //   2026-11-16 修正 (ユーザー指摘: たまに 曲送りが できない):
+    //     ・盛り上がる 演出 (曲を 止めて いる あいだ)・ロングフリーズ・無音の 違和感の あいだに 押すと、曲は 変わっても 音が 出ず 効いて いない ように 見えた
+    //       → 押したら すぐ 選んだ 曲を 鳴らす (押した 人の 操作を 優先)
+    //     ・結果の 演出中に 押すと 次の 場面の 曲が 先に 流れて いた → いま 鳴って いる 場面の 曲で 送る
+    //     ・復活待ち (負けた ように 見せて いる あいだ) は 何も 起きなかった → 通常時と 同じ ステージの 曲で 送る
     const SONG_PREF_KEY = 'koori-song-pref';
     const TOKKA_SONGS = ['okapipo', 'tokkaFire', 'tokkaIkkeki', 'tokkaAsahara'];
     const ALL_SONGS = ['tsugakuro', 'ongagawa', 'ebisucho', 'castle', 'battle', 'battle2', 'rash2', 'rash3', 'rash4', 'kooriFire', 'theme', 'super', 'super2', 'dance', ...TOKKA_SONGS, 'naitei'];
     let songPref = {};
     try { songPref = JSON.parse(localStorage.getItem(SONG_PREF_KEY)) || {}; } catch (e) { songPref = {}; }
+    const DANCE_SONGS = ['dance'];
+    let revivalSong = null;   // 復活待ちの あいだに 曲送りで 選んだ 曲
     function songScene(s) {
-        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return null;   // 復活待ちは 変えない
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return 'stage';   // 復活待ちは 通常時に 見せる
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA) return `tokka-${s.rash.tokka.kind}`;
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.NAITEI) return 'naitei';
         if (s.mode === MODES.SUPER_RASH) return 'super';
@@ -85,31 +100,41 @@
         if (s.normal.dance) return 'dance';
         return 'stage';
     }
-    const songPool = scene => (scene === 'rash' ? [...RASH_SONGS, ...TOKKA_SONGS] : scene === 'super' ? [...SUPER_SONGS, ...TOKKA_SONGS] : scene === 'stage' ? STAGE_SONGS : ALL_SONGS);
+    const songPool = scene => (scene === 'rash' ? [...RASH_SONGS, ...DANCE_SONGS, ...TOKKA_SONGS]
+        : scene === 'super' ? [...SUPER_SONGS, ...RASH_SONGS, ...DANCE_SONGS, ...TOKKA_SONGS]
+        : scene === 'stage' ? STAGE_SONGS : ALL_SONGS);
     const prefFor = scene => (scene && songPref[scene] && Bgm.fileState(songPref[scene]) !== false ? songPref[scene] : null);
     function nextSong() {
-        const scene = songScene(state);
+        startAudio();
+        const scene = bgmHeld && bgmScene ? bgmScene : songScene(state);
         if (!scene) return;
         const pool = songPool(scene).filter(n => Bgm.fileState(n) !== false);
         if (!pool.length) return;
         const now = Bgm.track;
-        const next = pool[(pool.indexOf(now) + 1) % pool.length];
+        let next = pool[(pool.indexOf(now) + 1) % pool.length];
+        if (next === now && pool.length > 1) next = pool[(pool.indexOf(next) + 1) % pool.length];
         songPref[scene] = next;
         try { localStorage.setItem(SONG_PREF_KEY, JSON.stringify(songPref)); } catch (e) { /* 保存 できない */ }
         if (scene === 'rash') rashSong = next;
         if (scene === 'super') superSong = next;
-        startAudio();
-        refresh();
+        if (StateMachine.isRashMode(state) && state.rash.phase === RASH_PHASES.REVIVAL) revivalSong = next;
+        // 止めて いる 曲を 鳴らし直す (盛り上がる 演出・ロングフリーズ・無音の 違和感 でも、押したら 曲を 流す)
+        Bgm.endClimax();
+        Bgm.setPaused(false);
+        if (bgmHeld) Bgm.play(next, bgmFallback(state, next));   // 演出中: 次の 場面の 曲は まだ 流さない
+        else refresh();
     }
 
     function bgmTrack(s) {
+        // 復活待ちは 負けた ように 見せる 曲 (defeat)。曲送りを 押した ときだけ その 曲 (2026-11-16)
+        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return revivalSong || 'defeat';
+        revivalSong = null;
         const chosen = prefFor(songScene(s));
         if (chosen) {   // 曲送りで 選んだ 曲
             if (s.mode === MODES.RASH && !(s.rash.phase === RASH_PHASES.TOKKA)) rashSong = chosen;
             if (s.mode === MODES.SUPER_RASH && !(s.rash.phase === RASH_PHASES.TOKKA)) superSong = chosen;
             return chosen;
         }
-        if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.REVIVAL) return 'defeat';   // 復活待ちは負けたように見せる
         if (StateMachine.isRashMode(s) && s.rash.phase === RASH_PHASES.TOKKA) {
             // 上乗せ特化ゾーンは 見せ方ごとの 曲 (2026-11-13 ユーザー指定。Suno の 曲を 置く。sound/SUNO.md)
             const kind = s.rash.tokka.kind;
@@ -144,7 +169,7 @@
         Bgm.init(Sound.context());
         if (audioStarted) return;
         audioStarted = true;
-        Bgm.preload([...RASH_SONGS, ...SUPER_SONGS, ...STAGE_SONGS, ...TOKKA_SONGS]);   // RASH・ステージの 曲が 置いて あるかを 先に 調べる
+        Bgm.preload([...RASH_SONGS, ...SUPER_SONGS, ...STAGE_SONGS, ...DANCE_SONGS, ...TOKKA_SONGS]);   // RASH・ステージの 曲が 置いて あるかを 先に 調べる
     }
     document.addEventListener('pointerdown', startAudio, { once: true });
     document.addEventListener('keydown', startAudio, { once: true });
@@ -479,7 +504,7 @@
         }
     });
     Reels.init(config, reelElements, stopButtons);
-    UI.init(config, { lever: spinButton, stop1: stopButtons[0], stop2: stopButtons[1], stop3: stopButtons[2] });
+    UI.init(config, { lever: spinButton, stop1: stopButtons[0], stop2: stopButtons[1], stop3: stopButtons[2], buy: buyCoinsButton });   // buy: C キーで コインを 買う (2026-11-16)
     PushButton.init(config);   // PUSH ボタン (2026-10-23 A3)
     Layout.init();   // パソコンでの表示 (一覧 / 全画面)
 

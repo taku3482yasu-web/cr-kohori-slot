@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=6b328649">
+    <link rel="stylesheet" href="css/style.css?v=d5604144">
     <link rel="stylesheet" href="css/cabinet.css?v=3e0c5a11">
 </head>
 <body>
@@ -51,7 +51,7 @@
                 <span id="status-label-spent" class="status-label clickable">TOTAL SPENT:</span>
                 <span class="currency-unit">¥</span><span id="spending-display" class="status-value">0</span>
             </div>
-            <button id="buy-coins-button">BUY COINS</button>
+            <button id="buy-coins-button">BUY COINS<span class="key-hint" data-action="buy"></span></button>
         </div>
 
         <!-- 筐体 (2026-10-23 ユーザー指定: 新しい台に。おにおにの SE城 がテーマ。css/cabinet.css) -->
@@ -146,7 +146,7 @@
             <!-- 石垣の 台座と 金棒の レバー -->
             <div class="controls cab-base">
                 <!-- 全画面のときだけ出す、コイン枚数と BUY (js/layout.js) -->
-                <div class="fs-coins">COINS <span id="fs-coin-display">0</span><button id="fs-buy-button" type="button">BUY</button></div>
+                <div class="fs-coins">COINS <span id="fs-coin-display">0</span><button id="fs-buy-button" type="button">BUY<span class="key-hint" data-action="buy"></span></button></div>
                 <button id="spin-button" aria-label="LEVER ON"><span class="cab-lever" aria-hidden="true"><span class="cab-lever-base"></span><span class="cab-kanabo"><span class="cab-lever-ball"></span></span></span><span class="cab-lever-text">LEVER</span><span class="key-hint" data-action="lever"></span></button>
                 <!-- PUSH ボタン (2026-10-23 A3。js/push.js)。色: 白 < 青 < 赤 < 金 < 虹、激熱は 飛び出す -->
                 <button id="push-button" class="cab-push" type="button" aria-label="PUSH"><span class="cab-push-face">PUSH</span><span class="key-hint" data-action="push"></span></button>
@@ -432,13 +432,13 @@
     </div>
 
     <!-- 読み込み順: 設定 → データ → 各機能 → 起動 -->
-    <script src="js/config.js?v=008b8c92"></script>
+    <script src="js/config.js?v=58544940"></script>
     <script src="js/pixel-hd.js?v=9beba57e"></script>
     <script src="js/sprites.js?v=853589c0"></script>
     <script src="js/backgrounds.js?v=5413cc5c"></script>
     <script src="js/characters.js?v=a1e1a1cf"></script>
     <script src="js/sound-heso.js?v=a8e609e2"></script>
-    <script src="js/audio.js?v=d81ac4eb"></script>
+    <script src="js/audio.js?v=3112fc31"></script>
     <script src="js/state.js?v=4de8620e"></script>
     <script src="js/lottery.js?v=33ee41c6"></script>
     <script src="js/battle.js?v=50daff6e"></script>
@@ -467,12 +467,12 @@
     <script src="js/lcd/ikemen-view.js?v=8ccc29c9"></script>
     <script src="js/lcd/notice-view.js?v=cab2ebe5"></script>
     <script src="js/premium-chance.js?v=f8039eea"></script>
-    <script src="js/lcd.js?v=dfee1d9d"></script>
+    <script src="js/lcd.js?v=4513e269"></script>
     <script src="js/profiles.js?v=9335b576"></script>
-    <script src="js/updates.js?v=5f44ff4a"></script>
+    <script src="js/updates.js?v=56a8c0e1"></script>
     <script src="js/push.js?v=260385cc"></script>
-    <script src="js/ui.js?v=f25a79d1"></script>
+    <script src="js/ui.js?v=4b92fb4a"></script>
     <script src="js/layout.js?v=e9ad7278"></script>
-    <script src="js/main.js?v=5eb92148"></script>
+    <script src="js/main.js?v=ef108ae0"></script>
 </body>
 </html>

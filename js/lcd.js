@@ -97,7 +97,43 @@ const Lcd = (() => {
         const n = state.normal, c = state.challenge;
         held = { cp: n.chancePoint, mini: n.mini ? { ...n.mini } : null, castleWait: n.castleWaitRemaining, challengeLeft: c.gamesRemaining, chanceBoost: c.chanceBoost, normal: state.mode === MODES.NORMAL };
     }
-    function release() { held = null; }
+    function release() {
+        // ゲーム数 (チャンスポイント) は 演出が 始まっても 前の 値の まま。演出に 合わせて 1 ずつ 数えて 増やす (2026-11-16)
+        if (held && held.normal) { cpShown = held.cp; cpTarget = held.cp; cpCounting = true; }
+        held = null;
+    }
+    // ----- ゲーム数 (チャンスポイント) の 数え上げ (2026-11-16 ユーザー指定: ポイントチャンス などで 増える ときは
+    //   撃破率と 同じく 1 ずつ 増やして 見せる。前は 結果の 数字が 先に 出て いた) -----
+    let cpShown = null;      // 液晶に 出して いる 値 (null = state の 値 そのまま)
+    let cpTarget = null;     // いま ここまで 数える (演出で 決める。null = state の 値)
+    let cpCounting = false;  // 結果の 演出中 (演出が 数える 先を 決める)
+    let cpStepAt = 0;
+    const shownCp = () => (held ? held.cp : cpShown ?? state.normal.chancePoint);
+    // total まで 1 ずつ 数える (演出から 呼ぶ)。cpCounting の ときだけ 効く
+    function countCpTo(total) {
+        if (cpShown == null) return;
+        cpTarget = Math.max(cpTarget ?? 0, total);
+    }
+    // 数え 終わるまで 待つ (最大 ms)
+    async function waitCp(ms = 2500) {
+        const end = performance.now() + ms;
+        while (cpShown != null && cpShown < (cpTarget ?? state.normal.chancePoint) && performance.now() < end) await sleep(30);
+    }
+    // 毎フレーム: 1 ずつ 増やす。差が 大きい ほど 速く (ぜんぶで 1 秒くらい)
+    function tickCp(time) {
+        if (cpShown == null || held) return;
+        const target = Math.min(config.chancePoint.threshold, cpCounting ? (cpTarget ?? cpShown) : state.normal.chancePoint);
+        if (!cpCounting && cpShown > target) { cpShown = null; return; }   // 0 に 戻った (SE城へ など): すぐ 合わせる
+        if (cpShown < target) {
+            const diff = target - cpShown;
+            const interval = Math.max(16, Math.min(70, 1000 / diff));
+            if (time - cpStepAt >= interval) {
+                cpShown += 1;
+                cpStepAt = time;
+                Sound.count();
+            }
+        } else if (!cpCounting) cpShown = null;   // 数え 終わった
+    }
     const shownNormal = () => held || { cp: state.normal.chancePoint, mini: state.normal.mini, castleWait: state.normal.castleWaitRemaining,
         challengeLeft: state.challenge.gamesRemaining, chanceBoost: state.challenge.chanceBoost, normal: state.mode === MODES.NORMAL };
     let hanase = null;         // 第 3 停止の「はなせ!!」{ color, until }
@@ -223,6 +259,7 @@ const Lcd = (() => {
         //   (前は 1 回 エラーが 出ると ループが 止まり、画面が 固まって いた)
         requestAnimationFrame(loop);
         try {
+            tickCp(time);
             draw(time);
             drawHotFrame(time);   // 熱いときに 震える 枠 (2026-10-24)
             drawCrackFx(time);    // プレミア: 液晶が ひび割れて おにおに (2026-10-24)
@@ -584,7 +621,7 @@ const Lcd = (() => {
     // ゲーム数 (2026-10-27 ユーザー指定。前の チャンスポイントの ゲージ。右下、ふるカワがしゃべっている間は右上)。
     //   中身は チャンスポイント (1G ごとに +1、チャンス目などで 足す)。ミニゲームが 決まったら 数字が その 色に 変わる (虹は 城突入 確定)
     //   value で表示する値を指定できる (ダンシングステージは結果発表まで増やさない)
-    function drawCpGauge(time, value = shownNormal().cp) {
+    function drawCpGauge(time, value = shownCp()) {
         const label = `${Math.floor(Math.min(value, config.chancePoint.threshold))}G`;
         const size = 14;
         const tw = textWidth(label, size);
@@ -2232,7 +2269,7 @@ const Lcd = (() => {
     async function danceStart() {
         clearMessage();
         await playWipe(true, 300);
-        dance = { hype: 0, hypeAt: 0, cp: state.normal.chancePoint };
+        dance = { hype: 0, hypeAt: 0, cp: shownCp() };
         koori.visible = true;
         await playWipe(false, 300);
         startFlash(DANCE_PINK, 500);
@@ -2274,6 +2311,7 @@ const Lcd = (() => {
                 dance.hypeAt = performance.now();
                 dance.cp = event.total;
             }
+            if (cpShown != null) { cpShown = event.total; cpTarget = event.total; }
             startFlash('#ffd700', 700);
             startShake(config.effects.intensity.shakeLarge, 600);
             Sound.fanfare();
@@ -2283,6 +2321,7 @@ const Lcd = (() => {
             return;   // このあとのマップ移動 (SE城前) の暗転で会場を抜ける
         }
         if (dance) dance.cp = event.total;
+        if (cpShown != null) { cpShown = event.total; cpTarget = event.total; }
         startFlash('#7fe0ff', 500);
         Sound.win();
         showTitle(`+${event.points}G!!`, `ゲーム数 ${event.total}G`, '#7fe0ff', 2000);
@@ -2422,7 +2461,8 @@ const Lcd = (() => {
             Sound.win();
         }
         popups.push({ text: `+${event.amount}G`, color: big ? '#ffd700' : '#9fe6ff', born: performance.now() });
-        await sleep(1100);
+        countCpTo(event.total);   // ゲーム数を 1 ずつ 増やす (2026-11-16)
+        await Promise.all([sleep(1100), waitCp()]);
         bubbles = null;
     }
 
@@ -4139,6 +4179,7 @@ const Lcd = (() => {
         try {
             await playEventList(events);
         } finally {
+            cpCounting = false; cpTarget = null;   // 残りは state の 値まで 数える
             Bgm.endClimax();   // 盛り上がる ところで 止めた 曲を 戻す (同じ 曲なら サビから・RASH などに 切り替わった 曲は 頭から)
         }
     }
@@ -4165,6 +4206,7 @@ const Lcd = (() => {
                     }
                     break;
                 case 'chancePoint':
+                    countCpTo(event.total);   // 1 ずつ 増やす (2026-11-16)
                     if (event.bonus > 0) {
                         const label = event.reason === 'chance' ? 'CHANCE' : 'BONUS';
                         popups.push({ text: `${label} +${event.bonus}`, color: '#ffe45a', born: performance.now() });
