@@ -7,6 +7,7 @@ const UI = (() => {
     const KEY_STORAGE_KEY = 'koori-key-bindings';
     const AUDIO_STORAGE_KEY = 'koori-audio';
     const CAMERA_STORAGE_KEY = 'koori-camera';
+    const ROULETTE_STORAGE_KEY = 'koori-roulette-short';   // 報酬ルーレットを 短く (2026-11-17)
     const KEY_ACTION_LABELS = {
         lever: 'レバー（回転開始）',
         stop1: '左リール STOP',
@@ -54,6 +55,7 @@ const UI = (() => {
             bgmVolume: $('bgm-volume'),
             bgmStyle: $('bgm-style'),
             cameraEnabled: $('camera-enabled'),
+            rouletteShort: $('roulette-short'),
             saveInfo: $('save-info'),
             resetData: $('reset-data-button'),
             resetButton: $('reset-button'),
@@ -387,6 +389,8 @@ const UI = (() => {
         if (!actionId) return;
         e.preventDefault();
         if (e.repeat) return;
+        // 報酬ルーレットの あいだの レバーは 結果まで スキップ (2026-11-17。演出中で レバーが 押せなくても)
+        if (actionId === 'lever' && Lcd.skipRoulette()) return;
         // オープニング・エンディング中のレバーはスキップ (演出中でレバーが押せなくても)
         if (actionId === 'lever' && Lcd.storyActive()) {
             Lcd.skipStory();
@@ -472,6 +476,16 @@ const UI = (() => {
         els.cameraEnabled.addEventListener('change', () => {
             LcdCamera.setEnabled(els.cameraEnabled.checked);
             try { localStorage.setItem(CAMERA_STORAGE_KEY, els.cameraEnabled.checked ? 'on' : 'off'); } catch (e) { /* 保存 できない */ }
+        });
+
+        // 報酬ルーレットを 短く (2026-11-17 やることリスト B。撃破の たびに 入って 長く なった ため)
+        let rouletteShort = false;
+        try { rouletteShort = localStorage.getItem(ROULETTE_STORAGE_KEY) === 'on'; } catch (e) { /* 読めない 環境 */ }
+        Lcd.setRouletteShort(rouletteShort);
+        els.rouletteShort.checked = rouletteShort;
+        els.rouletteShort.addEventListener('change', () => {
+            Lcd.setRouletteShort(els.rouletteShort.checked);
+            try { localStorage.setItem(ROULETTE_STORAGE_KEY, els.rouletteShort.checked ? 'on' : 'off'); } catch (e) { /* 保存 できない */ }
         });
     }
 

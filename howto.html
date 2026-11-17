@@ -244,6 +244,10 @@
         <p id="castle-text"></p>
         <div class="table-wrap"><table id="castle-table"></table></div>
         <p id="castle-oni"></p>
+        <h3>城門と門番</h3>
+        <ul id="gate-list"></ul>
+        <h3>城門の復活</h3>
+        <p id="castle-revival"></p>
         <p class="note">設定が高いほど突入しやすくなります（表は基準の値。設定ごとの倍率は「台の設定」の表を参照）。</p>
     </section>
 
@@ -254,8 +258,11 @@
         <div class="table-wrap"><table id="damage-table"></table></div>
         <h3>撃破率</h3>
         <ul id="kill-list"></ul>
-        <h3>ガードとブレイク</h3>
+        <h3>ガードとアタックチャンス</h3>
         <ul id="guard-list"></ul>
+        <h3>報酬ルーレット</h3>
+        <ul id="roulette-list"></ul>
+        <div class="table-wrap"><table id="roulette-table"></table></div>
         <h3>BATTLE のゲーム数</h3>
         <div class="table-wrap"><table id="games-table"></table></div>
         <h3>必殺技</h3>
@@ -379,12 +386,12 @@
     <a class="back" href="index.html">← ゲームに戻る</a>
 </main>
 
-<script src="js/config.js?v=9a00ba22"></script>
+<script src="js/config.js?v=a0a4afce"></script>
 <script src="js/sprites.js?v=853589c0"></script>
 <script src="js/characters.js?v=eaa6ddc9"></script>
-<script src="js/state.js?v=05a3c053"></script>
+<script src="js/state.js?v=dd9dfa23"></script>
 <script src="js/lottery.js?v=603e8778"></script>
-<script src="js/battle.js?v=4eb7e51e"></script>
+<script src="js/battle.js?v=d5a55c6e"></script>
 <script>
     // 表示する数値はすべて js/config.js から作る (数値を調整してもこのページは自動で追従する)
     const c = window.GAME_CONFIG;
@@ -515,7 +522,17 @@
     $('castle-oni').innerHTML = `チャレンジ中に <b>7・7・BAR</b>（${odds(c.lottery.castleChallenge.sevenBar)}）が揃えば必ず突入し、<span class="red">最初の相手は おにおに</span>！`;
     table('castle-table', ['出目', '突入率'],
         Object.entries(c.castle.entryRate).sort((a, b) => b[1] - a[1])
-            .map(([role, r]) => [`${roleView(role)} ${SYMBOL_NAMES[role]}`, pct(r)]));
+            .map(([role, r]) => [`${roleView(role)} ${SYMBOL_NAMES[role]}`, pct(r < 1 ? r * (c.castle.entryScale ?? 1) : r)]));
+    // 城門と門番・城門の復活 (2026-11-17 やることリスト B)
+    const cf = c.challengeFx, kp = cf.keepers;
+    const keeperNames = tier => Object.values(kp).filter(k => k.tier === tier).map(k => k.name).join('・');
+    $('gate-list').innerHTML = [
+        `チャレンジの はじめに 城門が 出ます。色は <b>木 ＜ 鉄 ＜ <span class="red">赤</span> ＜ <span class="gold">金の SE城門</span></b>。赤は 突入率が 高い（仲間・オーラ）ほど 出やすく、<span class="gold">金は 突入確定</span>！`,
+        `門を まもるのは 鬼鬼団。期待度は <b>${keeperNames(1)} ＜ ${keeperNames(2)} ＜ ${keeperNames(3)} ＜ <span class="red">${keeperNames(4)}</span> ＜ <span class="gold">${keeperNames('sure')}（突入確定）</span></b>。突入率が 高いほど 強い 門番が 出やすくなります`,
+        `設定示唆の 門番: <b>${kp.onigirin.name}</b> ＝ 偶数設定 示唆・<b>${kp.hyoutanoni.name}</b> ＝ <span class="red">設定2 以上 確定</span>・<b>${kp.goukioni.name}</b> ＝ <span class="gold">設定4 以上 確定</span>`,
+        `突入が 決まった ゲームでは「ひびきまくり群」が 出ることも（出たら 突入確定）`
+    ].map(t => `<li>${t}</li>`).join('');
+    $('castle-revival').innerHTML = `${c.castle.challengeGames}G で 突入 できなかったとき、<b>${pct(c.castle.revivalRate)}</b> で 復活！ 門の 前が 暗いまま 止まったら チャンス。次の レバー ON で 暗転 → 7揃い → <span class="gold">「こおりまだまえる！」</span> 門を ぶち破って 突入します。チャンスポイントの 持ち越しは 復活しなかったときだけ。`;
 
     // RASH
     $('rash-list').innerHTML = [
@@ -542,10 +559,23 @@
     $('guard-list').innerHTML = [
         '相手はガードすることがあり、ダメージを受けても倒れずに耐えます（「ガード!」）',
         `<b>BAR揃い・7揃い・7・7・BAR</b> はガードを崩して確定撃破（「ガードブレイク!!」）`,
-        `<b>チェリー</b>が揃うと ${pct(c.breakState.rates.cherry)}、<b>チャンス目</b>が出ると ${pct(c.breakState.rates.chance)} で <b>ブレイク状態</b>。撃破率が ${pct(c.killRate.breakAdd)} 上がります`,
+        `<b>チェリー</b>が揃うと ${pct(c.breakState.rates.cherry)}、<b>チャンス目</b>が出ると ${pct(c.breakState.rates.chance)} で <span class="red">アタックチャンス!!</span>。敵は ガード できなくなり、撃破率が ${pct(c.killRate.breakAdd)} 上がります。こおりくんの 攻撃は ダダダッと 当てる <b>連撃</b> か、溜めて 大きく 1 回の <b>一撃</b> で 見せます`,
         `ガードされても、<b>リプレイ</b> ${pct(c.finalBlow.rates.replay)}・<b>ダイヤ</b> ${pct(c.finalBlow.rates.diamond)}・<b>スイカ</b> ${pct(c.finalBlow.rates.melon)} で <b>とどめの一撃!</b>。ガード無視の 1 ダメージで撃破します`
     ].map(t => `<li>${t}</li>`).join('');
     const totalW = list => list.reduce((s, g) => s + g.weight, 0);
+    // 報酬ルーレット (2026-11-17 やることリスト B)
+    const rr = c.rewardRoulette;
+    $('roulette-list').innerHTML = [
+        '敵を 倒すたびに 報酬ルーレット！ まず <b>基本の 報酬</b>（かならず もらえる）が 光り、PUSH で ルーレットが 回って <b>追加の 報酬</b> が 決まります（RASH の ゲーム数は 減りません）',
+        `凍りつく「バキバキッ！」で <b>1 段 上へ昇格</b>（${pct(rr.upgradeRate)}。何段も 続くことも。BAR揃い・7揃いなどの とどめなら 出やすい）`,
+        `<span class="gold">ともいし乱入</span>（${pct(rr.tomoishiRate)}）なら いちばん 上の マスへ！`,
+        `<b>アタックチャンス</b> 中の 敵を 倒すと <span class="red">アタックチャンスボーナス</span>で かならず もう 1 段（いちばん 上なら +${rr.breakTopCoins}枚）`,
+        'SUPER 中は 良い マスが 出やすい。「次の BATTLE」の 報酬は 次の 1 回だけ',
+        '⚙ SETTINGS の「報酬ルーレットを 短く」で 結果だけ 見せられます。とちゅうで レバー か 液晶を 押しても 結果まで 飛ばせます'
+    ].map(t => `<li>${t}</li>`).join('');
+    const rrNames = Object.fromEntries([...c.enemies, c.goldDog].map(e => [e.id, e.name]));
+    table('roulette-table', ['敵', '基本の 報酬', 'マス（下ほど 出にくい）'],
+        Object.entries(rr.enemies).map(([id, t]) => [rrNames[id] || id, bonusText(t.base), t.slots.map(sl => sl.label).join(' ／ ')]));
     table('games-table', ['ゲーム数', '開始時', '「？？」から継続時'],
         c.rash.initialGames.map((g, i) => [
             `${g.games}G`,
@@ -604,13 +634,16 @@
         Characters.drawEnemy(cv.getContext('2d'), id, cv.width / 2, cv.height, { scale });
         return cv;
     };
+    // 撃破ボーナスは 報酬ルーレットの 基本の 報酬 + ルーレット (2026-11-16 から)
+    const rrBonus = e => c.rewardRoulette && c.rewardRoulette.enabled && c.rewardRoulette.enemies[e.id]
+        ? `${bonusText(c.rewardRoulette.enemies[e.id].base)}<br><span class="tag">+ 報酬ルーレット</span>` : bonusText(e.bonus);
     const normalTotal = c.enemies.filter(e => !e.requiresUnlock).reduce((s, e) => s + e.weight, 0);
     const rows = c.enemies.map(e => [
         '', `<b>${e.name}</b>${e.requiresUnlock ? `<br><span class="tag">${c.rash.oni.unlockStreak}連で出現・${c.rash.oni.maxStreak}連から${pct(c.rash.oni.maxRate)}</span>` : ''}`,
-        e.hp, bonusText(e.bonus), e.requiresUnlock ? '出にくい' : pct(e.weight / normalTotal)
+        e.hp, rrBonus(e), e.requiresUnlock ? '出にくい' : pct(e.weight / normalTotal)
     ]);
     rows.push(['', `<b class="gold">${c.goldDog.name}</b><br><span class="tag">SUPER限定</span>`, c.goldDog.hp,
-        `${bonusText(c.goldDog.bonus)}<br>次の相手はおにおに確定`, odds(c.goldDog.prob)]);
+        `${rrBonus(c.goldDog)}<br>次の相手はおにおに確定`, odds(c.goldDog.prob)]);
     table('enemy-table', ['', '名前', 'HP', '撃破ボーナス', '出現率'], rows);
     const ids = [...c.enemies.map(e => e.id), c.goldDog.id];
     [...$('enemy-table').querySelectorAll('tbody tr')].forEach((tr, i) => tr.children[0].appendChild(enemyCanvas(ids[i])));

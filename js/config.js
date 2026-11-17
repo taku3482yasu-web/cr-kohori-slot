@@ -22,14 +22,16 @@ window.GAME_CONFIG = {
         weights: { 1: 40, 2: 25, 3: 15, 4: 10, 5: 6, 6: 4 },
         multipliers: {
             // 2026-10-27: 城突入率は 継続率を 上げる 前の 値に 戻した (ユーザー指定)。出玉率は ミニゲーム (config.mini) で 合わせる
-            1: { chance: 0.80, castleEntry: 0.95, pointBig: 0.94 },
+            1: { chance: 0.75, castleEntry: 0.95, pointBig: 0.94 },
             //   チャンス目の 倍率 (chance) は、ミニゲームに 入る 抽選にも 効くので 設定2〜6 を 合わせ直した (前は 0.87 / 0.88 / 1.24 / 1.73 / 2.50)
             //   2026-10-28: BAR揃いの 緑以上 ミニゲーム・宝物庫の いまの BATTLE への 上乗せ で 上がった ぶん を 合わせ直した (前は chance 0.84 / 0.90 / 0.96 / 1.15 / 1.45 / 1.85、castleEntry 4〜6 が 1.25 / 1.76 / 2.55)
-            2: { chance: 0.86, castleEntry: 0.98, pointBig: 0.98 },
-            3: { chance: 0.91, castleEntry: 1.00, pointBig: 1.00 },
+            //   2026-11-17: おにおに乱入・報酬ルーレット・城門の 復活で 設定1 108.8%・設定6 145.1% に ふくらんだので 目標 (設定1 97%・設定3 100% 未満・設定5 114%・設定6 約130%) に 合わせ直した。
+            //   ミニゲームの mult を 0.4 倍・castle.entryScale 0.55→0.30・乱入の 率を 半分 に して、chance を 設定1 0.80→0.75 / 2 0.86→0.82 / 3 0.91→0.86 / 6 1.78→1.95 に
+            2: { chance: 0.82, castleEntry: 0.98, pointBig: 0.98 },
+            3: { chance: 0.86, castleEntry: 1.00, pointBig: 1.00 },
             4: { chance: 1.10, castleEntry: 1.20, pointBig: 1.28 },
             5: { chance: 1.45, castleEntry: 1.68, pointBig: 1.62 },
-            6: { chance: 1.78, castleEntry: 2.30, pointBig: 2.15 }
+            6: { chance: 1.95, castleEntry: 2.30, pointBig: 2.15 }
         }
     },
 
@@ -150,17 +152,18 @@ window.GAME_CONFIG = {
     //     bar は 緑 (おにおに特訓) 以上 確定 (2026-10-28 ユーザー指定。トイレ探しは 出ない)
     //   rainbow: 虹 (ミニゲーム 成功 + 城突入 確定) に なる 確率 (count / chance / bar ごと)
     // 数字は Claude が 決めた (出玉率に 合わせた。1 回の 成功率は トイレ探し 約35% < 特訓 約47% < 響かせ 約58% < ふるカワジャッジ 約74%)
+    // 2026-11-17: 出玉率を 目標に 戻すため mult を 全部 0.4 倍に (前は トイレ 2.3・特訓 3.6・響かせ 5.6・ジャッジ 9.1。上の 成功率は 前の 値)
     mini: {
         triggers: { chance: 0.35, melon: 0.06 },   // BAR揃いは 必ず ミニゲーム (select.bar)
         early: { from: 100, rate: 0.01 },   // 100G から 150G までの あいだ、1G ごとに ミニゲームに なる 確率 (規定の ゲーム数と 同じ 扱い。数字は Claude が 決めた)
         kinds: {
-            toilet: { name: 'こおりくんのトイレ探しチャレンジ', short: 'トイレ探し', color: '#4f9bff', games: 5, mult: 2.3,
+            toilet: { name: 'こおりくんのトイレ探しチャレンジ', short: 'トイレ探し', color: '#4f9bff', games: 5, mult: 0.92,
                 success: 'トイレ発見!!', fail: 'まにあわなかった…', miss: ['ここじゃない…', 'あっちかな…？', 'もれそう…!!'] },
-            training: { name: 'おにおに特訓チャレンジ', short: 'おにおに特訓', color: '#3fdf6f', games: 5, mult: 3.6, revealAtEnd: true,
+            training: { name: 'おにおに特訓チャレンジ', short: 'おにおに特訓', color: '#3fdf6f', games: 5, mult: 1.44, revealAtEnd: true,
                 success: '特訓クリア!!', fail: 'つぶれた…', miss: ['まだまだ!!', 'あと 100 回!!', 'ぐぬぬ…'] },
-            hibiki: { name: 'ひびきまくり響かせチャレンジ', short: '響かせ', color: '#c070ff', games: 5, mult: 5.6,
+            hibiki: { name: 'ひびきまくり響かせチャレンジ', short: '響かせ', color: '#c070ff', games: 5, mult: 2.24,
                 success: '響いた!!', fail: '響かなかった…', miss: ['響かない…', 'もっと 大きく!!', 'もう一回!!'] },
-            judge: { name: 'ふるカワジャッジ', short: 'ふるカワジャッジ', color: '#ff3a3a', games: 5, mult: 9.1,
+            judge: { name: 'ふるカワジャッジ', short: 'ふるカワジャッジ', color: '#ff3a3a', games: 5, mult: 3.64,
                 success: 'ジャッジ: 合格!!', fail: 'ジャッジ: 不合格…', miss: ['うーん…', 'まだ わからないよ', 'どうしようかな…'] }
         },
         rates: { chance: 1, seven: 1, sevenBar: 1, bar: 0.6, melon: 0.35, cherry: 0.2, diamond: 0.08, bell: 0.03, replay: 0.03, miss: 0.02 },
@@ -429,8 +432,9 @@ window.GAME_CONFIG = {
         // 城突入チャレンジの 復活 (2026-11-16 ユーザー決定: claude_code_3_adjusted.md 2-4 ②。出玉が 変わる 仕組み)。
         //   5G で 突入 できなかった とき revivalRate の 率で 復活 (門の 前で 暗いまま 止まり、次の レバー ON で 7揃い → 門を ぶち破って 突入)。
         //   復活の ぶん、確定で ない 役の 突入率に entryScale を かけて 下げ、復活込みで 今の 成功率に 合わせた (出玉シミュレーターで 確かめた)
+        //   2026-11-17: 出玉率を 目標に 戻すため 0.55 → 0.30
         revivalRate: 0.1,
-        entryScale: 0.55
+        entryScale: 0.30
     },
 
     // ----- おにおにRASH -----
@@ -677,7 +681,8 @@ window.GAME_CONFIG = {
     // プレミア演出「CHANCE ボタン」(2026-11-14 ユーザー指定。js/premium-chance.js): 当たりが 決まった 場面の うち たまに だけ。
     //   onioni: おにおにへの とどめの 一撃 / naitei: 内定の時ゾーンの 突破 / tokka: 特化ゾーンの 大きな 上乗せ (minAdd 枚 以上)。出玉は 変えない
     premiumChance: { onioni: 0.06, naitei: 0.06, tokka: 0.05, minAdd: 100 },
-    ranyu: { atStart: 0.006, atAttack: 0.0015, baseRate: 0.72, name: 'おにおに・怪' },
+    // 2026-11-17: 出玉率を 目標に 戻すため 乱入の 率を 半分に (前は atStart 0.006・atAttack 0.0015)
+    ranyu: { atStart: 0.003, atAttack: 0.00075, baseRate: 0.72, name: 'おにおに・怪' },
 
     // ----- ブレイク -----
     // BATTLE 中に rates の役が出たとき、その確率でブレイク状態に (今の敵を倒すか RASH が終わるまで続く)。

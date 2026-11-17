@@ -4406,63 +4406,93 @@ const Lcd = (() => {
     //   結果は もう 決まって いる (r)。基本の 報酬が 光って 確定 → PUSH で 回る → 止まる → 凍りつく「バキバキッ！」で 昇格 →
     //   ともいし乱入 (いちばん 上へ) → アタックチャンスボーナス (もう 1 段) → まとめ
     let rouletteView = null;   // { labels, base, cursor, lit (確定した マス), msg, start }
+    // スキップ・短く (2026-11-17 やることリスト B): ルーレットの あいだに レバー か 液晶を 押すと 結果まで 飛ばす (Lcd.skipRoulette)。
+    //   ⚙ SETTINGS の「報酬ルーレットを 短く」(setRouletteShort) なら はじめから 結果だけ。結果は もう 決まって いるので 見せ方だけ
+    let rouletteShort = false;
+    let rouletteSkip = null;   // { skipped, wake: Set (待って いる sleep を 起こす) }
+    const rouletteLive = () => !(rouletteSkip && rouletteSkip.skipped);
+    function rsleep(ms) {
+        if (!rouletteLive()) return Promise.resolve();
+        return new Promise(resolve => {
+            const done = () => { clearTimeout(timer); rouletteSkip && rouletteSkip.wake.delete(done); resolve(); };
+            const timer = setTimeout(done, ms);
+            rouletteSkip.wake.add(done);
+        });
+    }
+    function skipRoulette() {
+        if (!rouletteView || !rouletteSkip || rouletteSkip.skipped) return false;
+        rouletteSkip.skipped = true;
+        [...rouletteSkip.wake].forEach(wake => wake());
+        if (PushButton.isActive()) PushButton.cancel();
+        return true;
+    }
     async function playRewardRoulette(r) {
         const baseText = r.base.type === 'tokka' ? '上乗せ特化ゾーン 確定' : bonusText(r.base).replace(' GET!!', '');
         rouletteView = { labels: r.labels, base: baseText, cursor: -1, lit: false, start: performance.now(), baseLit: false };
-        await sleep(300);
+        rouletteSkip = { skipped: rouletteShort, wake: new Set() };
+        const live = rouletteLive;
+        await rsleep(300);
         rouletteView.baseLit = true;
-        startFlash('#7fffd4', 300);
-        Sound.win();
-        await sleep(800);
-        await PushButton.wait({ tier: 'gold', pop: false, mode: 'tap' });   // PUSH で 回す (押さなくても 進む)
+        if (live()) { startFlash('#7fffd4', 300); Sound.win(); }
+        await rsleep(800);
+        if (live()) {
+            rouletteView.hint = true;   // 「レバーで スキップ」の 小さな 文字
+            await PushButton.wait({ tier: 'gold', pop: false, mode: 'tap' });   // PUSH で 回す (押さなくても 進む)
+        }
         // 回る: だんだん 遅く なって r.start で 止まる
         const n = r.labels.length;
         let wait = 50, pos = 0;
         const turns = n * 2 + r.start;
-        for (let i = 0; i <= turns; i++) {
+        for (let i = 0; i <= turns && live(); i++) {
             pos = i % n;
             rouletteView.cursor = pos;
             Sound.stop(0);
-            await sleep(wait);
+            await rsleep(wait);
             if (i > turns - n - 2) wait = Math.min(260, wait * 1.25);
         }
         rouletteView.cursor = r.start;
         rouletteView.lit = true;
-        Sound.chance();
-        await sleep(600);
+        if (live()) Sound.chance();
+        await rsleep(600);
         let idx = r.start, step = 0;
         const up = async (label) => {
-            Sound.freezeJudge();
-            startFlash('#bfefff', 250);
-            startShake(config.effects.intensity.shakeSmall, 200);
-            rouletteView.msg = label;
-            await sleep(450);
+            if (live()) {
+                Sound.freezeJudge();
+                startFlash('#bfefff', 250);
+                startShake(config.effects.intensity.shakeSmall, 200);
+                rouletteView.msg = label;
+            }
+            await rsleep(450);
             idx = Math.min(n - 1, idx + 1);
             rouletteView.cursor = idx;
-            Sound.brassStep(step++);
-            await sleep(500);
+            if (live()) Sound.brassStep(step++);
+            await rsleep(500);
         };
         for (let i = 0; i < r.upgrades; i++) await up('バキバキッ！ 昇格!!');
         if (r.tomoishi) {
-            Sound.tomoishiDark();
-            startShake(config.effects.intensity.shakeLarge, 700);
-            startFlash('#ffd700', 400);
-            rouletteView.msg = 'ともいし「内定はまだなの？もっと上を目指しなさい！」';
-            await sleep(1600);
+            if (live()) {
+                Sound.tomoishiDark();
+                startShake(config.effects.intensity.shakeLarge, 700);
+                startFlash('#ffd700', 400);
+                rouletteView.msg = 'ともいし「内定はまだなの？もっと上を目指しなさい！」';
+            }
+            await rsleep(1600);
             idx = n - 1;
             rouletteView.cursor = idx;
-            Sound.brassStep(6);
-            Sound.kakutei();
-            await sleep(700);
+            if (live()) { Sound.brassStep(6); Sound.kakutei(); }
+            await rsleep(700);
         }
         if (r.breakBonus) {
             if (r.breakCoins) {
-                Sound.ketsugo();
-                rouletteView.msg = `アタックチャンスボーナス！ +${r.breakCoins}枚!!`;
-                await sleep(1100);
+                if (live()) {
+                    Sound.ketsugo();
+                    rouletteView.msg = `アタックチャンスボーナス！ +${r.breakCoins}枚!!`;
+                }
+                await rsleep(1100);
             } else await up('アタックチャンスボーナス！もう1段昇格！！');
         }
         rouletteView.msg = null;
+        rouletteSkip = null;
         if (r.reward && r.reward.memberId && !party.includes(r.reward.memberId)) {   // 仲間が 1 人 加わる
             party.push(r.reward.memberId);
             animateTo(jumpOf(r.reward.memberId), -12, 150).then(() => animateTo(jumpOf(r.reward.memberId), 0, 150));
@@ -4499,6 +4529,8 @@ const Lcd = (() => {
             let size = 12;
             while (size > 8 && textWidth(v.msg, size) > W - 8) size--;
             text(v.msg, W / 2, by + bh + 2, { color: '#ffe45a', size, align: 'center' });
+        } else if (v.hint && rouletteLive()) {
+            text('レバー か 液晶で スキップ', bx + bw - 4, by + 3, { color: '#7f9fbf', size: 7, align: 'right', outline: null });
         }
     }
 
@@ -5221,6 +5253,9 @@ const Lcd = (() => {
         setHandlers: h => { handlers = h; },
         playOpening: () => StoryView.play('opening'),
         skipStory: () => StoryView.skip(),
+        skipRoulette,
+        rouletteActive: () => Boolean(rouletteView),
+        setRouletteShort: on => { rouletteShort = Boolean(on); },
         storyActive: () => StoryView.active(),
         hideTrophy: () => TrophyView.hide(),
         showEndCard: id => EndCardView.show(id),

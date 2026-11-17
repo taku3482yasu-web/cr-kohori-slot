@@ -156,5 +156,8 @@ const PushButton = (() => {
         setTimeout(() => resolve({ charged: full }), 450);
     }
 
-    return { init, wait, hitLever, isActive: () => Boolean(active), leverActive: () => Boolean(active && active.lever) };
+    // 外から 止める (報酬ルーレットの スキップ。2026-11-17)
+    function cancel() { finish(); }
+
+    return { init, wait, hitLever, cancel, isActive: () => Boolean(active), leverActive: () => Boolean(active && active.lever) };
 })();

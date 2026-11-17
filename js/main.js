@@ -215,6 +215,8 @@
             Lcd.tokkaSelectInput('lever');
             return;
         }
+        // 報酬ルーレットの あいだの レバーは 結果まで スキップ (2026-11-17)
+        if (Lcd.skipRoulette()) return;
         // オープニング中のレバーはスキップ
         if (Lcd.storyActive()) {
             Lcd.skipStory();
@@ -681,7 +683,7 @@
     });
 
     // オープニング: はじめて遊ぶとき (保存データがないとき)・リセットしたあと・台移動したあとに流す。液晶かレバーを押すとスキップ
-    document.getElementById('lcd').addEventListener('click', () => Lcd.skipStory());   // オープニング・エンディング
+    document.getElementById('lcd').addEventListener('click', () => { if (!Lcd.skipRoulette()) Lcd.skipStory(); });   // 報酬ルーレット (2026-11-17)・オープニング・エンディング
     const openingRequested = SaveData.takeOpeningRequest();
     const opening = !savedState || openingRequested ? Lcd.playOpening() : Promise.resolve();
 
